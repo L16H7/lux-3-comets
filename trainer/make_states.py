@@ -56,12 +56,14 @@ def make_states(config: Config):
     )
 
     ### --------- RESUME HERE --------- ###
+    '''
     actor_checkpoint_path = './checkpoints/40_actor'
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     actor_network_params = orbax_checkpointer.restore(actor_checkpoint_path)
 
-    critic_checkpoint_path = './checkpoints/40_criticactor'
+    critic_checkpoint_path = './checkpoints/40_critic'
     critic_network_params = orbax_checkpointer.restore(critic_checkpoint_path)
+    '''
     ### ------------------------------- ###
 
 

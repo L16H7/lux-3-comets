@@ -1,3 +1,4 @@
+import distrax
 import jax
 import jax.numpy as jnp
 from flax.training.train_state import TrainState
@@ -68,7 +69,7 @@ def ppo_update(
     advantages = advantages * units_mask
 
     def _loss_fn(actor_params, critic_params):
-        dist, _ = actor_train_state.apply_fn(
+        logits, _ = actor_train_state.apply_fn(
             actor_params,
             actor_hstates,
             {
@@ -86,6 +87,11 @@ def ppo_update(
                 "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 4], axis=2),
             }
         )
+        logits1, logits2, logits3 = logits
+        dist1 = distrax.Categorical(logits=logits1)
+        dist2 = distrax.Categorical(logits=logits2)
+        dist3 = distrax.Categorical(logits=logits3)
+        dist = distrax.Joint([dist1, dist2, dist3])
 
         n_steps, n_agents = transitions.observations.shape[:2]
         log_probs = dist.log_prob(

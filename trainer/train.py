@@ -20,6 +20,7 @@ from functools import partial
 from time import time
 from typing import NamedTuple
 
+from agent import get_actions
 from config import Config
 from evaluate import evaluate
 from luxai_s3.env import LuxAIS3Env
@@ -154,7 +155,6 @@ def make_train(config: Config):
             meta_env_params = jax.vmap(sample_params)(
                 jax.random.split(meta_env_params_rng, config.n_envs)
             )
-            jax.debug.breakpoint()
 
             p0_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2)) * -1
             p1_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2)) * -1
@@ -199,7 +199,7 @@ def make_train(config: Config):
                     p0_team_positions = jnp.expand_dims(jnp.repeat(p0_team_positions, config.n_agents, axis=0), axis=0)
                     p0_opponent_positions = jnp.expand_dims(jnp.repeat(p0_opponent_positions, config.n_agents, axis=0), axis=0)
 
-                    p0_dist, p0_actor_hstates = actor_train_state.apply_fn(
+                    p0_logits, p0_actor_hstates = actor_train_state.apply_fn(
                         actor_train_state.params,
                         p0_prev_actor_hstates,
                         {
@@ -217,6 +217,14 @@ def make_train(config: Config):
                             "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 4], axis=[0, -1]),
                         }
                     )
+                    rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
+                    p0_actions, p0_log_probs = get_actions(
+                        p0_action_rng,
+                        p0_logits,
+                        observations['player_0']
+                    )
+                    p0_actions = jnp.squeeze(jnp.stack(p0_actions), axis=1)
+                    p0_actions = p0_actions.T.reshape(config.n_envs, config.n_agents, -1)
 
                     p0_values, p0_critic_hstates = critic_train_state.apply_fn(
                         critic_train_state.params,
@@ -231,10 +239,6 @@ def make_train(config: Config):
                         }
                     )
 
-                    rng, p0_action_rng = jax.random.split(rng)
-                    p0_actions, p0_log_probs = p0_dist.sample_and_log_prob(seed=p0_action_rng)
-                    p0_actions = jnp.squeeze(jnp.stack(p0_actions), axis=1)
-                    p0_actions = p0_actions.T.reshape(config.n_envs, config.n_agents, -1)
 
                     (
                         p1_states,
@@ -254,7 +258,7 @@ def make_train(config: Config):
                     p1_team_positions = jnp.expand_dims(jnp.repeat(p1_team_positions, config.n_agents, axis=0), axis=0)
                     p1_opponent_positions = jnp.expand_dims(jnp.repeat(p1_opponent_positions, config.n_agents, axis=0), axis=0)
 
-                    p1_dist, p1_actor_hstates = actor_train_state.apply_fn(
+                    p1_logits, p1_actor_hstates = actor_train_state.apply_fn(
                         actor_train_state.params,
                         p1_prev_actor_hstates,
                         {
@@ -273,6 +277,14 @@ def make_train(config: Config):
                         }
                     )
 
+                    p1_actions, p1_log_probs = get_actions(
+                        p1_action_rng,
+                        p1_logits,
+                        observations['player_1']
+                    )
+                    p1_actions = jnp.squeeze(jnp.stack(p1_actions), axis=1)
+                    p1_actions = p1_actions.T.reshape(config.n_envs, config.n_agents, -1)
+
                     p1_values, p1_critic_hstates = critic_train_state.apply_fn(
                         critic_train_state.params,
                         p1_prev_critic_hstates,
@@ -285,11 +297,6 @@ def make_train(config: Config):
                             "opponent_points": jnp.expand_dims(p1_episode_info[:, 4], axis=[0, -1]),
                         }
                     )
-
-                    rng, p1_action_rng = jax.random.split(rng)
-                    p1_actions, p1_log_probs = p1_dist.sample_and_log_prob(seed=p1_action_rng)
-                    p1_actions = jnp.squeeze(jnp.stack(p1_actions), axis=1)
-                    p1_actions = p1_actions.T.reshape(config.n_envs, config.n_agents, -1)
 
                     p0_relic_mask = observations['player_0'].relic_nodes != -1
                     p0_new_discovered_relic_nodes = jnp.where(
@@ -628,10 +635,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
@@ -698,9 +705,9 @@ if __name__ == "__main__":
         n_actor_steps=8,
         n_update_steps=1,
         # n_update_steps=4,
-        n_envs=4,
-        n_envs_per_device=1,
-        n_eval_envs=4,
-        n_minibatches=2,
+        n_envs=2,
+        n_envs_per_device=2,
+        n_eval_envs=1,
+        n_minibatches=1,
     )
     train(config=config)

@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 from collections import OrderedDict
 
+from agent import get_actions
 from rnn import ScannedRNN
 from utils import calculate_sapping_stats
 
@@ -91,7 +92,7 @@ def evaluate(
         p0_team_positions = jnp.expand_dims(jnp.repeat(p0_team_positions, n_agents, axis=0), axis=0)
         p0_opponent_positions = jnp.expand_dims(jnp.repeat(p0_opponent_positions, n_agents, axis=0), axis=0)
 
-        p0_dist, p0_actor_hstates = actor_train_state.apply_fn(
+        p0_logits, p0_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
             p0_prev_actor_hstates,
             {
@@ -110,8 +111,12 @@ def evaluate(
             }
         )
 
-        rng, action_rng = jax.random.split(rng)
-        p0_actions, _ = p0_dist.sample_and_log_prob(seed=action_rng)
+        rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
+        p0_actions, _ = get_actions(
+            p0_action_rng,
+            p0_logits,
+            observations['player_0']
+        )
         p0_actions = jnp.squeeze(jnp.stack(p0_actions), axis=1)
         p0_actions = p0_actions.T.reshape(n_envs, n_agents, -1)
 
@@ -133,7 +138,7 @@ def evaluate(
         p1_team_positions = jnp.expand_dims(jnp.repeat(p1_team_positions, n_agents, axis=0), axis=0)
         p1_opponent_positions = jnp.expand_dims(jnp.repeat(p1_opponent_positions, n_agents, axis=0), axis=0)
 
-        p1_dist, p1_actor_hstates = actor_train_state.apply_fn(
+        p1_logits, p1_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
             p1_prev_actor_hstates,
             {
@@ -152,7 +157,11 @@ def evaluate(
             }
         )
 
-        p1_actions, _ = p1_dist.sample_and_log_prob(seed=action_rng)
+        p1_actions, _ = get_actions(
+            p1_action_rng,
+            p1_logits,
+            observations['player_1']
+        )
         p1_actions = jnp.squeeze(jnp.stack(p1_actions), axis=1)
         p1_actions = p1_actions.T.reshape(n_envs, n_agents, -1)
 
