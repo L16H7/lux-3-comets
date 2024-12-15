@@ -113,9 +113,11 @@ def evaluate(
 
         rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
         p0_actions, _ = get_actions(
-            p0_action_rng,
-            p0_logits,
-            observations['player_0']
+            rng=p0_action_rng,
+            team_idx=0,
+            opponent_idx=1,
+            logits=p0_logits,
+            observations=observations['player_0']
         )
         p0_actions = jnp.squeeze(jnp.stack(p0_actions), axis=1)
         p0_actions = p0_actions.T.reshape(n_envs, n_agents, -1)
@@ -158,9 +160,11 @@ def evaluate(
         )
 
         p1_actions, _ = get_actions(
-            p1_action_rng,
-            p1_logits,
-            observations['player_1']
+            rng=p1_action_rng,
+            team_idx=1,
+            opponent_idx=0,
+            logits=p1_logits,
+            observations=observations['player_1'],
         )
         p1_actions = jnp.squeeze(jnp.stack(p1_actions), axis=1)
         p1_actions = p1_actions.T.reshape(n_envs, n_agents, -1)
