@@ -92,22 +92,23 @@ def ppo_update(
         )
         logits1, logits2, logits3 = logits
         
+        large_negative = -1e9
         masked_logits1 = jnp.where(
             jnp.expand_dims(transitions.logits1_mask, axis=1),
             logits1,
-            -jnp.inf,
+            large_negative,
         )
 
         masked_logits2 = jnp.where(
             jnp.expand_dims(transitions.logits2_mask, axis=1),
             logits2,
-            -jnp.inf,
+            large_negative,
         )
 
         masked_logits3 = jnp.where(
             jnp.expand_dims(transitions.logits3_mask, axis=1),
             logits3,
-            -jnp.inf,
+            large_negative
         )
 
         dist1 = distrax.Categorical(logits=masked_logits1)

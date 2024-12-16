@@ -112,9 +112,10 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3_mask = jnp.expand_dims(logits3_mask, axis=0)
 
     logits1, logits2, logits3 = logits
-    masked_logits1 = jnp.where(logits1_mask, logits1, -jnp.inf)
-    masked_logits2 = jnp.where(logits2_mask, logits2, -jnp.inf)
-    masked_logits3 = jnp.where(logits3_mask, logits3, -jnp.inf)
+    large_negative = -1e9
+    masked_logits1 = jnp.where(logits1_mask, logits1, large_negative)
+    masked_logits2 = jnp.where(logits2_mask, logits2, large_negative)
+    masked_logits3 = jnp.where(logits3_mask, logits3, large_negative)
 
     '''
     sap_range_clip = Constants.MAX_SAP_RANGE - 1
