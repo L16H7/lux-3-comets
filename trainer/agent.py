@@ -17,7 +17,9 @@ directions = jnp.array(
 )
 
 @jax.jit
-def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_range: int = 3):
+def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges):
+    n_envs = observations.units.position.shape[0]
+    
     new_positions = observations.units.position[:, team_idx, ..., None, :] + directions
 
     in_bounds = (
@@ -84,9 +86,30 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits2 = jnp.where(jnp.expand_dims(attack_x, axis=0), logits2, -jnp.inf)
     logits3 = jnp.where(jnp.expand_dims(attack_y, axis=0), logits3, -jnp.inf)
 
+    def mask_logits_slice(logits_slice, cutoff):
+        cols = logits_slice.shape[1]
+        mask = jnp.arange(cols) < cutoff
+        logits_slice = jnp.where(mask[None, :], -jnp.inf, logits_slice)
+        
+        mask2 = jnp.arange(cols) > (16 - cutoff)
+        logits_slice = jnp.where(mask2[None, :], -jnp.inf, logits_slice)
+        return logits_slice
+
+    masked_logits2 = jax.vmap(mask_logits_slice, in_axes=(0, 0))(logits2.reshape(n_envs, -1, 17), sap_ranges)
+    masked_logits3 = jax.vmap(mask_logits_slice, in_axes=(0, 0))(logits3.reshape(n_envs, -1, 17), sap_ranges)
+
+    '''
+    sap_range_clip = Constants.MAX_SAP_RANGE - 1
+    logits2 = logits2.at[..., : sap_range_clip].set(-100)
+    logits2 = logits2.at[..., -sap_range_clip:].set(-100)
+
+    logits3 = logits3.at[..., : sap_range_clip].set(-100)
+    logits3 = logits3.at[..., -sap_range_clip:].set(-100)
+    '''
+
     dist1 = distrax.Categorical(logits=logits1)
-    dist2 = distrax.Categorical(logits=logits2)
-    dist3 = distrax.Categorical(logits=logits3)
+    dist2 = distrax.Categorical(logits=masked_logits2.reshape(1, -1, 17))
+    dist3 = distrax.Categorical(logits=masked_logits3.reshape(1, -1, 17))
     dist = distrax.Joint([dist1, dist2, dist3])
 
     actions, log_probs = dist.sample_and_log_prob(seed=rng)
