@@ -8,7 +8,6 @@ from constants import Constants
 
 directions = jnp.array(
     [
-        [0, 0],     # NO-OP
         [0, -1],    # Move up
         [1, 0],     # Move right
         [0, 1],     # Move down
@@ -17,7 +16,8 @@ directions = jnp.array(
     dtype=jnp.int16,
 )
 
-def get_actions(rng, team_idx, opponent_idx, logits, observations, sap_range=3):
+@jax.jit
+def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_range: int = 3):
     new_positions = observations.units.position[:, team_idx, ..., None, :] + directions
 
     in_bounds = (
@@ -27,8 +27,8 @@ def get_actions(rng, team_idx, opponent_idx, logits, observations, sap_range=3):
 
     is_asteroid = (observations.map_features.tile_type == Constants.ASTEROID_TILE)[
         0, 
+        new_positions[..., 0].clip(0, Constants.MAP_WIDTH - 1),
         new_positions[..., 1].clip(0, Constants.MAP_HEIGHT - 1),
-        new_positions[..., 0].clip(0, Constants.MAP_WIDTH - 1)
     ]
     valid_movements = in_bounds & (~is_asteroid)
 
@@ -72,7 +72,8 @@ def get_actions(rng, team_idx, opponent_idx, logits, observations, sap_range=3):
 
     action1_mask = jnp.concat(
         [ 
-            valid_movements.reshape(1, -1, 5),
+            jnp.ones((1, attack_available.shape[0], 1)),
+            valid_movements.reshape(1, -1, 4),
             attack_available.reshape(1, -1, 1) 
         ],
         axis=-1
