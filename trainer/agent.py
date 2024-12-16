@@ -134,6 +134,11 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     actions = jnp.squeeze(jnp.stack(actions), axis=1)
     actions = actions.T.reshape(n_envs, 16, -1)
-    jax.debug.breakpoint()
 
-    return actions, log_probs
+    logits_mask = [
+        logits1_mask,
+        logits2_mask,
+        logits3_mask
+    ]
+
+    return actions, log_probs, logits_mask

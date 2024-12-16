@@ -112,7 +112,7 @@ def evaluate(
         )
 
         rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
-        p0_actions, _ = get_actions(
+        p0_actions, _, _ = get_actions(
             rng=p0_action_rng,
             team_idx=0,
             opponent_idx=1,
@@ -158,7 +158,7 @@ def evaluate(
             }
         )
 
-        p1_actions, _ = get_actions(
+        p1_actions, _, _ = get_actions(
             rng=p1_action_rng,
             team_idx=1,
             opponent_idx=0,

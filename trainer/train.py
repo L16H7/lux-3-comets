@@ -218,7 +218,7 @@ def make_train(config: Config):
                         }
                     )
                     rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
-                    p0_actions, p0_log_probs = get_actions(
+                    p0_actions, p0_log_probs, p0_logits_mask = get_actions(
                         rng=p0_action_rng,
                         team_idx=0,
                         opponent_idx=1,
@@ -278,7 +278,7 @@ def make_train(config: Config):
                         }
                     )
 
-                    p1_actions, p1_log_probs = get_actions(
+                    p1_actions, p1_log_probs, p1_logits_mask = get_actions(
                         rng=p1_action_rng,
                         team_idx=1,
                         opponent_idx=0,
@@ -346,6 +346,9 @@ def make_train(config: Config):
                         relic_nodes_positions=jnp.squeeze(jnp.concat([p0_relic_nodes_positions, p1_relic_nodes_positions], axis=1), axis=0),
                         dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(2 * config.n_agents),
                         units_mask=jnp.concat([p0_units_mask.reshape(-1), p1_units_mask.reshape(-1)], axis=0),
+                        logits1_mask=jnp.concat([p0_logits_mask[0], p1_logits_mask[0]], axis=0),
+                        logits2_mask=jnp.concat([p0_logits_mask[1], p1_logits_mask[1]], axis=0),
+                        logits3_mask=jnp.concat([p0_logits_mask[2], p1_logits_mask[2]], axis=0),
                     )
 
                     runner_state = RunnerState(
@@ -637,10 +640,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())

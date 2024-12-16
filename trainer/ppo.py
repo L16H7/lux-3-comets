@@ -22,6 +22,9 @@ class Transition(NamedTuple):
     relic_nodes_positions: jnp.ndarray
     rewards: jnp.ndarray
     dones: jnp.ndarray
+    logits1_mask: jnp.ndarray
+    logits2_mask: jnp.ndarray
+    logits3_mask: jnp.ndarray
 
 
 def calculate_gae(
@@ -88,9 +91,28 @@ def ppo_update(
             }
         )
         logits1, logits2, logits3 = logits
-        dist1 = distrax.Categorical(logits=logits1)
-        dist2 = distrax.Categorical(logits=logits2)
-        dist3 = distrax.Categorical(logits=logits3)
+        
+        masked_logits1 = jnp.where(
+            transitions.logits1_mask,
+            logits1,
+            -jnp.inf,
+        )
+
+        masked_logits2 = jnp.where(
+            transitions.logits2_mask,
+            logits2,
+            -jnp.inf,
+        )
+
+        masked_logits3 = jnp.where(
+            transitions.logits3_mask,
+            logits3,
+            -jnp.inf,
+        )
+
+        dist1 = distrax.Categorical(logits=masked_logits1)
+        dist2 = distrax.Categorical(logits=masked_logits2)
+        dist3 = distrax.Categorical(logits=masked_logits3)
         dist = distrax.Joint([dist1, dist2, dist3])
 
         n_steps, n_agents = transitions.observations.shape[:2]
