@@ -321,8 +321,8 @@ def make_train(config: Config):
                     p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, _ = v_step(
                         states,
                         OrderedDict({
-                            "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 4),
-                            "player_1": p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - 4),
+                            "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 8),
+                            "player_1": p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - 8),
                         }),
                         p0_new_discovered_relic_nodes,
                         p1_new_discovered_relic_nodes,
