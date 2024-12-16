@@ -112,7 +112,6 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3_mask = jnp.expand_dims(logits3_mask, axis=0)
 
     logits1, logits2, logits3 = logits
-    jax.debug.breakpoint()
     masked_logits1 = jnp.where(logits1_mask, logits1, -jnp.inf)
     masked_logits2 = jnp.where(logits2_mask, logits2, -jnp.inf)
     masked_logits3 = jnp.where(logits3_mask, logits3, -jnp.inf)
@@ -132,5 +131,9 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     dist = distrax.Joint([dist1, dist2, dist3])
 
     actions, log_probs = dist.sample_and_log_prob(seed=rng)
+
+    actions = jnp.squeeze(jnp.stack(actions), axis=1)
+    actions = actions.T.reshape(n_envs, 16, -1)
     jax.debug.breakpoint()
+
     return actions, log_probs

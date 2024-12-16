@@ -226,8 +226,6 @@ def make_train(config: Config):
                         observations=observations['player_0'],
                         sap_ranges=meta_env_params.unit_sap_range,
                     )
-                    p0_actions = jnp.squeeze(jnp.stack(p0_actions), axis=1)
-                    p0_actions = p0_actions.T.reshape(config.n_envs, config.n_agents, -1)
 
                     p0_values, p0_critic_hstates = critic_train_state.apply_fn(
                         critic_train_state.params,
@@ -288,8 +286,6 @@ def make_train(config: Config):
                         observations=observations['player_1'],
                         sap_ranges=meta_env_params.unit_sap_range,
                     )
-                    p1_actions = jnp.squeeze(jnp.stack(p1_actions), axis=1)
-                    p1_actions = p1_actions.T.reshape(config.n_envs, config.n_agents, -1)
 
                     p1_values, p1_critic_hstates = critic_train_state.apply_fn(
                         critic_train_state.params,
@@ -641,10 +637,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
@@ -708,12 +704,12 @@ def train(config: Config):
 if __name__ == "__main__":
     config = Config(
         n_meta_steps=1,
-        n_actor_steps=8,
-        n_update_steps=1,
+        n_actor_steps=16,
+        n_update_steps=32,
         # n_update_steps=4,
-        n_envs=2,
-        n_envs_per_device=2,
+        n_envs=4,
+        n_envs_per_device=4,
         n_eval_envs=1,
-        n_minibatches=1,
+        n_minibatches=2,
     )
     train(config=config)
