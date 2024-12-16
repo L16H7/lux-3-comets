@@ -95,6 +95,17 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         logits_slice = jnp.where(mask2[None, :], -jnp.inf, logits_slice)
         return logits_slice
 
+    logits2 = jnp.where(
+        jnp.expand_dims(attack_available, axis=[0, -1]) == 0,
+        0,
+        logits2
+    )
+    logits3 = jnp.where(
+        jnp.expand_dims(attack_available, axis=[0, -1]) == 0,
+        0,
+        logits3
+    )
+
     masked_logits2 = jax.vmap(mask_logits_slice, in_axes=(0, 0))(logits2.reshape(n_envs, -1, 17), sap_ranges)
     masked_logits3 = jax.vmap(mask_logits_slice, in_axes=(0, 0))(logits3.reshape(n_envs, -1, 17), sap_ranges)
 
