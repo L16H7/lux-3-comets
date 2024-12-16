@@ -72,7 +72,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     attack_available = attack_x.sum(-1) & attack_y.sum(-1) & ((diff.sum(-1) < (4 * Constants.MAX_SAP_RANGE)).sum(-1) > 0)
 
-    action1_mask = jnp.concat(
+    logits1_mask = jnp.concat(
         [ 
             jnp.ones((1, attack_available.shape[0], 1)),
             valid_movements.reshape(1, -1, 4),
@@ -81,33 +81,41 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         axis=-1
     )
 
-    logits1, logits2, logits3 = logits
-    logits1 = jnp.where(action1_mask, logits1, -jnp.inf)
-    logits2 = jnp.where(jnp.expand_dims(attack_x, axis=0), logits2, -jnp.inf)
-    logits3 = jnp.where(jnp.expand_dims(attack_y, axis=0), logits3, -jnp.inf)
-
-    def mask_logits_slice(logits_slice, cutoff):
+    def mask_sap_range(logits_slice, sap_range):
         cols = logits_slice.shape[1]
-        mask = jnp.arange(cols) < cutoff
-        logits_slice = jnp.where(mask[None, :], -jnp.inf, logits_slice)
+        mask = jnp.arange(cols) < sap_range
+        logits_slice = jnp.where(mask[None, :], 0, logits_slice)
         
-        mask2 = jnp.arange(cols) > (16 - cutoff)
-        logits_slice = jnp.where(mask2[None, :], -jnp.inf, logits_slice)
+        mask2 = jnp.arange(cols) > (16 - sap_range)
+        logits_slice = jnp.where(mask2[None, :], 0, logits_slice)
         return logits_slice
 
-    logits2 = jnp.where(
-        jnp.expand_dims(attack_available, axis=[0, -1]) == 0,
-        0,
-        logits2
-    )
-    logits3 = jnp.where(
-        jnp.expand_dims(attack_available, axis=[0, -1]) == 0,
-        0,
-        logits3
-    )
+    sap_range_mask = jnp.ones((n_envs, 16, 17), sap_ranges)
+    sap_range_mask = jax.vmap(mask_sap_range, in_axes=(0, 0))(sap_range_mask, sap_ranges)
+    sap_range_mask = sap_range_mask.reshape(-1, 17)
 
-    masked_logits2 = jax.vmap(mask_logits_slice, in_axes=(0, 0))(logits2.reshape(n_envs, -1, 17), sap_ranges)
-    masked_logits3 = jax.vmap(mask_logits_slice, in_axes=(0, 0))(logits3.reshape(n_envs, -1, 17), sap_ranges)
+    logits2_mask = attack_x & sap_range_mask
+    logits3_mask = attack_y & sap_range_mask
+
+    logits2_mask = jnp.where(
+        jnp.expand_dims(attack_available, axis=-1).repeat(17, axis=-1) == 0,
+        1,
+        logits2_mask
+    )
+    logits2_mask = jnp.expand_dims(logits2_mask, axis=0)
+
+    logits3_mask = jnp.where(
+        jnp.expand_dims(attack_available, axis=-1).repeat(17, axis=-1) == 0,
+        1,
+        logits3_mask
+    )
+    logits3_mask = jnp.expand_dims(logits3_mask, axis=0)
+
+    logits1, logits2, logits3 = logits
+    jax.debug.breakpoint()
+    masked_logits1 = jnp.where(logits1_mask, logits1, -jnp.inf)
+    masked_logits2 = jnp.where(logits2_mask, logits2, -jnp.inf)
+    masked_logits3 = jnp.where(logits3_mask, logits3, -jnp.inf)
 
     '''
     sap_range_clip = Constants.MAX_SAP_RANGE - 1
@@ -118,10 +126,11 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3 = logits3.at[..., -sap_range_clip:].set(-100)
     '''
 
-    dist1 = distrax.Categorical(logits=logits1)
+    dist1 = distrax.Categorical(logits=masked_logits1)
     dist2 = distrax.Categorical(logits=masked_logits2.reshape(1, -1, 17))
     dist3 = distrax.Categorical(logits=masked_logits3.reshape(1, -1, 17))
     dist = distrax.Joint([dist1, dist2, dist3])
 
     actions, log_probs = dist.sample_and_log_prob(seed=rng)
+    jax.debug.breakpoint()
     return actions, log_probs
