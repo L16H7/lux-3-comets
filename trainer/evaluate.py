@@ -171,8 +171,8 @@ def evaluate(
         p1_actions = jnp.squeeze(jnp.stack(p1_actions), axis=1)
         p1_actions = p1_actions.T.reshape(n_envs, n_agents, -1)
 
-        p0_actions = p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 4)
-        p1_actions = p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - 4)
+        p0_actions = p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 8)
+        p1_actions = p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - 8)
 
         p0_relic_mask = observations['player_0'].relic_nodes != -1
         p0_new_discovered_relic_nodes = jnp.where(
