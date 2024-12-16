@@ -68,7 +68,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     y = diff[..., 1]
     attack_y = update_bool_array_jit(bool_array, y)
 
-    attack_available = attack_x.sum(-1) & attack_y.sum(-1)
+    attack_available = attack_x.sum(-1) & attack_y.sum(-1) & ((diff.sum(-1) < (4 * Constants.MAX_SAP_RANGE)).sum(-1) > 0)
 
     action1_mask = jnp.concat(
         [ 
