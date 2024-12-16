@@ -34,17 +34,15 @@ def get_actions(rng, team_idx, opponent_idx, logits, observations, sap_range=3):
 
     team_positions = observations.units.position[:, team_idx, ...]
     opponent_positions = observations.units.position[:, opponent_idx, ...]
-    jax.debug.breakpoint()
     opponent_positions = jnp.where(
         opponent_positions == -1,
         -100,
         opponent_positions
     )
-    jax.debug.breakpoint()
 
     opponent_positions = opponent_positions + Constants.MAX_SAP_RANGE
     diff = -team_positions[:, :, None, :] + opponent_positions[:, None, :, :]
-    diff = jnp.where(diff < 0, 2 * Constants.MAX_SAP_RANGE, diff)
+    diff = jnp.where(diff < 0, -100, diff)
 
     # Function to set True for one row given indices
     def set_true_row(bool_array, indices):
@@ -71,9 +69,20 @@ def get_actions(rng, team_idx, opponent_idx, logits, observations, sap_range=3):
     attack_y = update_bool_array_jit(bool_array, y)
 
     attack_available = attack_x.sum(-1) & attack_y.sum(-1)
-    jax.debug.breakpoint()
+
+    action1_mask = jnp.concat(
+        [ 
+            valid_movements.reshape(1, -1, 5),
+            attack_available.reshape(1, -1, 1) 
+        ],
+        axis=-1
+    )
 
     logits1, logits2, logits3 = logits
+    logits1 = jnp.where(action1_mask, logits1, -jnp.inf)
+    logits2 = jnp.where(jnp.expand_dims(attack_x, axis=0), logits2, -jnp.inf)
+    logits3 = jnp.where(jnp.expand_dims(attack_y, axis=0), logits3, -jnp.inf)
+
     dist1 = distrax.Categorical(logits=logits1)
     dist2 = distrax.Categorical(logits=logits2)
     dist3 = distrax.Categorical(logits=logits3)
