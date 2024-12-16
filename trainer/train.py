@@ -346,9 +346,9 @@ def make_train(config: Config):
                         relic_nodes_positions=jnp.squeeze(jnp.concat([p0_relic_nodes_positions, p1_relic_nodes_positions], axis=1), axis=0),
                         dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(2 * config.n_agents),
                         units_mask=jnp.concat([p0_units_mask.reshape(-1), p1_units_mask.reshape(-1)], axis=0),
-                        logits1_mask=jnp.concat([p0_logits_mask[0], p1_logits_mask[0]], axis=0),
-                        logits2_mask=jnp.concat([p0_logits_mask[1], p1_logits_mask[1]], axis=0),
-                        logits3_mask=jnp.concat([p0_logits_mask[2], p1_logits_mask[2]], axis=0),
+                        logits1_mask=jnp.squeeze(jnp.concat([p0_logits_mask[0], p1_logits_mask[0]], axis=1), axis=0),
+                        logits2_mask=jnp.squeeze(jnp.concat([p0_logits_mask[1], p1_logits_mask[1]], axis=1), axis=0),
+                        logits3_mask=jnp.squeeze(jnp.concat([p0_logits_mask[2], p1_logits_mask[2]], axis=1), axis=0),
                     )
 
                     runner_state = RunnerState(
@@ -709,10 +709,11 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        # n_update_steps=4,
-        n_envs=4,
-        n_envs_per_device=4,
-        n_eval_envs=1,
-        n_minibatches=2,
+        n_envs=1024,
+        n_envs_per_device=1024,
+        n_eval_envs=512,
+        n_minibatches=8,
+        actor_learning_rate=3e-4,
+        critic_learning_rate=3e-4,
     )
     train(config=config)

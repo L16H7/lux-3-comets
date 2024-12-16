@@ -93,19 +93,19 @@ def ppo_update(
         logits1, logits2, logits3 = logits
         
         masked_logits1 = jnp.where(
-            transitions.logits1_mask,
+            jnp.expand_dims(transitions.logits1_mask, axis=1),
             logits1,
             -jnp.inf,
         )
 
         masked_logits2 = jnp.where(
-            transitions.logits2_mask,
+            jnp.expand_dims(transitions.logits2_mask, axis=1),
             logits2,
             -jnp.inf,
         )
 
         masked_logits3 = jnp.where(
-            transitions.logits3_mask,
+            jnp.expand_dims(transitions.logits3_mask, axis=1),
             logits3,
             -jnp.inf,
         )
