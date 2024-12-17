@@ -7,6 +7,28 @@ from constants import Constants
 NEBULA_TILE = 1
 ASTEROID_TILE = 2
 
+def transform_coordinates(coordinates):
+    # Constants
+    MAP_WIDTH = 24
+    MAP_HEIGHT = 24
+    
+    # Adjust for horizontal flip: (x, y) -> (MAP_WIDTH - 1 - x, y)
+    flipped_positions = jnp.stack([MAP_WIDTH - 1 - coordinates[:,:,0], coordinates[:,:,1]], axis=-1)
+    
+    # Adjust for 90-degree rotation clockwise: (MAP_WIDTH - 1 - x, y) -> (y, MAP_WIDTH - 1 - x)
+    rotated_positions = jnp.stack([MAP_HEIGHT - 1 - flipped_positions[:,:,1], flipped_positions[:,:,0]], axis=-1)
+    
+    return rotated_positions
+
+def transform_observation(obs):
+    # Horizontal flip across the last dimension (24, 24 grids)
+    flipped = jnp.flip(obs, axis=3)
+    
+    # Rotate 90 degrees clockwise after flip, across the last two dimensions (24x24)
+    rotated = jnp.rot90(flipped, k=-1, axes=(2, 3))
+    
+    return rotated
+
 def create_relic_nodes_maps(relic_nodes):
     n_envs, n_relic_nodes, _ = relic_nodes.shape
     relic_nodes_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.int32)
@@ -91,8 +113,6 @@ def create_agent_patches(state_representation, unit_positions_team):
 def create_representations(
     obs,
     discovered_relic_nodes,
-    map_height,
-    map_width,
     max_steps_in_match=100,
     team_idx=0,
     enemy_idx=1,
@@ -138,22 +158,38 @@ def create_representations(
     ]
 
     state_representation = jnp.stack(maps, axis=1)
+    state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
     match_phases = jnp.minimum(obs.match_steps[:, None] // 25, 3) # 4 phases
     matches = jnp.minimum(obs.steps[:, None] // max_steps_in_match, 4) # 5 matches
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
-    team_points = team_points / 200.0
+    team_points = team_points / 400.0
 
     episode_info = jnp.concatenate((match_phases, matches, team_points), axis=1)
+
+    unit_positions_team = unit_positions_team if team_idx == 0 else transform_coordinates(unit_positions_team)
+    unit_positions_team = jnp.where(
+        unit_positions_team == 24,
+        -1,
+        unit_positions_team,
+    )
+ 
+    unit_positions_enemy = unit_positions_enemy if team_idx == 0 else transform_coordinates(unit_positions_enemy)
+    unit_positions_enemy = jnp.where(
+        unit_positions_enemy == 24,
+        -1,
+        unit_positions_enemy,
+    )
     
     agent_observations = create_agent_patches(
         state_representation=state_representation,
         unit_positions_team=unit_positions_team,
     )
-    agent_positions = (unit_positions_team + 1) / map_height
-    opponent_positions = (unit_positions_enemy + 1) / map_height
-    relic_nodes_positions = (discovered_relic_nodes + 1) / map_height
+    agent_positions = (unit_positions_team + 1) / Constants.MAP_HEIGHT
+    opponent_positions = (unit_positions_enemy + 1) / Constants.MAP_HEIGHT
+    relic_nodes_positions = (discovered_relic_nodes + 1) / Constants.MAP_HEIGHT
 
+    jax.debug.breakpoint()
     return (
         state_representation,
         agent_observations,

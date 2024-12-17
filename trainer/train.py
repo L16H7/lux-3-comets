@@ -56,8 +56,6 @@ def create_agent_representations(observations, p0_discovered_relic_nodes, p1_dis
     p0_representations = create_representations(
         obs=p0_observations,
         discovered_relic_nodes=p0_discovered_relic_nodes,
-        map_width=config.map_width,
-        map_height=config.map_height,
         team_idx=0,
         enemy_idx=1,
     )
@@ -66,8 +64,6 @@ def create_agent_representations(observations, p0_discovered_relic_nodes, p1_dis
     p1_representations = create_representations(
         obs=p1_observations,
         discovered_relic_nodes=p1_discovered_relic_nodes,
-        map_width=config.map_width,
-        map_height=config.map_height,
         team_idx=1,
         enemy_idx=0,
     )
@@ -640,10 +636,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
@@ -709,10 +705,10 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=1024,
-        n_envs_per_device=1024,
-        n_eval_envs=512,
-        n_minibatches=8,
+        n_envs=4,
+        n_envs_per_device=4,
+        n_eval_envs=4,
+        n_minibatches=4,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
     )

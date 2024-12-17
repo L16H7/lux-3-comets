@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 from unittest.mock import patch
 
-from representation import create_relic_nodes_maps, create_unit_maps
+from representation import create_relic_nodes_maps, create_unit_maps, transform_coordinates
 from constants import Constants
 
 @pytest.fixture
@@ -196,3 +196,19 @@ def test_create_unit_maps2(mock_constants2):
     # Now check that the unit maps and energy maps are exactly as expected
     assert jnp.all(unit_maps == expected_unit_maps)
     assert jnp.all(unit_energy_maps == expected_unit_energy_maps)
+
+def test_transform_coordinates():
+    input_positions = jnp.array([[[0, 0], [23, 23], [12, 0], [0, 23]],
+                                [[23, 0], [0, 23], [12, 23], [23, 0]],
+                                [[11, 11], [12, 12], [13, 13], [14, 14]],
+                                [[0, 12], [23, 12], [12, 20], [12, 0]]])
+
+    # Expected output after horizontal flip and 90-degree rotation clockwise
+    expected_output = jnp.array([[[23, 23], [0, 0], [23, 11], [0, 23]],
+                                    [[23, 0], [0, 23], [0, 11], [23, 0]],
+                                    [[12, 12], [11, 11], [10, 10], [9, 9]],
+                                    [[11, 23], [11, 0], [3, 11], [23, 11]]])
+
+    transformed_positions = transform_coordinates(input_positions)
+
+    assert jnp.array_equal(transformed_positions, expected_output)
