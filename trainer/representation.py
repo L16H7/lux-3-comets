@@ -12,14 +12,12 @@ def create_relic_nodes_maps(relic_nodes):
     relic_nodes_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.int32)
     env_indices = jnp.repeat(jnp.arange(n_envs), n_relic_nodes)      # Shape: [n_envs * n_relic_nodes]
 
-    # Flatten relic nodes and their masks
     relic_nodes_flat = relic_nodes.reshape(-1, 2)
 
     # Calculate possible positions directly
     relic_x_positions = relic_nodes_flat[:, 0].astype(jnp.int32)
     relic_y_positions = relic_nodes_flat[:, 1].astype(jnp.int32)
 
-    # Apply mask directly in the assignment to avoid dynamic shapes
     relic_nodes_maps = relic_nodes_maps.at[env_indices, relic_y_positions, relic_x_positions].set(1)
 
     return relic_nodes_maps
@@ -28,12 +26,10 @@ def create_unit_maps(
     unit_positions,
     unit_masks,
     unit_energy,
-    map_width,
-    map_height,
 ):
     n_envs, n_units, _ = unit_positions.shape
-    unit_maps = jnp.zeros((n_envs, map_height, map_width), dtype=jnp.int32)
-    unit_energy_maps = jnp.zeros((n_envs, map_height, map_width), dtype=jnp.float32)
+    unit_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.int32)
+    unit_energy_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.float32)
     env_indices = jnp.repeat(jnp.arange(n_envs), n_units)
     
     unit_positions_flat = unit_positions.reshape(-1, 2)

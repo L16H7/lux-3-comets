@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 from unittest.mock import patch
 
-from representation import create_relic_nodes_maps
+from representation import create_relic_nodes_maps, create_unit_maps
 from constants import Constants
 
 @pytest.fixture
@@ -102,3 +102,97 @@ def test_create_relic_nodes_maps2(mock_constants2):
 
     # Alternatively, for a more detailed failure message, you could use numpy.testing
     np.testing.assert_array_equal(relic_nodes_maps, expected_maps)
+
+def test_create_unit_maps(mock_constants2):
+    # Arrange
+    n_envs = 2
+    n_units = 3
+
+    # Define unit positions as [[[x1, y1], [x2, y2], [x3, y3]], [[x1, y1], [x2, y2], [x3, y3]]]
+    unit_positions = jnp.array([
+        [[1, 2], [2, 3], [5, 5]],
+        [[0, 2], [4, 4], [9, 4]]
+    ])
+    # Define unit masks, 1 where unit exists, 0 otherwise
+    unit_masks = jnp.array([
+        [1, 1, 0],
+        [1, 0, 1]
+    ])
+    # Define unit energy
+    unit_energy = jnp.array([
+        [100, 150, 0],
+        [200, 0, 300]
+    ])
+
+    # Expected unit maps and energy maps based on above inputs
+    expected_unit_maps = jnp.zeros((n_envs, 10, 10), dtype=jnp.int32)
+    expected_unit_maps = expected_unit_maps.at[0, 2, 1].set(1)
+    expected_unit_maps = expected_unit_maps.at[0, 3, 2].set(1)
+    expected_unit_maps = expected_unit_maps.at[1, 2, 0].set(1)
+    expected_unit_maps = expected_unit_maps.at[1, 4, 9].set(1)
+
+    expected_unit_energy_maps = jnp.zeros((n_envs, 10, 10), dtype=jnp.float32)
+    expected_unit_energy_maps = expected_unit_energy_maps.at[0, 2, 1].set(100)
+    expected_unit_energy_maps = expected_unit_energy_maps.at[0, 3, 2].set(150)
+    expected_unit_energy_maps = expected_unit_energy_maps.at[1, 2, 0].set(200)
+    expected_unit_energy_maps = expected_unit_energy_maps.at[1, 4, 9].set(300)
+
+    # Act
+    unit_maps, unit_energy_maps = create_unit_maps(unit_positions, unit_masks, unit_energy)
+
+    # Assert
+    # Check the shape first
+    assert unit_maps.shape == (n_envs, 10, 10)
+    assert unit_energy_maps.shape == (n_envs, 10, 10)
+
+    # Now check that the unit maps and energy maps are exactly as expected
+    assert jnp.all(unit_maps == expected_unit_maps)
+    assert jnp.all(unit_energy_maps == expected_unit_energy_maps)
+
+def test_create_unit_maps2(mock_constants2):
+    # Arrange
+    n_envs = 2
+    n_units = 3
+
+    # Define unit positions as [[[x1, y1], [x2, y2], [x3, y3]], [[x1, y1], [x2, y2], [x3, y3]]]
+    unit_positions = jnp.array([
+        [[1, 2], [2, 3], [5, 5], [4, 3]],
+        [[0, 2], [4, 4], [9, 4], [0, 2]]
+    ])
+    # Define unit masks, 1 where unit exists, 0 otherwise
+    unit_masks = jnp.array([
+        [1, 1, 0, 1],
+        [1, 0, 1, 1]
+    ])
+    # Define unit energy
+    unit_energy = jnp.array([
+        [100, 150, 0, 3],
+        [200, 0, 300, 4]
+    ])
+
+    # Expected unit maps and energy maps based on above inputs
+    expected_unit_maps = jnp.zeros((n_envs, 10, 10), dtype=jnp.int32)
+    expected_unit_maps = expected_unit_maps.at[0, 2, 1].set(1)
+    expected_unit_maps = expected_unit_maps.at[0, 3, 2].set(1)
+    expected_unit_maps = expected_unit_maps.at[0, 3, 4].set(1)
+    expected_unit_maps = expected_unit_maps.at[1, 2, 0].set(2)
+    expected_unit_maps = expected_unit_maps.at[1, 4, 9].set(1)
+
+    expected_unit_energy_maps = jnp.zeros((n_envs, 10, 10), dtype=jnp.float32)
+    expected_unit_energy_maps = expected_unit_energy_maps.at[0, 2, 1].set(100)
+    expected_unit_energy_maps = expected_unit_energy_maps.at[0, 3, 2].set(150)
+    expected_unit_energy_maps = expected_unit_energy_maps.at[0, 3, 4].set(3)
+    expected_unit_energy_maps = expected_unit_energy_maps.at[1, 2, 0].set(204)
+    expected_unit_energy_maps = expected_unit_energy_maps.at[1, 4, 9].set(300)
+
+    # Act
+    unit_maps, unit_energy_maps = create_unit_maps(unit_positions, unit_masks, unit_energy)
+
+    # Assert
+    # Check the shape first
+    assert unit_maps.shape == (n_envs, 10, 10)
+    assert unit_energy_maps.shape == (n_envs, 10, 10)
+
+    # Now check that the unit maps and energy maps are exactly as expected
+    assert jnp.all(unit_maps == expected_unit_maps)
+    assert jnp.all(unit_energy_maps == expected_unit_energy_maps)
