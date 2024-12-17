@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 from unittest.mock import patch
 
-from representation import create_relic_nodes_maps, create_unit_maps, transform_coordinates
+from representation import create_relic_nodes_maps, create_unit_maps, transform_coordinates, reconcile_positions
 from constants import Constants
 
 @pytest.fixture
@@ -212,3 +212,29 @@ def test_transform_coordinates():
     transformed_positions = transform_coordinates(input_positions)
 
     assert jnp.array_equal(transformed_positions, expected_output)
+
+@pytest.fixture
+def mock_constants24(monkeypatch):
+    # Mock Constants so that MAP_HEIGHT and MAP_WIDTH are controlled by the test
+    monkeypatch.setattr(Constants, "MAP_HEIGHT", 24)
+    monkeypatch.setattr(Constants, "MAP_WIDTH", 24)
+
+
+def test_reconcile_positions(mock_constants24):
+    positions = jnp.array([
+        [[3, 2], [-1, -1], [2, 1], [-1, -1], [23, 14], [-1, -1]],
+        [[0, 0], [11, 11], [-1, -1], [-1, -1], [-1, -1], [-1, -1]],
+        [[-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1]],
+        [[-1, -1], [-1, -1], [12, 23], [-1, -1], [-1, -1], [-1, -1]],
+        [[-1, -1], [-1, -1], [-1, -1], [21, 21], [-1, -1], [-1, -1]],
+    ])
+    reconciled_positions = reconcile_positions(positions)
+    expected_positions = jnp.array([
+        [[3,  2], [9, 0], [2, 1], [21, 20], [23, 14], [22, 21]],
+        [[0,  0], [11, 11], [-1, -1], [23, 23], [12, 12], [-1, -1]],
+        [[-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1]],
+        [[-1, -1], [-1, -1], [12, 23], [-1, -1], [-1, -1], [0, 11]],
+        [[2, 2], [-1, -1], [-1, -1], [21, 21], [-1, -1], [-1, -1]],
+    ])
+
+    assert jnp.array_equal(reconciled_positions, expected_positions)

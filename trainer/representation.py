@@ -29,6 +29,29 @@ def transform_observation(obs):
     
     return rotated
 
+def reconcile_positions(positions):
+    first_half = positions[:, :3]
+    last_half = positions[:, 3:]
+    
+    # Identify known and unknown positions (positions with -1 are considered unknown)
+    is_known_first_half = jnp.all(first_half != -1, axis=-1)
+    is_known_last_half = jnp.all(last_half != -1, axis=-1)
+    
+    # Transform coordinates for potential updates
+    transformed_first_to_last = transform_coordinates(first_half)
+    transformed_last_to_first = transform_coordinates(last_half)
+
+    # Determine updates needed for unknown positions based on known positions
+    update_first_from_last = jnp.where(is_known_last_half[:, :, None] & ~is_known_first_half[:, :, None],
+                                       transformed_last_to_first, first_half)
+    update_last_from_first = jnp.where(is_known_first_half[:, :, None] & ~is_known_last_half[:, :, None],
+                                       transformed_first_to_last, last_half)
+
+    # Concatenate the updated halves back together
+    reconciled_positions = jnp.concatenate([update_first_from_last, update_last_from_first], axis=1)
+    
+    return reconciled_positions
+
 def create_relic_nodes_maps(relic_nodes):
     n_envs, n_relic_nodes, _ = relic_nodes.shape
     relic_nodes_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.int32)
@@ -125,7 +148,7 @@ def create_representations(
     unit_positions_enemy = obs.units.position[:, enemy_idx, :, :] # Shape: [batch_size, num_enemy_units, 2]
     unit_energies_enemy = obs.units.energy[:, enemy_idx, :]       # Shape: [batch_size, num_enemy_units]
 
-    relic_nodes = discovered_relic_nodes
+    relic_nodes = reconcile_positions(discovered_relic_nodes)
 
     team_unit_maps, team_energy_maps = create_unit_maps(
         unit_positions=unit_positions_team,
@@ -187,9 +210,8 @@ def create_representations(
     )
     agent_positions = (unit_positions_team + 1) / Constants.MAP_HEIGHT
     opponent_positions = (unit_positions_enemy + 1) / Constants.MAP_HEIGHT
-    relic_nodes_positions = (discovered_relic_nodes + 1) / Constants.MAP_HEIGHT
+    relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
 
-    jax.debug.breakpoint()
     return (
         state_representation,
         agent_observations,
