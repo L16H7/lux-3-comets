@@ -111,35 +111,25 @@ def create_representations(
         unit_positions=unit_positions_team,
         unit_energy=unit_energies_team,
         unit_masks=unit_masks_team,
-        map_width=map_width,
-        map_height=map_height,
     )
 
     enemy_unit_maps, enemy_energy_maps = create_unit_maps(
         unit_positions=unit_positions_enemy,
         unit_energy=unit_energies_enemy,
         unit_masks=unit_masks_enemy,
-        map_width=map_width,
-        map_height=map_height,
     )
 
-
-    relic_node_maps = create_relic_nodes_maps(
-        relic_nodes=relic_nodes,
-        relic_nodes_mask=relic_nodes_mask,
-        map_width=map_width,
-        map_height=map_height,
-    )
+    relic_node_maps = create_relic_nodes_maps(relic_nodes=relic_nodes)
 
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
     # SCALE
     maps = [
-        team_unit_maps / 16.0,
-        team_energy_maps / 800.0,
-        enemy_unit_maps / 16.0,
-        enemy_energy_maps / 800.0,
+        team_unit_maps / 8.0,
+        team_energy_maps / 400.0,
+        enemy_unit_maps / 8.0,
+        enemy_energy_maps / 400.0,
         relic_node_maps,
         obs.map_features.energy.transpose((0, 2, 1)) / 20.0,
         asteroid_maps.transpose((0, 2, 1)),
@@ -151,11 +141,10 @@ def create_representations(
 
     match_phases = jnp.minimum(obs.match_steps[:, None] // 25, 3) # 4 phases
     matches = jnp.minimum(obs.steps[:, None] // max_steps_in_match, 4) # 5 matches
-    teams = jnp.ones_like(match_phases, dtype=jnp.int32) * team_idx
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
     team_points = team_points / 200.0
 
-    episode_info = jnp.concatenate((teams, match_phases, matches, team_points), axis=1)
+    episode_info = jnp.concatenate((match_phases, matches, team_points), axis=1)
     
     agent_observations = create_agent_patches(
         state_representation=state_representation,
