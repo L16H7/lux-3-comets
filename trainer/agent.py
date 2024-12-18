@@ -26,6 +26,16 @@ def transform_observation(obs):
     
     return rotated
 
+def vectorized_transform_actions(actions):
+    # Create a JAX array that maps each action index to its new action
+    # Index:      0  1  2  3  4 . 5
+    # Action map: 0  2  1  4  3 . 5
+    action_map = jnp.array([0, 2, 1, 4, 3, 5])
+
+    # Vectorized mapping
+    transformed_actions = action_map[actions]
+    return transformed_actions
+
 # @jax.jit
 def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges):
     n_envs = observations.units.position.shape[0]
