@@ -104,9 +104,17 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
 
     team_positions = observations.units.position[:, team_idx, ...]
+    team_positions = team_positions if team_idx == 0 else transform_coordinates(team_positions)
+
     opponent_positions = observations.units.position[:, opponent_idx, ...]
+    opponent_positions = team_positions if team_idx == 0 else transform_coordinates(team_positions)
     opponent_positions = jnp.where(
         opponent_positions == -1,
+        -100,
+        opponent_positions
+    )
+    opponent_positions = jnp.where(
+        opponent_positions == 24,
         -100,
         opponent_positions
     )
@@ -293,6 +301,10 @@ class Agent():
         actions[0] = actions[0] if self.team_id == 0 else vectorized_transform_actions(actions[0])
         actions[1] -= Constants.MAX_SAP_RANGE
         actions[2] -= Constants.MAX_SAP_RANGE
+
+        if self.team_id == 1:
+            actions[1], actions[2] = actions[2], actions[1]
+
         actions = jnp.squeeze(jnp.stack(actions), axis=1).T
 
 
