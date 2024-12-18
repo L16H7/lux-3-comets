@@ -138,15 +138,15 @@ def create_representations(
     discovered_relic_nodes,
     max_steps_in_match=100,
     team_idx=0,
-    enemy_idx=1,
+    opponent_idx=1,
 ):
     unit_masks_team = obs.units_mask[:, team_idx, :]              # Shape: [batch_size, num_team_units]
     unit_positions_team = obs.units.position[:, team_idx, :, :]   # Shape: [batch_size, num_team_units, 2]
     unit_energies_team = obs.units.energy[:, team_idx, :]         # Shape: [batch_size, num_team_units]
 
-    unit_masks_enemy = obs.units_mask[:, enemy_idx, :]            # Shape: [batch_size, num_enemy_units]
-    unit_positions_enemy = obs.units.position[:, enemy_idx, :, :] # Shape: [batch_size, num_enemy_units, 2]
-    unit_energies_enemy = obs.units.energy[:, enemy_idx, :]       # Shape: [batch_size, num_enemy_units]
+    unit_masks_opponent = obs.units_mask[:, opponent_idx, :]            # Shape: [batch_size, num_opponent_units]
+    unit_positions_opponent = obs.units.position[:, opponent_idx, :, :] # Shape: [batch_size, num_opponent_units, 2]
+    unit_energies_opponent = obs.units.energy[:, opponent_idx, :]       # Shape: [batch_size, num_opponent_units]
 
     relic_nodes = reconcile_positions(discovered_relic_nodes)
 
@@ -156,10 +156,10 @@ def create_representations(
         unit_masks=unit_masks_team,
     )
 
-    enemy_unit_maps, enemy_energy_maps = create_unit_maps(
-        unit_positions=unit_positions_enemy,
-        unit_energy=unit_energies_enemy,
-        unit_masks=unit_masks_enemy,
+    opponent_unit_maps, opponent_energy_maps = create_unit_maps(
+        unit_positions=unit_positions_opponent,
+        unit_energy=unit_energies_opponent,
+        unit_masks=unit_masks_opponent,
     )
 
     relic_node_maps = create_relic_nodes_maps(relic_nodes=relic_nodes)
@@ -171,8 +171,8 @@ def create_representations(
     maps = [
         team_unit_maps / 8.0,
         team_energy_maps / 400.0,
-        enemy_unit_maps / 8.0,
-        enemy_energy_maps / 400.0,
+        opponent_unit_maps / 8.0,
+        opponent_energy_maps / 400.0,
         relic_node_maps,
         obs.map_features.energy.transpose((0, 2, 1)) / 20.0,
         asteroid_maps.transpose((0, 2, 1)),
@@ -197,11 +197,11 @@ def create_representations(
         unit_positions_team,
     )
  
-    unit_positions_enemy = unit_positions_enemy if team_idx == 0 else transform_coordinates(unit_positions_enemy)
-    unit_positions_enemy = jnp.where(
-        unit_positions_enemy == 24,
+    unit_positions_opponent = unit_positions_opponent if team_idx == 0 else transform_coordinates(unit_positions_opponent)
+    unit_positions_opponent = jnp.where(
+        unit_positions_opponent == 24,
         -1,
-        unit_positions_enemy,
+        unit_positions_opponent,
     )
     
     agent_observations = create_agent_patches(
@@ -209,7 +209,7 @@ def create_representations(
         unit_positions_team=unit_positions_team,
     )
     agent_positions = (unit_positions_team + 1) / Constants.MAP_HEIGHT
-    opponent_positions = (unit_positions_enemy + 1) / Constants.MAP_HEIGHT
+    opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
     relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
 
     return (

@@ -57,7 +57,7 @@ def create_agent_representations(observations, p0_discovered_relic_nodes, p1_dis
         obs=p0_observations,
         discovered_relic_nodes=p0_discovered_relic_nodes,
         team_idx=0,
-        enemy_idx=1,
+        opponent_idx=1,
     )
 
     p1_observations = observations["player_1"]
@@ -65,7 +65,7 @@ def create_agent_representations(observations, p0_discovered_relic_nodes, p1_dis
         obs=p1_observations,
         discovered_relic_nodes=p1_discovered_relic_nodes,
         team_idx=1,
-        enemy_idx=0,
+        opponent_idx=0,
     )
     return p0_representations, p1_representations
 
