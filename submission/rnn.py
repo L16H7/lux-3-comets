@@ -1,4 +1,3 @@
-import distrax
 import functools
 import jax
 import math

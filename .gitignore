@@ -5,3 +5,4 @@ checkpoints/
 wandb/
 submission/lux
 submission/checkpoint
+**/*tar.gz
