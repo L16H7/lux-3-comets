@@ -12,6 +12,7 @@ from typing import TypedDict
 class ActorInput(TypedDict):
     observations: jax.Array
     prev_actions: jax.Array
+    teams: jax.Array                # team 0 and team 1
     match_phases: jax.Array         # 4 phases each with 25 steps
     matches: jax.Array              # match number
     positions: jax.Array            # relative position of agent
@@ -48,6 +49,7 @@ class ScannedRNN(nn.Module):
 class Actor(nn.Module):
     n_actions: int = 5
     action_emb_dim: int = 8
+    team_emb_dim: int = 8
     match_phase_emb_dim: int = 8
     match_emb_dim: int = 8
     position_emb_dim: int = 16
@@ -88,6 +90,7 @@ class Actor(nn.Module):
             self.action_emb_dim
         )(actor_input['prev_actions'])
 
+        team_embeddings = nn.Embed(2, self.team_emb_dim)(actor_input['teams'])
         match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(actor_input['match_phases'])
         match_embeddings = nn.Embed(5, self.match_emb_dim)(actor_input['matches'])
 
@@ -126,6 +129,7 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             observation_embeddings,
             prev_action_embeddings,
+            team_embeddings,
             match_phase_embeddings,
             match_embeddings,
             position_embeddings,
@@ -163,6 +167,7 @@ class CriticInput(TypedDict):
  
 
 class Critic(nn.Module):
+    team_emb_dim: int = 16
     match_phase_emb_dim: int = 16
     match_emb_dim: int = 16
     point_info_emb_dim: int = 16
@@ -212,6 +217,7 @@ class Critic(nn.Module):
 
         state_embeddings = state_encoder(critic_input['states'])
 
+        team_embeddings = nn.Embed(2, self.team_emb_dim)(critic_input['teams'])
         match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(critic_input['match_phases'])
         match_embeddings = nn.Embed(5, self.match_emb_dim)(critic_input['matches'])
 
@@ -224,6 +230,7 @@ class Critic(nn.Module):
 
         embeddings = jnp.concat([
             state_embeddings,
+            team_embeddings,
             match_phase_embeddings,
             match_embeddings,
             point_info_embeddings,

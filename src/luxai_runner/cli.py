@@ -55,7 +55,7 @@ class Args:
 def main():
     args = Args(
         # players=["./kits/python/main.py", "./kits/jax_submission/main.py"],
-        players=["./tournaments/jax_submission40m/main.py", "./tournaments/jax_submission285/main.py"],
+        players=["./submission/main.py", "./tournaments/jax_submission285/main.py"],
         seed=7371693,
     )
 
