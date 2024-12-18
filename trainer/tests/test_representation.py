@@ -213,6 +213,38 @@ def test_transform_coordinates():
 
     assert jnp.array_equal(transformed_positions, expected_output)
 
+def test_transform_coordinates2():
+    input_positions = jnp.array([[[[0, 0], [23, 23], [12, 0], [0, 23]],
+                                [[23, 0], [0, 23], [12, 23], [23, 0]],
+                                [[11, 11], [12, 12], [13, 13], [14, 14]],
+                                [[0, 12], [23, 12], [12, 20], [12, 0]]]])
+
+    # Expected output after horizontal flip and 90-degree rotation clockwise
+    expected_output = jnp.array([[[[23, 23], [0, 0], [23, 11], [0, 23]],
+                                    [[23, 0], [0, 23], [0, 11], [23, 0]],
+                                    [[12, 12], [11, 11], [10, 10], [9, 9]],
+                                    [[11, 23], [11, 0], [3, 11], [23, 11]]]])
+
+    transformed_positions = transform_coordinates(input_positions)
+
+    assert jnp.array_equal(transformed_positions, expected_output)
+
+def test_transform_coordinates3():
+    input_positions = jnp.array([[[[0, 0], [23, 23], [12, 0], [0, 23]],
+                                [[23, 0], [0, 23], [12, 23], [23, 0]]],
+                                [[[11, 11], [12, 12], [13, 13], [14, 14]],
+                                [[0, 12], [23, 12], [12, 20], [12, 0]]]])
+
+    # Expected output after horizontal flip and 90-degree rotation clockwise
+    expected_output = jnp.array([[[[23, 23], [0, 0], [23, 11], [0, 23]],
+                                    [[23, 0], [0, 23], [0, 11], [23, 0]]],
+                                    [[[12, 12], [11, 11], [10, 10], [9, 9]],
+                                    [[11, 23], [11, 0], [3, 11], [23, 11]]]])
+
+    transformed_positions = transform_coordinates(input_positions)
+
+    assert jnp.array_equal(transformed_positions, expected_output)
+
 @pytest.fixture
 def mock_constants24(monkeypatch):
     # Mock Constants so that MAP_HEIGHT and MAP_WIDTH are controlled by the test
