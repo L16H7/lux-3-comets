@@ -81,7 +81,11 @@ def transform_observation(obs):
 def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges):
     n_envs = observations.units.position.shape[0]
     
-    new_positions = observations.units.position[:, team_idx, ..., None, :] + directions
+    agent_positions = observations.units.position[:, team_idx, ..., None, :] 
+    if team_idx == 1:
+        transformed_positions = transform_coordinates(agent_positions.reshape(1, -1, 2))
+        agent_positions = jnp.expand_dims(transformed_positions, axis=2)
+    new_positions = agent_positions + directions
 
     in_bounds = (
         (new_positions[..., 0] >= 0) & (new_positions[..., 0] <= Constants.MAP_WIDTH - 1) &
@@ -89,6 +93,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     )
 
     asteroid_tiles = observations.map_features.tile_type == Constants.ASTEROID_TILE
+    asteroid_tiles = asteroid_tiles if team_idx == 0 else transform_observation(asteroid_tiles)
 
     is_asteroid = asteroid_tiles[
         0, 
@@ -97,13 +102,6 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     ]
     valid_movements = in_bounds & (~is_asteroid)
 
-    if team_idx == 1:
-        modified_valid_movements = jnp.zeros_like(valid_movements)
-        modified_valid_movements = modified_valid_movements.at[:, :, 0].set(valid_movements[:, :, 1])
-        modified_valid_movements = modified_valid_movements.at[:, :, 1].set(valid_movements[:, :, 0])
-        modified_valid_movements = modified_valid_movements.at[:, :, 2].set(valid_movements[:, :, 3])
-        modified_valid_movements = modified_valid_movements.at[:, :, 3].set(valid_movements[:, :, 2])
-        valid_movements = modified_valid_movements
 
     team_positions = observations.units.position[:, team_idx, ...]
     opponent_positions = observations.units.position[:, opponent_idx, ...]
@@ -229,9 +227,16 @@ class Agent():
         relic_mask = observation.relic_nodes != -1
         self.discovered_relic_nodes[relic_mask] = observation.relic_nodes[relic_mask]
 
+        discovered_relic_nodes = self.discovered_relic_nodes
+        if self.team_id == 1:
+            discovered_relic_nodes = jnp.concatenate(
+                (self.discovered_relic_nodes[:, 3:, :], self.discovered_relic_nodes[:, :3, :]),
+                axis=1
+            )
+
         representations = create_representations(
             obs=observation,
-            discovered_relic_nodes=self.discovered_relic_nodes,
+            discovered_relic_nodes=discovered_relic_nodes,
             max_steps_in_match=100,
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id
@@ -282,12 +287,14 @@ class Agent():
             sap_ranges=self.sap_range,
         )
 
+        # previous action doesn't need to modified for agent1 because we only transform actions
+        # when we submit to the engine
+        self.prev_actions = actions[0].reshape(1, 16)
         actions[0] = actions[0] if self.team_id == 0 else vectorized_transform_actions(actions[0])
         actions[1] -= Constants.MAX_SAP_RANGE
         actions[2] -= Constants.MAX_SAP_RANGE
         actions = jnp.squeeze(jnp.stack(actions), axis=1).T
 
-        self.prev_actions = actions[:, 0].reshape(1, 16)
 
         team_points = obs['team_points'][self.team_id]
         point_rewards = (team_points - self.prev_team_points) * 0.01
