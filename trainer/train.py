@@ -320,7 +320,7 @@ def make_train(config: Config):
                         states,
                         OrderedDict({
                             "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
-                            "player_1": transformed_p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
+                            "player_1": transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
                         }),
                         p0_new_discovered_relic_nodes,
                         p1_new_discovered_relic_nodes,
