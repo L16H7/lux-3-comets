@@ -11,7 +11,6 @@ from typing import TypedDict
 class ActorInput(TypedDict):
     observations: jax.Array
     prev_actions: jax.Array
-    teams: jax.Array                # team 0 and team 1
     match_phases: jax.Array         # 4 phases each with 25 steps
     matches: jax.Array              # match number
     positions: jax.Array            # relative position of agent
@@ -48,7 +47,6 @@ class ScannedRNN(nn.Module):
 class Actor(nn.Module):
     n_actions: int = 5
     action_emb_dim: int = 8
-    team_emb_dim: int = 8
     match_phase_emb_dim: int = 8
     match_emb_dim: int = 8
     position_emb_dim: int = 16
@@ -89,7 +87,6 @@ class Actor(nn.Module):
             self.action_emb_dim
         )(actor_input['prev_actions'])
 
-        team_embeddings = nn.Embed(2, self.team_emb_dim)(actor_input['teams'])
         match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(actor_input['match_phases'])
         match_embeddings = nn.Embed(5, self.match_emb_dim)(actor_input['matches'])
 
@@ -128,7 +125,6 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             observation_embeddings,
             prev_action_embeddings,
-            team_embeddings,
             match_phase_embeddings,
             match_embeddings,
             position_embeddings,
@@ -154,97 +150,3 @@ class Actor(nn.Module):
         logits3 = nn.Dense(17, kernel_init=orthogonal(0.01))(x)
        
         return [logits1, logits2, logits3], hstate
-
-
-class CriticInput(TypedDict):
-    states: jax.Array
-    teams: jax.Array                # team 0 and team 1
-    match_phases: jax.Array         # 4 phases each with 25 steps
-    matches: jax.Array              # match number
-    team_points: jax.Array
-    opponent_points: jax.Array
- 
-
-class Critic(nn.Module):
-    team_emb_dim: int = 16
-    match_phase_emb_dim: int = 16
-    match_emb_dim: int = 16
-    point_info_emb_dim: int = 16
-    hidden_dim: int = 512
- 
-    @nn.compact
-    def __call__(self, hstate: jax.Array, critic_input):
-        state_encoder = nn.Sequential(
-            [
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
-                nn.Dense(512),
-                nn.leaky_relu,
-            ]
-        )
-
-        state_embeddings = state_encoder(critic_input['states'])
-
-        team_embeddings = nn.Embed(2, self.team_emb_dim)(critic_input['teams'])
-        match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(critic_input['match_phases'])
-        match_embeddings = nn.Embed(5, self.match_emb_dim)(critic_input['matches'])
-
-        point_info_embeddings = nn.Dense(self.point_info_emb_dim)(
-            jnp.concat([
-                critic_input['team_points'],
-                critic_input['opponent_points'],
-            ], axis=-1)
-        )
-
-        embeddings = jnp.concat([
-            state_embeddings,
-            team_embeddings,
-            match_phase_embeddings,
-            match_embeddings,
-            point_info_embeddings,
-        ], axis=-1)
-
-        critic = nn.Sequential(
-            [
-                nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
-                ),
-                nn.leaky_relu,
-                nn.Dense(1, kernel_init=orthogonal(1.0)),
-            ]
-        )
-
-        hstate, out = ScannedRNN()(hstate, embeddings)
-        values = critic(out)
-        return values, hstate

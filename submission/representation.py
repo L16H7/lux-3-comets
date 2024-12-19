@@ -169,10 +169,10 @@ def create_representations(
 
     # SCALE
     maps = [
-        team_unit_maps / 16.0,
-        team_energy_maps / 800.0,
-        opponent_unit_maps / 16.0,
-        opponent_energy_maps / 800.0,
+        team_unit_maps / 8.0,
+        team_energy_maps / 400.0,
+        opponent_unit_maps / 8.0,
+        opponent_energy_maps / 400.0,
         relic_node_maps,
         obs.map_features.energy.transpose((0, 2, 1)) / 20.0,
         asteroid_maps.transpose((0, 2, 1)),
@@ -186,7 +186,7 @@ def create_representations(
     match_phases = jnp.minimum(obs.match_steps[:, None] // 25, 3) # 4 phases
     matches = jnp.minimum(obs.steps[:, None] // max_steps_in_match, 4) # 5 matches
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
-    team_points = team_points / 200.0
+    team_points = team_points / 400.0
 
     episode_info = jnp.concatenate((match_phases, matches, team_points), axis=1)
 

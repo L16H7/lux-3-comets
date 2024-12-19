@@ -275,7 +275,6 @@ class Agent():
                 "team_positions": team_positions,
                 "opponent_positions": opponent_unit_positions,
                 "prev_rewards": self.prev_rewards,
-                "teams": jnp.zeros((1, 16), dtype=jnp.int32),
                 "match_phases": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=0),
                 "matches": jnp.expand_dims(agent_episode_info[:, 1].astype(jnp.int32), axis=0),
                 "team_points": jnp.expand_dims(agent_episode_info[:, 2], axis=[0, -1]),
