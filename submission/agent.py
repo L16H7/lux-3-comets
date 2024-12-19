@@ -82,9 +82,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     n_envs = observations.units.position.shape[0]
     
     agent_positions = observations.units.position[:, team_idx, ..., None, :] 
-    if team_idx == 1:
-        transformed_positions = transform_coordinates(agent_positions.reshape(1, -1, 2))
-        agent_positions = jnp.expand_dims(transformed_positions, axis=2)
+    agent_positions = agent_positions if team_idx == 0 else transform_coordinates(agent_positions)
     new_positions = agent_positions + directions
 
     in_bounds = (
@@ -107,7 +105,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     team_positions = team_positions if team_idx == 0 else transform_coordinates(team_positions)
 
     opponent_positions = observations.units.position[:, opponent_idx, ...]
-    opponent_positions = team_positions if team_idx == 0 else transform_coordinates(team_positions)
+    opponent_positions = opponent_positions if team_idx == 0 else transform_coordinates(opponent_positions)
     opponent_positions = jnp.where(
         opponent_positions == -1,
         -100,
