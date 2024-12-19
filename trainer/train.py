@@ -428,11 +428,10 @@ def make_train(config: Config):
                     p0_prev_critic_hstates,
                     {
                         "states": jnp.expand_dims(p0_states, axis=0),
-                        "teams": jnp.expand_dims(p0_episode_info[:, 0].astype(jnp.int32), axis=0),
-                        "match_phases": jnp.expand_dims(p0_episode_info[:, 1].astype(jnp.int32), axis=0),
-                        "matches": jnp.expand_dims(p0_episode_info[:, 2].astype(jnp.int32), axis=0),
-                        "team_points": jnp.expand_dims(p0_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
-                        "opponent_points": jnp.expand_dims(p0_episode_info[:, 4].astype(jnp.int32), axis=[0, -1]),
+                        "match_phases": jnp.expand_dims(p0_episode_info[:, 0].astype(jnp.int32), axis=0),
+                        "matches": jnp.expand_dims(p0_episode_info[:, 1].astype(jnp.int32), axis=0),
+                        "team_points": jnp.expand_dims(p0_episode_info[:, 2].astype(jnp.int32), axis=[0, -1]),
+                        "opponent_points": jnp.expand_dims(p0_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
                     }
                 )
 
@@ -441,11 +440,10 @@ def make_train(config: Config):
                     p1_prev_critic_hstates,
                     {
                         "states": jnp.expand_dims(p1_states, axis=0),
-                        "teams": jnp.expand_dims(p1_episode_info[:, 0].astype(jnp.int32), axis=0),
-                        "match_phases": jnp.expand_dims(p1_episode_info[:, 1].astype(jnp.int32), axis=0),
-                        "matches": jnp.expand_dims(p1_episode_info[:, 2].astype(jnp.int32), axis=0),
-                        "team_points": jnp.expand_dims(p1_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
-                        "opponent_points": jnp.expand_dims(p1_episode_info[:, 4].astype(jnp.int32), axis=[0, -1]),
+                        "match_phases": jnp.expand_dims(p1_episode_info[:, 0].astype(jnp.int32), axis=0),
+                        "matches": jnp.expand_dims(p1_episode_info[:, 1].astype(jnp.int32), axis=0),
+                        "team_points": jnp.expand_dims(p1_episode_info[:, 2].astype(jnp.int32), axis=[0, -1]),
+                        "opponent_points": jnp.expand_dims(p1_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
                     }
                 )
 

@@ -142,11 +142,10 @@ def ppo_update(
             critic_hstates,
             {
                 "states": transitions.states,
-                "teams": transitions.episode_info[:, :, 0].astype(jnp.int32),
-                "match_phases": transitions.episode_info[:, :, 1].astype(jnp.int32),
-                "matches": transitions.episode_info[:, :, 2].astype(jnp.int32),
-                "team_points": jnp.expand_dims(transitions.episode_info[:, :, 3], axis=2),
-                "opponent_points": jnp.expand_dims(transitions.episode_info[:, :, 4], axis=2),
+                "match_phases": transitions.episode_info[:, :, 0].astype(jnp.int32),
+                "matches": transitions.episode_info[:, :, 1].astype(jnp.int32),
+                "team_points": jnp.expand_dims(transitions.episode_info[:, :, 2], axis=2),
+                "opponent_points": jnp.expand_dims(transitions.episode_info[:, :, 3], axis=2),
             }
         )
         values = values.reshape(-1)
