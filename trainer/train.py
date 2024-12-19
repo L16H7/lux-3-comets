@@ -20,8 +20,9 @@ from functools import partial
 from time import time
 from typing import NamedTuple
 
-from agent import get_actions
+from agent import get_actions, vectorized_transform_actions
 from config import Config
+from constants import Constants
 from evaluate import evaluate
 from luxai_s3.env import LuxAIS3Env
 from luxai_s3.params import EnvParams, env_params_ranges
@@ -306,11 +307,16 @@ def make_train(config: Config):
                         p1_discovered_relic_nodes
                     )
 
+                    transformed_p1_actions = jnp.zeros_like(p1_actions)
+                    transformed_p1_actions = transformed_p1_actions.at[:, :, 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
+                    transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(p1_actions[:, :, 2])
+                    transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(p1_actions[:, :, 1])
+
                     p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, _ = v_step(
                         states,
                         OrderedDict({
-                            "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 8),
-                            "player_1": p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - 8),
+                            "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
+                            "player_1": transformed_p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
                         }),
                         p0_new_discovered_relic_nodes,
                         p1_new_discovered_relic_nodes,
@@ -607,7 +613,22 @@ def make_train(config: Config):
 
             updated_runner_state, update_step_info = jax.lax.scan(_update_step, runner_state, None, config.n_update_steps)
 
-            eval_info = evaluate(eval_rng, updated_runner_state.actor_train_state, config.n_eval_envs, config.n_agents, sample_params, v_reset, v_step)
+            rng, eval_meta_key_rng, eval_meta_env_params_rng, _ = jax.random.split(rng, num=4)
+            eval_meta_keys = jax.random.split(eval_meta_key_rng, config.n_eval_envs)
+            eval_meta_env_params = jax.vmap(sample_params)(
+                jax.random.split(eval_meta_env_params_rng, config.n_eval_envs)
+            )
+
+            eval_info = evaluate(
+                eval_rng,
+                meta_keys,
+                meta_env_params,
+                updated_runner_state.actor_train_state,
+                config.n_eval_envs,
+                config.n_agents,
+                v_reset,
+                v_step
+            )
 
             meta_step_info = {
                 "update_step_info": update_step_info,
@@ -632,10 +653,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
