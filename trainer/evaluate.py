@@ -168,7 +168,7 @@ def evaluate(
         transformed_p1_actions = transformed_p1_actions.at[:, :, 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
         transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(p1_actions[:, :, 2])
         transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(p1_actions[:, :, 1])
-        transformed_p1_actions = transformed_p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - 8)
+        transformed_p1_actions = transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - 8)
 
         p0_relic_mask = observations['player_0'].relic_nodes != -1
         p0_new_discovered_relic_nodes = jnp.where(
