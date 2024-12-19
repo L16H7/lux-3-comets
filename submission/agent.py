@@ -190,11 +190,11 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3 = logits3.at[..., -sap_range_clip:].set(-100)
     '''
 
-    masked_logits2 = masked_logits2.at[..., : sap_ranges].set(-100)
-    masked_logits2 = masked_logits2.at[..., -sap_ranges:].set(-100)
+    masked_logits2 = masked_logits2.at[..., : sap_ranges].set(large_negative)
+    masked_logits2 = masked_logits2.at[..., -sap_ranges:].set(large_negative)
 
-    masked_logits3 = masked_logits3.at[..., : sap_ranges].set(-100)
-    masked_logits3 = masked_logits3.at[..., -sap_ranges:].set(-100)
+    masked_logits3 = masked_logits3.at[..., : sap_ranges].set(large_negative)
+    masked_logits3 = masked_logits3.at[..., -sap_ranges:].set(large_negative)
 
     action1 = np.argmax(masked_logits1, axis=-1)
     action2 = np.argmax(masked_logits2, axis=-1)

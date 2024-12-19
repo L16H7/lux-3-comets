@@ -13,10 +13,10 @@ def transform_coordinates(coordinates):
     MAP_HEIGHT = 24
     
     # Adjust for horizontal flip: (x, y) -> (MAP_WIDTH - 1 - x, y)
-    flipped_positions = jnp.stack([MAP_WIDTH - 1 - coordinates[:,:,0], coordinates[:,:,1]], axis=-1)
+    flipped_positions = jnp.stack([MAP_WIDTH - 1 - coordinates[..., 0], coordinates[..., 1]], axis=-1)
     
     # Adjust for 90-degree rotation clockwise: (MAP_WIDTH - 1 - x, y) -> (y, MAP_WIDTH - 1 - x)
-    rotated_positions = jnp.stack([MAP_HEIGHT - 1 - flipped_positions[:,:,1], flipped_positions[:,:,0]], axis=-1)
+    rotated_positions = jnp.stack([MAP_HEIGHT - 1 - flipped_positions[..., 1], flipped_positions[..., 0]], axis=-1)
     
     return rotated_positions
 
