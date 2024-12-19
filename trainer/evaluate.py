@@ -55,16 +55,13 @@ def evaluate(
     p0_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
     p1_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
 
-    p0_prev_points = jnp.zeros((1, n_envs * 16, 1))
-    p1_prev_points = jnp.zeros((1, n_envs * 16, 1))
-
     def _env_step(runner_state, _):
         (
             rng,
             actor_train_state,
             (p0_representations, p1_representations),
             (p0_prev_actions, p1_prev_actions),
-            (p0_prev_rewards, p1_prev_rewards),
+            (p0_prev_points, p1_prev_points),
             observations,
             states,
             (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
@@ -80,7 +77,6 @@ def evaluate(
         ) = p0_representations
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
-
         p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(16, axis=1)
         p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
@@ -177,15 +173,24 @@ def evaluate(
             meta_env_params,
         )
 
-        p0_rewards = rewards[:, 0, :].reshape(1, -1, 1)
-        p1_rewards = rewards[:, 1, :].reshape(1, -1, 1)
+        p0_team_points = p0_episode_info[:, 3]
+        p0_next_team_points = next_observations['player_0'].team_points[:, 0]
+        p0_points_gained = jnp.maximum(p0_next_team_points - p0_team_points, 0)
+        p0_points_gained = jnp.expand_dims(p0_points_gained, axis=[0, -1]).repeat(16, axis=1)
+        p0_points_gained = p0_points_gained / 16.0
+
+        p1_team_points = p1_episode_info[:, 3]
+        p1_next_team_points = next_observations['player_1'].team_points[:, 1]
+        p1_points_gained = jnp.maximum(p1_next_team_points - p1_team_points, 0)
+        p1_points_gained = jnp.expand_dims(p1_points_gained, axis=[0, -1]).repeat(16, axis=1)
+        p1_points_gained = p1_points_gained / 16.0
 
         runner_state = (
             rng,
             actor_train_state,
             (p0_next_representations, p1_next_representations),
             (p0_actions[:, :, 0].reshape(1, -1), p1_actions[:, :, 0].reshape(1, -1)),
-            (p0_rewards, p1_rewards),
+            (p0_points_gained, p1_points_gained),
             next_observations,
             next_states,
             (p0_new_discovered_relic_nodes, p1_new_discovered_relic_nodes),
@@ -204,15 +209,15 @@ def evaluate(
     p0_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
     p1_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
 
-    p0_prev_rewards = jnp.zeros((1, n_envs * n_agents, 1))
-    p1_prev_rewards = jnp.zeros((1, n_envs * n_agents, 1))
+    p0_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
+    p1_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
 
     runner_state = (
         rng,
         actor_train_state,
         (p0_representations, p1_representations),
         (p0_prev_actions, p1_prev_actions),
-        (p0_prev_rewards, p1_prev_rewards),
+        (p0_prev_points, p1_prev_points),
         observations,
         states,
         (p0_discovered_relic_nodes, p1_discovered_relic_nodes),

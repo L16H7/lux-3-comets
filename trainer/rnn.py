@@ -144,7 +144,6 @@ class CriticInput(TypedDict):
 
 class Critic(nn.Module):
     match_phase_emb_dim: int = 16
-    match_emb_dim: int = 16
     point_info_emb_dim: int = 16
     hidden_dim: int = 512
  
@@ -193,7 +192,6 @@ class Critic(nn.Module):
         state_embeddings = state_encoder(critic_input['states'])
 
         match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(critic_input['match_phases'])
-        match_embeddings = nn.Embed(5, self.match_emb_dim)(critic_input['matches'])
 
         point_info_embeddings = nn.Dense(self.point_info_emb_dim)(
             jnp.concat([
@@ -205,7 +203,6 @@ class Critic(nn.Module):
         embeddings = jnp.concat([
             state_embeddings,
             match_phase_embeddings,
-            match_embeddings,
             point_info_embeddings,
         ], axis=-1)
 
