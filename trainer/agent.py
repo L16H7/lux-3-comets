@@ -165,7 +165,8 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     dist3 = distrax.Categorical(logits=masked_logits3.reshape(1, -1, 17))
     dist = distrax.Joint([dist1, dist2, dist3])
 
-    actions, log_probs = dist.sample_and_log_prob(seed=rng)
+    rng, action_rng = jax.random.split(rng)
+    actions, log_probs = dist.sample_and_log_prob(seed=action_rng)
 
     actions = jnp.squeeze(jnp.stack(actions), axis=1)
     actions = actions.T.reshape(n_envs, 16, -1)

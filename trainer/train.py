@@ -623,8 +623,8 @@ def make_train(config: Config):
 
             eval_info = evaluate(
                 eval_rng,
-                meta_keys,
-                meta_env_params,
+                eval_meta_keys,
+                eval_meta_env_params,
                 updated_runner_state.actor_train_state,
                 config.n_eval_envs,
                 config.n_agents,
@@ -724,10 +724,10 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=4,
-        n_envs_per_device=4,
-        n_eval_envs=4,
-        n_minibatches=4,
+        n_envs=1024,
+        n_envs_per_device=1024,
+        n_eval_envs=512,
+        n_minibatches=8,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
     )
