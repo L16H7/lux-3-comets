@@ -98,11 +98,10 @@ def evaluate(
                 "team_positions": p0_team_positions,
                 "opponent_positions": p0_opponent_positions,
                 "prev_rewards": p0_prev_rewards,
-                "teams": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
-                "matches": jnp.expand_dims(p0_agent_episode_info[:, 2].astype(jnp.int32), axis=0),
-                "team_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
-                "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 4], axis=[0, -1]),
+                "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
+                "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
+                "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
             }
         )
 
@@ -145,11 +144,10 @@ def evaluate(
                 "team_positions": p1_team_positions,
                 "opponent_positions": p1_opponent_positions,
                 "prev_rewards": p1_prev_rewards,
-                "teams": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
-                "matches": jnp.expand_dims(p1_agent_episode_info[:, 2].astype(jnp.int32), axis=0),
-                "team_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
-                "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 4], axis=[0, -1]),
+                "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
+                "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
+                "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
             }
         )
 

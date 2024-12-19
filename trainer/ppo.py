@@ -83,11 +83,10 @@ def ppo_update(
                 "team_positions": transitions.team_positions,
                 "opponent_positions": transitions.opponent_positions,
                 "prev_rewards": jnp.expand_dims(transitions.prev_rewards, axis=2),
-                "teams": transitions.agent_episode_info[:, :, 0].astype(jnp.int32),
-                "match_phases": transitions.agent_episode_info[:, :, 1].astype(jnp.int32),
-                "matches": transitions.agent_episode_info[:, :, 2].astype(jnp.int32),
-                "team_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 3], axis=2),
-                "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 4], axis=2),
+                "match_phases": transitions.agent_episode_info[:, :, 0].astype(jnp.int32),
+                "matches": transitions.agent_episode_info[:, :, 1].astype(jnp.int32),
+                "team_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 2], axis=2),
+                "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 3], axis=2),
             }
         )
         logits1, logits2, logits3 = logits
