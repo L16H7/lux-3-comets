@@ -1,0 +1,6 @@
+jax[cuda12]
+orbax
+wandb
+flax
+distrax
+gymnax

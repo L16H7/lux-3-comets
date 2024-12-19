@@ -1,3 +1,4 @@
+import distrax
 import jax
 import jax.numpy as jnp
 from flax.training.train_state import TrainState
@@ -21,6 +22,9 @@ class Transition(NamedTuple):
     relic_nodes_positions: jnp.ndarray
     rewards: jnp.ndarray
     dones: jnp.ndarray
+    logits1_mask: jnp.ndarray
+    logits2_mask: jnp.ndarray
+    logits3_mask: jnp.ndarray
 
 
 def calculate_gae(
@@ -68,7 +72,7 @@ def ppo_update(
     advantages = advantages * units_mask
 
     def _loss_fn(actor_params, critic_params):
-        dist, _ = actor_train_state.apply_fn(
+        logits, _ = actor_train_state.apply_fn(
             actor_params,
             actor_hstates,
             {
@@ -86,6 +90,31 @@ def ppo_update(
                 "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 4], axis=2),
             }
         )
+        logits1, logits2, logits3 = logits
+        
+        large_negative = -1e9
+        masked_logits1 = jnp.where(
+            jnp.expand_dims(transitions.logits1_mask, axis=1),
+            logits1,
+            large_negative,
+        )
+
+        masked_logits2 = jnp.where(
+            jnp.expand_dims(transitions.logits2_mask, axis=1),
+            logits2,
+            large_negative,
+        )
+
+        masked_logits3 = jnp.where(
+            jnp.expand_dims(transitions.logits3_mask, axis=1),
+            logits3,
+            large_negative
+        )
+
+        dist1 = distrax.Categorical(logits=masked_logits1)
+        dist2 = distrax.Categorical(logits=masked_logits2)
+        dist3 = distrax.Categorical(logits=masked_logits3)
+        dist = distrax.Joint([dist1, dist2, dist3])
 
         n_steps, n_agents = transitions.observations.shape[:2]
         log_probs = dist.log_prob(

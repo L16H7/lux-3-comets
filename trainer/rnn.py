@@ -151,15 +151,10 @@ class Actor(nn.Module):
         hstate, out = ScannedRNN()(hstate, embeddings)
         x = actor(out)
         logits1 = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))(x)
-        logits2 = nn.Dense(9, kernel_init=orthogonal(0.01))(x)
-        logits3 = nn.Dense(9, kernel_init=orthogonal(0.01))(x)
+        logits2 = nn.Dense(17, kernel_init=orthogonal(0.01))(x)
+        logits3 = nn.Dense(17, kernel_init=orthogonal(0.01))(x)
        
-        dist1 = distrax.Categorical(logits=logits1)
-        dist2 = distrax.Categorical(logits=logits2)
-        dist3 = distrax.Categorical(logits=logits3)
-        dist = distrax.Joint([dist1, dist2, dist3])
-
-        return dist, hstate
+        return [logits1, logits2, logits3], hstate
 
 
 class CriticInput(TypedDict):
