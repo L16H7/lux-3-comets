@@ -15,16 +15,11 @@ def make_states(config: Config):
     SEQ = 2
     actor_init_hstate = ScannedRNN.initialize_carry(BATCH, 256)
     actor_network_params = actor.init(rng, actor_init_hstate, {
-        "observations": jnp.zeros((SEQ, BATCH, 9, 9, 9)),
+        "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
         "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        "teams": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        "matches": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
         "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
         "positions": jnp.zeros((SEQ, BATCH, 2)),
-        "relic_nodes_positions": jnp.zeros((SEQ, BATCH, 6, 2),),
-        "team_positions": jnp.zeros((SEQ, BATCH, 16, 2)),
-        "opponent_positions": jnp.zeros((SEQ, BATCH, 16, 2)),
-        "prev_rewards": jnp.zeros((SEQ, BATCH, 1)),
+        "prev_points": jnp.zeros((SEQ, BATCH, 1)),
         "team_points": jnp.zeros((SEQ, BATCH, 1)),
         "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
     })

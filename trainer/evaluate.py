@@ -55,6 +55,9 @@ def evaluate(
     p0_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
     p1_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
 
+    p0_prev_points = jnp.zeros((1, n_envs * 16, 1))
+    p1_prev_points = jnp.zeros((1, n_envs * 16, 1))
+
     def _env_step(runner_state, _):
         (
             rng,
@@ -70,22 +73,16 @@ def evaluate(
         ) = runner_state
 
         (
-            _,
-            p0_agent_observations,
+            p0_states,
             p0_episode_info,
             p0_team_positions,
-            p0_opponent_positions,
-            p0_relic_nodes_positions,
             _,
         ) = p0_representations
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
 
-        p0_agent_observations = jnp.reshape(p0_agent_observations, (1, N_TOTAL_AGENTS, 9, 9, 9))
+        p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(16, axis=1)
         p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
-        p0_relic_nodes_positions = jnp.expand_dims(p0_relic_nodes_positions.repeat(n_agents, axis=0), axis=0)
-        p0_team_positions = jnp.expand_dims(jnp.repeat(p0_team_positions, n_agents, axis=0), axis=0)
-        p0_opponent_positions = jnp.expand_dims(jnp.repeat(p0_opponent_positions, n_agents, axis=0), axis=0)
 
         p0_logits, p0_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
@@ -94,12 +91,8 @@ def evaluate(
                 "observations": p0_agent_observations,
                 "prev_actions": p0_prev_actions,
                 "positions": p0_agent_positions,
-                "relic_nodes_positions": p0_relic_nodes_positions,
-                "team_positions": p0_team_positions,
-                "opponent_positions": p0_opponent_positions,
-                "prev_rewards": p0_prev_rewards,
+                "prev_points": p0_prev_points,
                 "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
                 "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
             }
@@ -116,22 +109,16 @@ def evaluate(
         )
 
         (
-            _,
-            p1_agent_observations,
+            p1_states,
             p1_episode_info,
             p1_team_positions,
-            p1_opponent_positions,
-            p1_relic_nodes_positions,
             _,
         ) = p1_representations
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
 
-        p1_agent_observations = jnp.reshape(p1_agent_observations, (1, N_TOTAL_AGENTS, 9, 9, 9))
+        p1_agent_observations = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1)
         p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
-        p1_relic_nodes_positions = jnp.expand_dims(p1_relic_nodes_positions.repeat(n_agents, axis=0), axis=0)
-        p1_team_positions = jnp.expand_dims(jnp.repeat(p1_team_positions, n_agents, axis=0), axis=0)
-        p1_opponent_positions = jnp.expand_dims(jnp.repeat(p1_opponent_positions, n_agents, axis=0), axis=0)
 
         p1_logits, p1_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
@@ -140,12 +127,8 @@ def evaluate(
                 "observations": p1_agent_observations,
                 "prev_actions": p1_prev_actions,
                 "positions": p1_agent_positions,
-                "relic_nodes_positions": p1_relic_nodes_positions,
-                "team_positions": p1_team_positions,
-                "opponent_positions": p1_opponent_positions,
-                "prev_rewards": p1_prev_rewards,
+                "prev_points": p1_prev_points,
                 "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
                 "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
             }
@@ -193,13 +176,6 @@ def evaluate(
             meta_keys,
             meta_env_params,
         )
-
-        # stats = analyse_stats(
-        #     observations=observations,
-        #     next_observations=next_observations,
-        #     p0_actions=p0_actions,
-        #     p1_actions=p1_actions,
-        # )
 
         p0_rewards = rewards[:, 0, :].reshape(1, -1, 1)
         p1_rewards = rewards[:, 1, :].reshape(1, -1, 1)

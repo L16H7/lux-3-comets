@@ -214,11 +214,8 @@ def create_representations(
 
     return (
         state_representation,
-        agent_observations,
         episode_info,
         agent_positions,
-        opponent_positions,
-        relic_nodes_positions,
         unit_masks_team,
     )
         

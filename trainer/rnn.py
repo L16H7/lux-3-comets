@@ -1,4 +1,3 @@
-import distrax
 import functools
 import jax
 import math
@@ -8,20 +7,6 @@ import numpy as np
 from flax.linen.initializers import orthogonal
 from typing import TypedDict
 
-
-class ActorInput(TypedDict):
-    observations: jax.Array
-    prev_actions: jax.Array
-    match_phases: jax.Array         # 4 phases each with 25 steps
-    matches: jax.Array              # match number
-    positions: jax.Array            # relative position of agent
-    team_positions: jax.Array       # relative positions of all agents in a team
-    opponent_positions: jax.Array   # relative positions of all opponent agents
-    prev_rewards: jax.Array
-    team_points: jax.Array
-    opponent_points: jax.Array
-    relic_nodes_positions: jax.Array
-    
 
 class ScannedRNN(nn.Module):
     @functools.partial(
@@ -45,16 +30,24 @@ class ScannedRNN(nn.Module):
         return cell.initialize_carry(jax.random.PRNGKey(0), (batch_size, hidden_size))
 
 
+class ActorInput(TypedDict):
+    positions: jax.Array
+    observations: jax.Array
+    match_phases: jax.Array         # 4 phases each with 25 steps
+    team_points: jax.Array
+    opponent_points: jax.Array
+    prev_points: jax.Array
+    prev_actions: jax.Array
+ 
 class Actor(nn.Module):
-    n_actions: int = 5
-    action_emb_dim: int = 8
-    match_phase_emb_dim: int = 8
-    match_emb_dim: int = 8
-    position_emb_dim: int = 16
-    relic_nodes_emb_dim: int = 32
-    reward_info_emb_dim: int = 16
+    n_actions: int = 6
+    match_phase_emb_dim: int = 32
+    match_emb_dim: int = 32
+    point_info_emb_dim: int = 32
+    action_emb_dim: int = 32
     hidden_dim: int = 256
-    
+    position_emb_dim: int = 32
+ 
     @nn.compact
     def __call__(self, hstate: jax.Array, actor_input: ActorInput):
         observation_encoder = nn.Sequential(
@@ -63,15 +56,31 @@ class Actor(nn.Module):
                     64,
                     (2, 2),
                     strides=1,
-                    padding=0,
+                    padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
                 nn.Conv(
                     64,
                     (2, 2),
-                    strides=2,
-                    padding=0,
+                    strides=1,
+                    padding='SAME',
+                    kernel_init=orthogonal(math.sqrt(2)),
+                ),
+                nn.leaky_relu,
+                nn.Conv(
+                    64,
+                    (2, 2),
+                    strides=1,
+                    padding='SAME',
+                    kernel_init=orthogonal(math.sqrt(2)),
+                ),
+                nn.leaky_relu,
+                nn.Conv(
+                    64,
+                    (2, 2),
+                    strides=1,
+                    padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
@@ -89,50 +98,23 @@ class Actor(nn.Module):
         )(actor_input['prev_actions'])
 
         match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(actor_input['match_phases'])
-        match_embeddings = nn.Embed(5, self.match_emb_dim)(actor_input['matches'])
 
-        position_embeddings = nn.Dense(self.position_emb_dim)(actor_input['positions'])
-        team_position_embeddings = nn.Dense(self.position_emb_dim)(
-            actor_input['team_positions'].reshape(
-                actor_input['team_positions'].shape[0],
-                actor_input['team_positions'].shape[1],
-                -1,
-            )
-        )
-        opponent_position_embeddings = nn.Dense(self.position_emb_dim)(
-            actor_input['opponent_positions'].reshape(
-                actor_input['opponent_positions'].shape[0],
-                actor_input['opponent_positions'].shape[1],
-                -1,
-            )
-        )
-
-        relic_nodes_embeddings = nn.Dense(self.relic_nodes_emb_dim)(
-            actor_input['relic_nodes_positions'].reshape(
-                actor_input['relic_nodes_positions'].shape[0],
-                actor_input['relic_nodes_positions'].shape[1],
-                -1,
-            )
-        )
-
-        reward_info_embeddings = nn.Dense(self.reward_info_emb_dim)(
+        point_info_embeddings = nn.Dense(self.point_info_emb_dim)(
             jnp.concat([
-                actor_input['prev_rewards'],
+                actor_input['prev_points'],
                 actor_input['team_points'],
                 actor_input['opponent_points'],
             ], axis=-1)
         )
 
+        position_embeddings = nn.Dense(self.position_emb_dim)(actor_input['positions'])
+
         embeddings = jnp.concat([
-            observation_embeddings,
-            prev_action_embeddings,
-            match_phase_embeddings,
-            match_embeddings,
             position_embeddings,
-            relic_nodes_embeddings,
-            team_position_embeddings,
-            opponent_position_embeddings,
-            reward_info_embeddings,
+            observation_embeddings,
+            match_phase_embeddings,
+            prev_action_embeddings,
+            point_info_embeddings,
         ], axis=-1)
 
         actor = nn.Sequential(
@@ -141,7 +123,7 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.leaky_relu,
-           ]
+            ]
         )
 
         hstate, out = ScannedRNN()(hstate, embeddings)
@@ -155,9 +137,7 @@ class Actor(nn.Module):
 
 class CriticInput(TypedDict):
     states: jax.Array
-    teams: jax.Array                # team 0 and team 1
     match_phases: jax.Array         # 4 phases each with 25 steps
-    matches: jax.Array              # match number
     team_points: jax.Array
     opponent_points: jax.Array
  

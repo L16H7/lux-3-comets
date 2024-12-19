@@ -17,9 +17,6 @@ class Transition(NamedTuple):
     values: jnp.ndarray
     units_mask: jnp.ndarray
     agent_positions: jnp.ndarray
-    team_positions: jnp.ndarray
-    opponent_positions: jnp.ndarray
-    relic_nodes_positions: jnp.ndarray
     rewards: jnp.ndarray
     dones: jnp.ndarray
     logits1_mask: jnp.ndarray
@@ -79,12 +76,8 @@ def ppo_update(
                 "observations": transitions.observations,
                 "prev_actions": transitions.prev_actions,
                 "positions": transitions.agent_positions,
-                "relic_nodes_positions": transitions.relic_nodes_positions,
-                "team_positions": transitions.team_positions,
-                "opponent_positions": transitions.opponent_positions,
-                "prev_rewards": jnp.expand_dims(transitions.prev_rewards, axis=2),
+                "prev_points": jnp.expand_dims(transitions.prev_rewards, axis=2),
                 "match_phases": transitions.agent_episode_info[:, :, 0].astype(jnp.int32),
-                "matches": transitions.agent_episode_info[:, :, 1].astype(jnp.int32),
                 "team_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 2], axis=2),
                 "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 3], axis=2),
             }
