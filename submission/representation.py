@@ -204,21 +204,18 @@ def create_representations(
         unit_positions_opponent,
     )
     
-    agent_observations = create_agent_patches(
-        state_representation=state_representation,
-        unit_positions_team=unit_positions_team,
-    )
     agent_positions = (unit_positions_team + 1) / Constants.MAP_HEIGHT
-    opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
-    relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
+    # agent_observations = create_agent_patches(
+    #     state_representation=state_representation,
+    #     unit_positions_team=unit_positions_team,
+    # )
+    # opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
+    # relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
 
     return (
         state_representation,
-        agent_observations,
         episode_info,
         agent_positions,
-        opponent_positions,
-        relic_nodes_positions,
         unit_masks_team,
     )
         

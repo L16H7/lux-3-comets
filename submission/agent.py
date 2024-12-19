@@ -210,9 +210,9 @@ class Agent():
         self.env_cfg = env_cfg
         self.sap_range = env_cfg["unit_sap_range"]
 
-        # checkpoint_path = os.path.join(script_dir, 'checkpoint')
-        # orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
-        # self.params = orbax_checkpointer.restore(checkpoint_path)
+        checkpoint_path = os.path.join(script_dir, 'checkpoint')
+        orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+        self.params = orbax_checkpointer.restore(checkpoint_path)
 
         self.rng = jax.random.PRNGKey(42)
         
@@ -221,21 +221,21 @@ class Agent():
         BATCH = 16
         SEQ = 1
         self.actor_hstates = ScannedRNN.initialize_carry(16, 256)
-        self.params = self.actor.init(self.rng, self.actor_hstates, {
-            "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
-            "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-            "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-            "positions": jnp.zeros((SEQ, BATCH, 2)),
-            "prev_points": jnp.zeros((SEQ, BATCH, 1)),
-            "team_points": jnp.zeros((SEQ, BATCH, 1)),
-            "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
-        })['params']
+        # self.params = self.actor.init(self.rng, self.actor_hstates, {
+        #     "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
+        #     "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
+        #     "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
+        #     "positions": jnp.zeros((SEQ, BATCH, 2)),
+        #     "prev_points": jnp.zeros((SEQ, BATCH, 1)),
+        #     "team_points": jnp.zeros((SEQ, BATCH, 1)),
+        #     "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
+        # })['params']
         self.inference_fn = jax.jit(lambda x, x1, x2: self.actor.apply(x, x1, x2))
 
         self.discovered_relic_nodes = np.ones((1, 6, 2)) * -1
 
         self.prev_actions = jnp.zeros((1, 16), dtype=jnp.int32)
-        self.prev_rewards = jnp.zeros((1, 16, 1))
+        self.prev_points = jnp.zeros((1, 16, 1))
         self.prev_team_points = 0
         self.prev_opponent_points = 0
 
@@ -261,20 +261,14 @@ class Agent():
         )
         
         (
-            _,
-            agent_observations,
+            state,
             episode_info,
             agent_positions,
-            opponent_positions,
-            relic_nodes_positions,
             _,
         ) = representations
 
+        agent_observations = jnp.expand_dims(state, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
         agent_episode_info = episode_info.repeat(16, axis=0)
-
-        relic_nodes_positions = expand_repeat(relic_nodes_positions)
-        team_positions = expand_repeat(agent_positions)
-        opponent_unit_positions = expand_repeat(opponent_positions)
 
         BATCH = 16
         SEQ = 1
@@ -283,13 +277,14 @@ class Agent():
             { "params": self.params },
             self.actor_hstates,
             {
-                "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
-                "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-                "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-                "positions": jnp.zeros((SEQ, BATCH, 2)),
-                "prev_points": jnp.zeros((SEQ, BATCH, 1)),
-                "team_points": jnp.zeros((SEQ, BATCH, 1)),
-                "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
+                "observations": agent_observations,
+                "prev_actions": self.prev_actions,
+                "match_phases": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                "positions": agent_positions,
+                "prev_points": self.prev_points,
+                "team_points": jnp.expand_dims(agent_episode_info[:, 2], axis=[0, -1]),
+                "opponent_points": jnp.expand_dims(agent_episode_info[:, 3], axis=[0, -1]),
+
             }
         )
 
@@ -317,11 +312,11 @@ class Agent():
 
 
         team_points = obs['team_points'][self.team_id]
-        point_rewards = (team_points - self.prev_team_points) * 0.01
-        point_rewards = jnp.expand_dims(point_rewards.repeat(16), axis=[0, -1])
+        points_gained = (team_points - self.prev_team_points) / 16.0
+        points_gained = jnp.expand_dims(points_gained.repeat(16), axis=[0, -1])
 
         self.prev_team_points = team_points
-        self.prev_rewards = point_rewards
+        self.prev_points = points_gained
         
         return actions
         # return jnp.zeros((16, 3), jnp.int32)
