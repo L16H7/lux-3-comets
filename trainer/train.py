@@ -20,8 +20,9 @@ from functools import partial
 from time import time
 from typing import NamedTuple
 
-from agent import get_actions
+from agent import get_actions, vectorized_transform_actions
 from config import Config
+from constants import Constants
 from evaluate import evaluate
 from luxai_s3.env import LuxAIS3Env
 from luxai_s3.params import EnvParams, env_params_ranges
@@ -56,20 +57,16 @@ def create_agent_representations(observations, p0_discovered_relic_nodes, p1_dis
     p0_representations = create_representations(
         obs=p0_observations,
         discovered_relic_nodes=p0_discovered_relic_nodes,
-        map_width=config.map_width,
-        map_height=config.map_height,
         team_idx=0,
-        enemy_idx=1,
+        opponent_idx=1,
     )
 
     p1_observations = observations["player_1"]
     p1_representations = create_representations(
         obs=p1_observations,
         discovered_relic_nodes=p1_discovered_relic_nodes,
-        map_width=config.map_width,
-        map_height=config.map_height,
         team_idx=1,
-        enemy_idx=0,
+        opponent_idx=0,
     )
     return p0_representations, p1_representations
 
@@ -210,11 +207,10 @@ def make_train(config: Config):
                             "team_positions": p0_team_positions,
                             "opponent_positions": p0_opponent_positions,
                             "prev_rewards": p0_prev_rewards,
-                            "teams": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                            "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
-                            "matches": jnp.expand_dims(p0_agent_episode_info[:, 2].astype(jnp.int32), axis=0),
-                            "team_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
-                            "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 4], axis=[0, -1]),
+                            "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                            "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
+                            "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
+                            "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
                         }
                     )
                     rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
@@ -232,11 +228,10 @@ def make_train(config: Config):
                         p0_prev_critic_hstates,
                         {
                             "states": jnp.expand_dims(p0_states, axis=0),
-                            "teams": jnp.expand_dims(p0_episode_info[:, 0].astype(jnp.int32), axis=0),
-                            "match_phases": jnp.expand_dims(p0_episode_info[:, 1].astype(jnp.int32), axis=0),
-                            "matches": jnp.expand_dims(p0_episode_info[:, 2].astype(jnp.int32), axis=0),
-                            "team_points": jnp.expand_dims(p0_episode_info[:, 3], axis=[0, -1]),
-                            "opponent_points": jnp.expand_dims(p0_episode_info[:, 4], axis=[0, -1]),
+                            "match_phases": jnp.expand_dims(p0_episode_info[:, 0].astype(jnp.int32), axis=0),
+                            "matches": jnp.expand_dims(p0_episode_info[:, 1].astype(jnp.int32), axis=0),
+                            "team_points": jnp.expand_dims(p0_episode_info[:, 2], axis=[0, -1]),
+                            "opponent_points": jnp.expand_dims(p0_episode_info[:, 3], axis=[0, -1]),
                         }
                     )
 
@@ -270,11 +265,10 @@ def make_train(config: Config):
                             "team_positions": p1_team_positions,
                             "opponent_positions": p1_opponent_positions,
                             "prev_rewards": p1_prev_rewards,
-                            "teams": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                            "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
-                            "matches": jnp.expand_dims(p1_agent_episode_info[:, 2].astype(jnp.int32), axis=0),
-                            "team_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
-                            "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 4], axis=[0, -1]),
+                            "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                            "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
+                            "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
+                            "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
                         }
                     )
 
@@ -292,11 +286,10 @@ def make_train(config: Config):
                         p1_prev_critic_hstates,
                         {
                             "states": jnp.expand_dims(p1_states, axis=0),
-                            "teams": jnp.expand_dims(p1_episode_info[:, 0].astype(jnp.int32), axis=0),
-                            "match_phases": jnp.expand_dims(p1_episode_info[:, 1].astype(jnp.int32), axis=0),
-                            "matches": jnp.expand_dims(p1_episode_info[:, 2].astype(jnp.int32), axis=0),
-                            "team_points": jnp.expand_dims(p1_episode_info[:, 3], axis=[0, -1]),
-                            "opponent_points": jnp.expand_dims(p1_episode_info[:, 4], axis=[0, -1]),
+                            "match_phases": jnp.expand_dims(p1_episode_info[:, 0].astype(jnp.int32), axis=0),
+                            "matches": jnp.expand_dims(p1_episode_info[:, 1].astype(jnp.int32), axis=0),
+                            "team_points": jnp.expand_dims(p1_episode_info[:, 2], axis=[0, -1]),
+                            "opponent_points": jnp.expand_dims(p1_episode_info[:, 3], axis=[0, -1]),
                         }
                     )
 
@@ -313,12 +306,21 @@ def make_train(config: Config):
                         observations['player_1'].relic_nodes, 
                         p1_discovered_relic_nodes
                     )
+                    p1_new_discovered_relic_nodes = jnp.concatenate(
+                        (p1_new_discovered_relic_nodes[:, 3:, :], p1_new_discovered_relic_nodes[:, :3, :]),
+                        axis=1
+                    )
+
+                    transformed_p1_actions = jnp.zeros_like(p1_actions)
+                    transformed_p1_actions = transformed_p1_actions.at[:, :, 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
+                    transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(p1_actions[:, :, 2])
+                    transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(p1_actions[:, :, 1])
 
                     p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, _ = v_step(
                         states,
                         OrderedDict({
-                            "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 8),
-                            "player_1": p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - 8),
+                            "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
+                            "player_1": transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
                         }),
                         p0_new_discovered_relic_nodes,
                         p1_new_discovered_relic_nodes,
@@ -426,11 +428,10 @@ def make_train(config: Config):
                     p0_prev_critic_hstates,
                     {
                         "states": jnp.expand_dims(p0_states, axis=0),
-                        "teams": jnp.expand_dims(p0_episode_info[:, 0].astype(jnp.int32), axis=0),
-                        "match_phases": jnp.expand_dims(p0_episode_info[:, 1].astype(jnp.int32), axis=0),
-                        "matches": jnp.expand_dims(p0_episode_info[:, 2].astype(jnp.int32), axis=0),
-                        "team_points": jnp.expand_dims(p0_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
-                        "opponent_points": jnp.expand_dims(p0_episode_info[:, 4].astype(jnp.int32), axis=[0, -1]),
+                        "match_phases": jnp.expand_dims(p0_episode_info[:, 0].astype(jnp.int32), axis=0),
+                        "matches": jnp.expand_dims(p0_episode_info[:, 1].astype(jnp.int32), axis=0),
+                        "team_points": jnp.expand_dims(p0_episode_info[:, 2].astype(jnp.int32), axis=[0, -1]),
+                        "opponent_points": jnp.expand_dims(p0_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
                     }
                 )
 
@@ -439,11 +440,10 @@ def make_train(config: Config):
                     p1_prev_critic_hstates,
                     {
                         "states": jnp.expand_dims(p1_states, axis=0),
-                        "teams": jnp.expand_dims(p1_episode_info[:, 0].astype(jnp.int32), axis=0),
-                        "match_phases": jnp.expand_dims(p1_episode_info[:, 1].astype(jnp.int32), axis=0),
-                        "matches": jnp.expand_dims(p1_episode_info[:, 2].astype(jnp.int32), axis=0),
-                        "team_points": jnp.expand_dims(p1_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
-                        "opponent_points": jnp.expand_dims(p1_episode_info[:, 4].astype(jnp.int32), axis=[0, -1]),
+                        "match_phases": jnp.expand_dims(p1_episode_info[:, 0].astype(jnp.int32), axis=0),
+                        "matches": jnp.expand_dims(p1_episode_info[:, 1].astype(jnp.int32), axis=0),
+                        "team_points": jnp.expand_dims(p1_episode_info[:, 2].astype(jnp.int32), axis=[0, -1]),
+                        "opponent_points": jnp.expand_dims(p1_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
                     }
                 )
 
@@ -615,7 +615,22 @@ def make_train(config: Config):
 
             updated_runner_state, update_step_info = jax.lax.scan(_update_step, runner_state, None, config.n_update_steps)
 
-            eval_info = evaluate(eval_rng, updated_runner_state.actor_train_state, config.n_eval_envs, config.n_agents, sample_params, v_reset, v_step)
+            rng, eval_meta_key_rng, eval_meta_env_params_rng, _ = jax.random.split(rng, num=4)
+            eval_meta_keys = jax.random.split(eval_meta_key_rng, config.n_eval_envs)
+            eval_meta_env_params = jax.vmap(sample_params)(
+                jax.random.split(eval_meta_env_params_rng, config.n_eval_envs)
+            )
+
+            eval_info = evaluate(
+                eval_rng,
+                eval_meta_keys,
+                eval_meta_env_params,
+                updated_runner_state.actor_train_state,
+                config.n_eval_envs,
+                config.n_agents,
+                v_reset,
+                v_step
+            )
 
             meta_step_info = {
                 "update_step_info": update_step_info,

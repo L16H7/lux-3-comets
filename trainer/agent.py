@@ -4,6 +4,7 @@ import distrax
 import jax.numpy as jnp
 
 from constants import Constants
+from representation import transform_coordinates
 
 
 directions = jnp.array(
@@ -16,18 +17,43 @@ directions = jnp.array(
     dtype=jnp.int16,
 )
 
-@jax.jit
+def transform_observation(obs):
+    # Horizontal flip across the last dimension (24, 24 grids)
+    flipped = jnp.flip(obs, axis=2)
+    
+    # Rotate 90 degrees clockwise after flip, across the last two dimensions (24x24)
+    rotated = jnp.rot90(flipped, k=-1, axes=(1, 2))
+    
+    return rotated
+
+def vectorized_transform_actions(actions):
+    # Create a JAX array that maps each action index to its new action
+    # Index:      0  1  2  3  4 . 5
+    # Action map: 0  2  1  4  3 . 5
+    action_map = jnp.array([0, 2, 1, 4, 3, 5])
+
+    # Vectorized mapping
+    transformed_actions = action_map[actions]
+    return transformed_actions
+
+# @jax.jit
 def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges):
     n_envs = observations.units.position.shape[0]
     
-    new_positions = observations.units.position[:, team_idx, ..., None, :] + directions
+    agent_positions = observations.units.position[:, team_idx, ..., None, :] 
+    agent_positions = agent_positions if team_idx == 0 else transform_coordinates(agent_positions)
+
+    new_positions = agent_positions + directions
 
     in_bounds = (
         (new_positions[..., 0] >= 0) & (new_positions[..., 0] <= Constants.MAP_WIDTH - 1) &
         (new_positions[..., 1] >= 0) & (new_positions[..., 1] <= Constants.MAP_HEIGHT - 1)
     )
 
-    is_asteroid = (observations.map_features.tile_type == Constants.ASTEROID_TILE)[
+    asteroid_tiles = observations.map_features.tile_type == Constants.ASTEROID_TILE
+    asteroid_tiles = asteroid_tiles if team_idx == 0 else transform_observation(asteroid_tiles)
+
+    is_asteroid = asteroid_tiles[
         0, 
         new_positions[..., 0].clip(0, Constants.MAP_WIDTH - 1),
         new_positions[..., 1].clip(0, Constants.MAP_HEIGHT - 1),
@@ -35,9 +61,17 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     valid_movements = in_bounds & (~is_asteroid)
 
     team_positions = observations.units.position[:, team_idx, ...]
+    team_positions = team_positions if team_idx == 0 else transform_coordinates(team_positions)
+
     opponent_positions = observations.units.position[:, opponent_idx, ...]
+    opponent_positions = opponent_positions if team_idx == 0 else transform_coordinates(opponent_positions)
     opponent_positions = jnp.where(
         opponent_positions == -1,
+        -100,
+        opponent_positions
+    )
+    opponent_positions = jnp.where(
+        opponent_positions == 24,
         -100,
         opponent_positions
     )
@@ -131,7 +165,8 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     dist3 = distrax.Categorical(logits=masked_logits3.reshape(1, -1, 17))
     dist = distrax.Joint([dist1, dist2, dist3])
 
-    actions, log_probs = dist.sample_and_log_prob(seed=rng)
+    rng, action_rng = jax.random.split(rng)
+    actions, log_probs = dist.sample_and_log_prob(seed=action_rng)
 
     actions = jnp.squeeze(jnp.stack(actions), axis=1)
     actions = actions.T.reshape(n_envs, 16, -1)

@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 from collections import OrderedDict
 
-from agent import get_actions
+from agent import get_actions, vectorized_transform_actions
 from rnn import ScannedRNN
 from utils import calculate_sapping_stats
 
@@ -42,20 +42,15 @@ def analyse_stats(
 
 def evaluate(
     rng,
+    meta_keys,
+    meta_env_params,
     actor_train_state,
     n_envs,
     n_agents,
-    sample_params,
     v_reset,
     v_step,
 ):
     N_TOTAL_AGENTS = n_envs * n_agents
-
-    rng, meta_key_rng, meta_env_params_rng, _ = jax.random.split(rng, num=4)
-    meta_keys = jax.random.split(meta_key_rng, n_envs)
-    meta_env_params = jax.vmap(sample_params)(
-        jax.random.split(meta_env_params_rng, n_envs)
-    )
 
     p0_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
     p1_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
@@ -103,11 +98,10 @@ def evaluate(
                 "team_positions": p0_team_positions,
                 "opponent_positions": p0_opponent_positions,
                 "prev_rewards": p0_prev_rewards,
-                "teams": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
-                "matches": jnp.expand_dims(p0_agent_episode_info[:, 2].astype(jnp.int32), axis=0),
-                "team_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
-                "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 4], axis=[0, -1]),
+                "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
+                "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
+                "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
             }
         )
 
@@ -150,11 +144,10 @@ def evaluate(
                 "team_positions": p1_team_positions,
                 "opponent_positions": p1_opponent_positions,
                 "prev_rewards": p1_prev_rewards,
-                "teams": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
-                "matches": jnp.expand_dims(p1_agent_episode_info[:, 2].astype(jnp.int32), axis=0),
-                "team_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
-                "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 4], axis=[0, -1]),
+                "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
+                "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
+                "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
             }
         )
 
@@ -168,7 +161,12 @@ def evaluate(
         )
 
         p0_actions = p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 8)
-        p1_actions = p1_actions.at[:, :, 1:].set(p1_actions[:, :, 1:] - 8)
+
+        transformed_p1_actions = jnp.zeros_like(p1_actions)
+        transformed_p1_actions = transformed_p1_actions.at[:, :, 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
+        transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(p1_actions[:, :, 2])
+        transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(p1_actions[:, :, 1])
+        transformed_p1_actions = transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - 8)
 
         p0_relic_mask = observations['player_0'].relic_nodes != -1
         p0_new_discovered_relic_nodes = jnp.where(
@@ -188,7 +186,7 @@ def evaluate(
             states,
             OrderedDict({
                 "player_0": p0_actions,
-                "player_1": p1_actions,
+                "player_1": transformed_p1_actions,
             }),
             p0_new_discovered_relic_nodes,
             p1_new_discovered_relic_nodes,
