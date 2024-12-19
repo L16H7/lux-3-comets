@@ -306,6 +306,10 @@ def make_train(config: Config):
                         observations['player_1'].relic_nodes, 
                         p1_discovered_relic_nodes
                     )
+                    p1_new_discovered_relic_nodes = jnp.concatenate(
+                        (p1_new_discovered_relic_nodes[:, 3:, :], p1_new_discovered_relic_nodes[:, :3, :]),
+                        axis=1
+                    )
 
                     transformed_p1_actions = jnp.zeros_like(p1_actions)
                     transformed_p1_actions = transformed_p1_actions.at[:, :, 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
