@@ -72,6 +72,7 @@ def evaluate(
         (
             p0_states,
             p0_episode_info,
+            p0_points_map,
             p0_team_positions,
             _,
         ) = p0_representations
@@ -116,6 +117,7 @@ def evaluate(
         (
             p1_states,
             p1_episode_info,
+            p1_points_map,
             p1_team_positions,
             _,
         ) = p1_representations
@@ -182,6 +184,8 @@ def evaluate(
             }),
             p0_new_discovered_relic_nodes,
             p1_new_discovered_relic_nodes,
+            p0_points_map,
+            p1_points_map,
             meta_keys,
             meta_env_params,
         )

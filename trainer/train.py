@@ -56,25 +56,28 @@ def create_agent_representations(
     observations,
     p0_discovered_relic_nodes,
     p1_discovered_relic_nodes,
-    points_map,
+    p0_points_map,
+    p1_points_map,
     points_gained,
 ):
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
         obs=p0_observations,
         discovered_relic_nodes=p0_discovered_relic_nodes,
+        points_map=p0_points_map,
+        points_gained=points_gained[:, 0],
         team_idx=0,
         opponent_idx=1,
-        points_gained=points_gained,
     )
 
     p1_observations = observations["player_1"]
     p1_representations = create_representations(
         obs=p1_observations,
         discovered_relic_nodes=p1_discovered_relic_nodes,
+        points_map=p1_points_map,
+        points_gained=points_gained[:, 1],
         team_idx=1,
         opponent_idx=0,
-        points_gained=points_gained,
     )
     return p0_representations, p1_representations
 
@@ -87,12 +90,14 @@ def make_train(config: Config):
 
     def v_reset(meta_keys, meta_env_params):
         observations, states = jax.vmap(reset_fn)(meta_keys, meta_env_params)
+        n_envs = observations['player_0'].relic_nodes.shape[0]
         p0_representations, p1_representations = create_agent_representations(
             observations=observations,
             p0_discovered_relic_nodes=observations['player_0'].relic_nodes,
             p1_discovered_relic_nodes=observations['player_1'].relic_nodes,
-            points_map=jnp.zeros((config.n_envs, config.map_width, config.map_height)),
-            points_gained=jnp.zeros((config.n_envs, 2)),
+            p0_points_map=jnp.zeros((n_envs, config.map_width, config.map_height)),
+            p1_points_map=jnp.zeros((n_envs, config.map_width, config.map_height)),
+            points_gained=jnp.zeros((n_envs, 2)),
         )
         return p0_representations, p1_representations, observations, states
 
@@ -104,6 +109,8 @@ def make_train(config: Config):
         actions,
         p0_discovered_relic_nodes,
         p1_discovered_relic_nodes,
+        p0_points_map,
+        p1_points_map,
         meta_keys,
         meta_env_params,
     ):
@@ -131,7 +138,8 @@ def make_train(config: Config):
             observations=observations,
             p0_discovered_relic_nodes=p0_discovered_relic_nodes,
             p1_discovered_relic_nodes=p1_discovered_relic_nodes,
-            points_map=jnp.zeros((config.n_envs, 24, 24)),
+            p0_points_map=p0_points_map,
+            p1_points_map=p1_points_map,
             points_gained=envinfo["points_gained"],
         )
         return p0_representations, p1_representations, observations, states, rewards, terminated, truncated, info
@@ -193,6 +201,7 @@ def make_train(config: Config):
                     (
                         p0_states,
                         p0_episode_info,
+                        p0_points_map,
                         p0_team_positions,
                         p0_units_mask,
                     ) = p0_representations
@@ -256,6 +265,7 @@ def make_train(config: Config):
                     (
                         p1_states,
                         p1_episode_info,
+                        p1_points_map,
                         p1_team_positions,
                         p1_units_mask,
                     ) = p1_representations
@@ -336,6 +346,8 @@ def make_train(config: Config):
                         }),
                         p0_new_discovered_relic_nodes,
                         p1_new_discovered_relic_nodes,
+                        p0_points_map,
+                        p1_points_map,
                         meta_keys,
                         meta_env_params,
                     )
@@ -430,11 +442,13 @@ def make_train(config: Config):
                     p0_episode_info,
                     _,
                     _,
+                    _,
                 ) = p0_representations
 
                 (
                     p1_states,
                     p1_episode_info,
+                    _,
                     _,
                     _,
                 ) = p1_representations
@@ -740,7 +754,7 @@ if __name__ == "__main__":
         n_update_steps=1,
         n_envs=4,
         n_envs_per_device=4,
-        n_eval_envs=4,
+        n_eval_envs=2,
         n_minibatches=2,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,

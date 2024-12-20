@@ -132,10 +132,11 @@ def create_agent_patches(state_representation, unit_positions_team):
 def create_representations(
     obs,
     discovered_relic_nodes,
+    points_map,
+    points_gained,
     max_steps_in_match=100,
     team_idx=0,
     opponent_idx=1,
-    points_gained=None,
 ):
     unit_masks_team = obs.units_mask[:, team_idx, :]              # Shape: [batch_size, num_team_units]
     unit_positions_team = obs.units.position[:, team_idx, :, :]   # Shape: [batch_size, num_team_units, 2]
@@ -164,6 +165,18 @@ def create_representations(
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
+    unit_positions_team = unit_positions_team if team_idx == 0 else transform_coordinates(unit_positions_team)
+    unit_positions_team = jnp.where(
+        unit_positions_team == 24,
+        -1,
+        unit_positions_team,
+    )
+ 
+    updated_points_map = update_points_map_batch(
+        points_map,
+        unit_positions_team,
+        points_gained,
+    )
     # SCALE
     maps = [
         team_unit_maps / 8.0,
@@ -175,6 +188,7 @@ def create_representations(
         asteroid_maps.transpose((0, 2, 1)),
         nebula_maps.transpose((0, 2, 1)),
         obs.sensor_mask.transpose((0, 2, 1)),
+        updated_points_map,
     ]
 
     state_representation = jnp.stack(maps, axis=1)
@@ -187,13 +201,6 @@ def create_representations(
 
     episode_info = jnp.concatenate((match_phases, matches, team_points), axis=1)
 
-    unit_positions_team = unit_positions_team if team_idx == 0 else transform_coordinates(unit_positions_team)
-    unit_positions_team = jnp.where(
-        unit_positions_team == 24,
-        -1,
-        unit_positions_team,
-    )
- 
     unit_positions_opponent = unit_positions_opponent if team_idx == 0 else transform_coordinates(unit_positions_opponent)
     unit_positions_opponent = jnp.where(
         unit_positions_opponent == 24,
@@ -203,8 +210,6 @@ def create_representations(
     
     agent_positions = (unit_positions_team + 1) / Constants.MAP_HEIGHT
 
-    points_map = jnp.zeros((4, 24, 24))
-    jax.debug.breakpoint()
     # agent_observations = create_agent_patches(
     #     state_representation=state_representation,
     #     unit_positions_team=unit_positions_team,
@@ -215,6 +220,7 @@ def create_representations(
     return (
         state_representation,
         episode_info,
+        updated_points_map,
         agent_positions,
         unit_masks_team,
     )

@@ -325,7 +325,7 @@ class Agent():
         actions = actions.at[:, 1:].set(actions[:, 1:] - 8)
 
         team_points = obs['team_points'][self.team_id]
-        points_gained = (team_points - self.prev_team_points) / 16.0
+        points_gained = jnp.maximum(team_points - self.prev_team_points, 0) / 16.0
         points_gained = jnp.expand_dims(points_gained.repeat(16), axis=[0, -1])
 
         self.prev_team_points = team_points
