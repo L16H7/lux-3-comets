@@ -194,9 +194,12 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits3 = masked_logits3.at[..., : sap_ranges].set(large_negative)
     masked_logits3 = masked_logits3.at[..., -sap_ranges:].set(large_negative)
 
-    action1 = np.argmax(masked_logits1, axis=-1)
-    action2 = np.argmax(masked_logits2, axis=-1)
-    action3 = np.argmax(masked_logits3, axis=-1)
+    # action1 = np.argmax(masked_logits1, axis=-1)
+    # action2 = np.argmax(masked_logits2, axis=-1)
+    # action3 = np.argmax(masked_logits3, axis=-1)
+    action1 = jax.random.categorical(rng, masked_logits1, axis=-1)
+    action2 = jax.random.categorical(rng, masked_logits2, axis=-1)
+    action3 = jax.random.categorical(rng, masked_logits3, axis=-1)
 
     return [action1, action2, action3]
 
@@ -301,15 +304,19 @@ class Agent():
         # previous action doesn't need to modified for agent1 because we only transform actions
         # when we submit to the engine
         self.prev_actions = actions[0].reshape(1, 16)
-        actions[0] = actions[0] if self.team_id == 0 else vectorized_transform_actions(actions[0])
-        actions[1] -= Constants.MAX_SAP_RANGE
-        actions[2] -= Constants.MAX_SAP_RANGE
 
-        if self.team_id == 1:
-            actions[1], actions[2] = actions[2], actions[1]
+        # if self.team_id == 1:
+            # actions[1], actions[2] = actions[2], actions[1]
 
         actions = jnp.squeeze(jnp.stack(actions), axis=1).T
 
+        transformed_p1_actions = jnp.zeros_like(actions)
+        transformed_p1_actions = transformed_p1_actions.at[:, 0].set(vectorized_transform_actions(actions[:, 0]))
+        transformed_p1_actions = transformed_p1_actions.at[:, 1].set(actions[:, 2])
+        transformed_p1_actions = transformed_p1_actions.at[:, 2].set(actions[:, 1])
+        actions = actions if self.team_id == 0 else transformed_p1_actions
+
+        actions = actions.at[:, 1:].set(actions[:, 1:] - 8)
 
         team_points = obs['team_points'][self.team_id]
         points_gained = (team_points - self.prev_team_points) / 16.0

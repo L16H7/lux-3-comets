@@ -38,14 +38,16 @@ class ActorInput(TypedDict):
     opponent_points: jax.Array
     prev_points: jax.Array
     prev_actions: jax.Array
+    unit_move_cost: jax.Array
+    unit_sap_cost: jax.Array
+    unit_sap_range: jax.Array
+    unit_sensor_range: jax.Array
  
 class Actor(nn.Module):
     n_actions: int = 6
-    match_phase_emb_dim: int = 32
-    match_emb_dim: int = 32
-    point_info_emb_dim: int = 32
-    action_emb_dim: int = 32
-    hidden_dim: int = 256
+    info_emb_dim: int = 32
+    action_emb_dim: int = 16
+    hidden_dim: int = 128
     position_emb_dim: int = 32
  
     @nn.compact
@@ -53,7 +55,7 @@ class Actor(nn.Module):
         observation_encoder = nn.Sequential(
             [
                 nn.Conv(
-                    64,
+                    128,
                     (2, 2),
                     strides=1,
                     padding='SAME',
@@ -61,7 +63,7 @@ class Actor(nn.Module):
                 ),
                 nn.leaky_relu,
                 nn.Conv(
-                    64,
+                    128,
                     (2, 2),
                     strides=1,
                     padding='SAME',
@@ -69,7 +71,7 @@ class Actor(nn.Module):
                 ),
                 nn.leaky_relu,
                 nn.Conv(
-                    64,
+                    128,
                     (2, 2),
                     strides=1,
                     padding='SAME',
@@ -85,36 +87,38 @@ class Actor(nn.Module):
                 ),
                 nn.leaky_relu,
                 lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
-                nn.Dense(256),
+                nn.Dense(128),
                 nn.leaky_relu,
             ]
         )
 
         observation_embeddings = observation_encoder(actor_input['observations'])
 
+        position_embeddings = nn.Dense(self.position_emb_dim)(actor_input['positions'])
         prev_action_embeddings = nn.Embed(
             self.n_actions,
             self.action_emb_dim
         )(actor_input['prev_actions'])
 
-        match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(actor_input['match_phases'])
-
-        point_info_embeddings = nn.Dense(self.point_info_emb_dim)(
+        info_embeddings = nn.Dense(self.info_emb_dim)(
             jnp.concat([
+                actor_input['match_phases'],
                 actor_input['prev_points'],
                 actor_input['team_points'],
                 actor_input['opponent_points'],
+                actor_input['unit_move_cost'],
+                actor_input['unit_sap_cost'],
+                actor_input['unit_sap_range'],
+                actor_input['unit_sensor_range'],
             ], axis=-1)
         )
 
-        position_embeddings = nn.Dense(self.position_emb_dim)(actor_input['positions'])
 
         embeddings = jnp.concat([
             position_embeddings,
             observation_embeddings,
-            match_phase_embeddings,
             prev_action_embeddings,
-            point_info_embeddings,
+            info_embeddings,
         ], axis=-1)
 
         actor = nn.Sequential(
@@ -145,7 +149,7 @@ class CriticInput(TypedDict):
 class Critic(nn.Module):
     match_phase_emb_dim: int = 16
     point_info_emb_dim: int = 16
-    hidden_dim: int = 512
+    hidden_dim: int = 256
  
     @nn.compact
     def __call__(self, hstate: jax.Array, critic_input):
@@ -184,7 +188,7 @@ class Critic(nn.Module):
                 ),
                 nn.leaky_relu,
                 lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
-                nn.Dense(512),
+                nn.Dense(256),
                 nn.leaky_relu,
             ]
         )

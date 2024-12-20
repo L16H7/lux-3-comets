@@ -80,6 +80,11 @@ def evaluate(
         p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(16, axis=1)
         p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
+        unit_move_cost = jnp.expand_dims(meta_env_params.unit_move_cost, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
+        unit_sap_cost = jnp.expand_dims(meta_env_params.unit_sap_cost, axis=[0, -1]).repeat(n_agents, axis=1) / 50.0
+        unit_sap_range = jnp.expand_dims(meta_env_params.unit_sap_range, axis=[0, -1]).repeat(n_agents, axis=1) / 8.0
+        unit_sensor_range = jnp.expand_dims(meta_env_params.unit_sensor_range, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
+
         p0_logits, p0_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
             p0_prev_actor_hstates,
@@ -88,9 +93,13 @@ def evaluate(
                 "prev_actions": p0_prev_actions,
                 "positions": p0_agent_positions,
                 "prev_points": p0_prev_points,
-                "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
+                "unit_move_cost": unit_move_cost,
+                "unit_sap_cost": unit_sap_cost,
+                "unit_sap_range": unit_sap_range,
+                "unit_sensor_range": unit_sensor_range,
             }
         )
 
@@ -124,9 +133,13 @@ def evaluate(
                 "prev_actions": p1_prev_actions,
                 "positions": p1_agent_positions,
                 "prev_points": p1_prev_points,
-                "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
+                "unit_move_cost": unit_move_cost,
+                "unit_sap_cost": unit_sap_cost,
+                "unit_sap_range": unit_sap_range,
+                "unit_sensor_range": unit_sensor_range,
             }
         )
 
@@ -202,9 +215,9 @@ def evaluate(
 
     p0_representations, p1_representations, observations, states = v_reset(meta_keys, meta_env_params)
 
-    p0_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 256)
+    p0_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 128)
 
-    p1_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 256)
+    p1_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 128)
 
     p0_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
     p1_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
