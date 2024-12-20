@@ -56,6 +56,7 @@ def create_agent_representations(
     observations,
     p0_discovered_relic_nodes,
     p1_discovered_relic_nodes,
+    points_map,
     points_gained,
 ):
     p0_observations = observations["player_0"]
@@ -130,6 +131,7 @@ def make_train(config: Config):
             observations=observations,
             p0_discovered_relic_nodes=p0_discovered_relic_nodes,
             p1_discovered_relic_nodes=p1_discovered_relic_nodes,
+            points_map=jnp.zeros((config.n_envs, 24, 24)),
             points_gained=envinfo["points_gained"],
         )
         return p0_representations, p1_representations, observations, states, rewards, terminated, truncated, info

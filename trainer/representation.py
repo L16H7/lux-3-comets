@@ -219,3 +219,20 @@ def create_representations(
         unit_masks_team,
     )
         
+def update_points_map(points_map, positions, points_gained):
+    # pos is shape (16, 2)
+    rows = positions[:, 1]
+    cols = positions[:, 0]
+
+    # If gain == 0, set to -1
+    # Else increment by 0.01
+    updated_map = jax.lax.cond(
+        points_gained == 0,
+        lambda m: m.at[rows, cols].set(-1.0),
+        lambda m: m.at[rows, cols].add(0.01 * points_gained),
+        points_map,
+    )
+
+    return updated_map
+
+update_points_map_batch = jax.vmap(update_points_map, in_axes=(0, 0, 0))
