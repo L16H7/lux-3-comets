@@ -52,13 +52,19 @@ class RunnerState(NamedTuple):
     p1_critic_hstate: jnp.ndarray
 
 
-def create_agent_representations(observations, p0_discovered_relic_nodes, p1_discovered_relic_nodes):
+def create_agent_representations(
+    observations,
+    p0_discovered_relic_nodes,
+    p1_discovered_relic_nodes,
+    points_gained,
+):
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
         obs=p0_observations,
         discovered_relic_nodes=p0_discovered_relic_nodes,
         team_idx=0,
         opponent_idx=1,
+        points_gained=points_gained,
     )
 
     p1_observations = observations["player_1"]
@@ -67,6 +73,7 @@ def create_agent_representations(observations, p0_discovered_relic_nodes, p1_dis
         discovered_relic_nodes=p1_discovered_relic_nodes,
         team_idx=1,
         opponent_idx=0,
+        points_gained=points_gained,
     )
     return p0_representations, p1_representations
 
@@ -83,6 +90,8 @@ def make_train(config: Config):
             observations=observations,
             p0_discovered_relic_nodes=observations['player_0'].relic_nodes,
             p1_discovered_relic_nodes=observations['player_1'].relic_nodes,
+            points_map=jnp.zeros((config.n_envs, config.map_width, config.map_height)),
+            points_gained=jnp.zeros((config.n_envs, 2)),
         )
         return p0_representations, p1_representations, observations, states
 
@@ -97,7 +106,7 @@ def make_train(config: Config):
         meta_keys,
         meta_env_params,
     ):
-        observations, states, rewards, terminated, truncated, _ = jax.vmap(step_fn)(
+        observations, states, rewards, terminated, truncated, envinfo = jax.vmap(step_fn)(
             states,
             actions,
             meta_keys,
@@ -121,6 +130,7 @@ def make_train(config: Config):
             observations=observations,
             p0_discovered_relic_nodes=p0_discovered_relic_nodes,
             p1_discovered_relic_nodes=p1_discovered_relic_nodes,
+            points_gained=envinfo["points_gained"],
         )
         return p0_representations, p1_representations, observations, states, rewards, terminated, truncated, info
         

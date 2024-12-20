@@ -135,6 +135,7 @@ def create_representations(
     max_steps_in_match=100,
     team_idx=0,
     opponent_idx=1,
+    points_gained=None,
 ):
     unit_masks_team = obs.units_mask[:, team_idx, :]              # Shape: [batch_size, num_team_units]
     unit_positions_team = obs.units.position[:, team_idx, :, :]   # Shape: [batch_size, num_team_units, 2]
@@ -200,13 +201,16 @@ def create_representations(
         unit_positions_opponent,
     )
     
-    agent_observations = create_agent_patches(
-        state_representation=state_representation,
-        unit_positions_team=unit_positions_team,
-    )
     agent_positions = (unit_positions_team + 1) / Constants.MAP_HEIGHT
-    opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
-    relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
+
+    points_map = jnp.zeros((4, 24, 24))
+    jax.debug.breakpoint()
+    # agent_observations = create_agent_patches(
+    #     state_representation=state_representation,
+    #     unit_positions_team=unit_positions_team,
+    # )
+    # opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
+    # relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
 
     return (
         state_representation,
