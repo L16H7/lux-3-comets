@@ -28,7 +28,7 @@ from luxai_s3.env import LuxAIS3Env
 from luxai_s3.params import EnvParams, env_params_ranges
 from make_states import make_states
 from ppo import Transition, calculate_gae, ppo_update
-from representation import create_representations
+from representation import create_representations, transform_coordinates
 from rnn import ScannedRNN
 
 
@@ -309,10 +309,12 @@ def make_train(config: Config):
                         axis=1
                     )
 
+                    transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
+
                     transformed_p1_actions = jnp.zeros_like(p1_actions)
-                    transformed_p1_actions = transformed_p1_actions.at[:, :, 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
-                    transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(p1_actions[:, :, 2])
-                    transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(p1_actions[:, :, 1])
+                    transformed_p1_actions = transformed_p1_actions.at[..., 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
+                    transformed_p1_actions = transformed_p1_actions.at[..., 1].set(transformed_targets[..., 0])
+                    transformed_p1_actions = transformed_p1_actions.at[..., 2].set(transformed_targets[..., 1])
 
                     p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, _ = v_step(
                         states,

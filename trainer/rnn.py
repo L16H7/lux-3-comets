@@ -55,7 +55,7 @@ class Actor(nn.Module):
         observation_encoder = nn.Sequential(
             [
                 nn.Conv(
-                    128,
+                    32,
                     (2, 2),
                     strides=1,
                     padding='SAME',
@@ -63,7 +63,7 @@ class Actor(nn.Module):
                 ),
                 nn.leaky_relu,
                 nn.Conv(
-                    128,
+                    32,
                     (2, 2),
                     strides=1,
                     padding='SAME',
@@ -71,7 +71,7 @@ class Actor(nn.Module):
                 ),
                 nn.leaky_relu,
                 nn.Conv(
-                    128,
+                    32,
                     (2, 2),
                     strides=1,
                     padding='SAME',
@@ -79,7 +79,7 @@ class Actor(nn.Module):
                 ),
                 nn.leaky_relu,
                 nn.Conv(
-                    64,
+                    32,
                     (2, 2),
                     strides=1,
                     padding='SAME',

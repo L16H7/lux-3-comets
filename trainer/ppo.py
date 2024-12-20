@@ -87,7 +87,6 @@ def ppo_update(
                 "unit_sensor_range": jnp.expand_dims(transitions.env_information[:, :, 3], axis=2),
             }
         )
-        jax.debug.breakpoint()
         logits1, logits2, logits3 = logits
         
         large_negative = -1e9
