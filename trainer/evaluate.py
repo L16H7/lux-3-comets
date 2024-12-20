@@ -61,7 +61,7 @@ def evaluate(
             actor_train_state,
             (p0_representations, p1_representations),
             (p0_prev_actions, p1_prev_actions),
-            (p0_prev_rewards, p1_prev_rewards),
+            (p0_prev_points, p1_prev_points),
             observations,
             states,
             (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
@@ -70,22 +70,20 @@ def evaluate(
         ) = runner_state
 
         (
-            _,
-            p0_agent_observations,
+            p0_states,
             p0_episode_info,
             p0_team_positions,
-            p0_opponent_positions,
-            p0_relic_nodes_positions,
             _,
         ) = p0_representations
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
-
-        p0_agent_observations = jnp.reshape(p0_agent_observations, (1, N_TOTAL_AGENTS, 9, 9, 9))
+        p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(16, axis=1)
         p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
-        p0_relic_nodes_positions = jnp.expand_dims(p0_relic_nodes_positions.repeat(n_agents, axis=0), axis=0)
-        p0_team_positions = jnp.expand_dims(jnp.repeat(p0_team_positions, n_agents, axis=0), axis=0)
-        p0_opponent_positions = jnp.expand_dims(jnp.repeat(p0_opponent_positions, n_agents, axis=0), axis=0)
+
+        unit_move_cost = jnp.expand_dims(meta_env_params.unit_move_cost, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
+        unit_sap_cost = jnp.expand_dims(meta_env_params.unit_sap_cost, axis=[0, -1]).repeat(n_agents, axis=1) / 50.0
+        unit_sap_range = jnp.expand_dims(meta_env_params.unit_sap_range, axis=[0, -1]).repeat(n_agents, axis=1) / 8.0
+        unit_sensor_range = jnp.expand_dims(meta_env_params.unit_sensor_range, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
 
         p0_logits, p0_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
@@ -94,14 +92,14 @@ def evaluate(
                 "observations": p0_agent_observations,
                 "prev_actions": p0_prev_actions,
                 "positions": p0_agent_positions,
-                "relic_nodes_positions": p0_relic_nodes_positions,
-                "team_positions": p0_team_positions,
-                "opponent_positions": p0_opponent_positions,
-                "prev_rewards": p0_prev_rewards,
-                "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
+                "prev_points": p0_prev_points,
+                "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
+                "unit_move_cost": unit_move_cost,
+                "unit_sap_cost": unit_sap_cost,
+                "unit_sap_range": unit_sap_range,
+                "unit_sensor_range": unit_sensor_range,
             }
         )
 
@@ -116,22 +114,16 @@ def evaluate(
         )
 
         (
-            _,
-            p1_agent_observations,
+            p1_states,
             p1_episode_info,
             p1_team_positions,
-            p1_opponent_positions,
-            p1_relic_nodes_positions,
             _,
         ) = p1_representations
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
 
-        p1_agent_observations = jnp.reshape(p1_agent_observations, (1, N_TOTAL_AGENTS, 9, 9, 9))
+        p1_agent_observations = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1)
         p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
-        p1_relic_nodes_positions = jnp.expand_dims(p1_relic_nodes_positions.repeat(n_agents, axis=0), axis=0)
-        p1_team_positions = jnp.expand_dims(jnp.repeat(p1_team_positions, n_agents, axis=0), axis=0)
-        p1_opponent_positions = jnp.expand_dims(jnp.repeat(p1_opponent_positions, n_agents, axis=0), axis=0)
 
         p1_logits, p1_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
@@ -140,14 +132,14 @@ def evaluate(
                 "observations": p1_agent_observations,
                 "prev_actions": p1_prev_actions,
                 "positions": p1_agent_positions,
-                "relic_nodes_positions": p1_relic_nodes_positions,
-                "team_positions": p1_team_positions,
-                "opponent_positions": p1_opponent_positions,
-                "prev_rewards": p1_prev_rewards,
-                "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=0),
-                "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=0),
+                "prev_points": p1_prev_points,
+                "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
+                "unit_move_cost": unit_move_cost,
+                "unit_sap_cost": unit_sap_cost,
+                "unit_sap_range": unit_sap_range,
+                "unit_sensor_range": unit_sensor_range,
             }
         )
 
@@ -194,22 +186,24 @@ def evaluate(
             meta_env_params,
         )
 
-        # stats = analyse_stats(
-        #     observations=observations,
-        #     next_observations=next_observations,
-        #     p0_actions=p0_actions,
-        #     p1_actions=p1_actions,
-        # )
+        p0_team_points = p0_episode_info[:, 3]
+        p0_next_team_points = next_observations['player_0'].team_points[:, 0]
+        p0_points_gained = jnp.maximum(p0_next_team_points - p0_team_points, 0)
+        p0_points_gained = jnp.expand_dims(p0_points_gained, axis=[0, -1]).repeat(16, axis=1)
+        p0_points_gained = p0_points_gained / 16.0
 
-        p0_rewards = rewards[:, 0, :].reshape(1, -1, 1)
-        p1_rewards = rewards[:, 1, :].reshape(1, -1, 1)
+        p1_team_points = p1_episode_info[:, 3]
+        p1_next_team_points = next_observations['player_1'].team_points[:, 1]
+        p1_points_gained = jnp.maximum(p1_next_team_points - p1_team_points, 0)
+        p1_points_gained = jnp.expand_dims(p1_points_gained, axis=[0, -1]).repeat(16, axis=1)
+        p1_points_gained = p1_points_gained / 16.0
 
         runner_state = (
             rng,
             actor_train_state,
             (p0_next_representations, p1_next_representations),
             (p0_actions[:, :, 0].reshape(1, -1), p1_actions[:, :, 0].reshape(1, -1)),
-            (p0_rewards, p1_rewards),
+            (p0_points_gained, p1_points_gained),
             next_observations,
             next_states,
             (p0_new_discovered_relic_nodes, p1_new_discovered_relic_nodes),
@@ -221,22 +215,22 @@ def evaluate(
 
     p0_representations, p1_representations, observations, states = v_reset(meta_keys, meta_env_params)
 
-    p0_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 256)
+    p0_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 128)
 
-    p1_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 256)
+    p1_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 128)
 
     p0_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
     p1_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
 
-    p0_prev_rewards = jnp.zeros((1, n_envs * n_agents, 1))
-    p1_prev_rewards = jnp.zeros((1, n_envs * n_agents, 1))
+    p0_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
+    p1_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
 
     runner_state = (
         rng,
         actor_train_state,
         (p0_representations, p1_representations),
         (p0_prev_actions, p1_prev_actions),
-        (p0_prev_rewards, p1_prev_rewards),
+        (p0_prev_points, p1_prev_points),
         observations,
         states,
         (p0_discovered_relic_nodes, p1_discovered_relic_nodes),

@@ -13,31 +13,28 @@ def make_states(config: Config):
     actor = Actor(n_actions=6)
     BATCH = 16
     SEQ = 2
-    actor_init_hstate = ScannedRNN.initialize_carry(BATCH, 256)
+    actor_init_hstate = ScannedRNN.initialize_carry(BATCH, 128)
     actor_network_params = actor.init(rng, actor_init_hstate, {
-        "observations": jnp.zeros((SEQ, BATCH, 9, 9, 9)),
+        "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
         "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        "teams": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        "matches": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
+        "match_phases": jnp.zeros((SEQ, BATCH, 1), dtype=jnp.int32),
         "positions": jnp.zeros((SEQ, BATCH, 2)),
-        "relic_nodes_positions": jnp.zeros((SEQ, BATCH, 6, 2),),
-        "team_positions": jnp.zeros((SEQ, BATCH, 16, 2)),
-        "opponent_positions": jnp.zeros((SEQ, BATCH, 16, 2)),
-        "prev_rewards": jnp.zeros((SEQ, BATCH, 1)),
+        "prev_points": jnp.zeros((SEQ, BATCH, 1)),
         "team_points": jnp.zeros((SEQ, BATCH, 1)),
         "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
+        "unit_move_cost": jnp.zeros((SEQ, BATCH, 1)),
+        "unit_sap_cost": jnp.zeros((SEQ, BATCH, 1)),
+        "unit_sap_range": jnp.zeros((SEQ, BATCH, 1)),
+        "unit_sensor_range": jnp.zeros((SEQ, BATCH, 1)),
     })
 
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(actor_network_params))
     print(f"Number of actor parameters: {num_params:,}")
 
     critic = Critic()
-    critic_init_hstate = ScannedRNN.initialize_carry(BATCH, 512)
+    critic_init_hstate = ScannedRNN.initialize_carry(BATCH, 256)
     critic_network_params = critic.init(rng, critic_init_hstate, {
         "states": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
-        "teams": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        "matches": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
         "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
         "team_points": jnp.zeros((SEQ, BATCH, 1)),
         "opponent_points": jnp.zeros((SEQ, BATCH, 1)),

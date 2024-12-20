@@ -11,20 +11,18 @@ class Transition(NamedTuple):
     agent_episode_info: jnp.ndarray
     states: jnp.ndarray
     prev_actions: jnp.ndarray
-    prev_rewards: jnp.ndarray
+    prev_points: jnp.ndarray
     actions: jnp.ndarray
     log_probs: jnp.ndarray
     values: jnp.ndarray
     units_mask: jnp.ndarray
     agent_positions: jnp.ndarray
-    team_positions: jnp.ndarray
-    opponent_positions: jnp.ndarray
-    relic_nodes_positions: jnp.ndarray
     rewards: jnp.ndarray
     dones: jnp.ndarray
     logits1_mask: jnp.ndarray
     logits2_mask: jnp.ndarray
     logits3_mask: jnp.ndarray
+    env_information: jnp.ndarray
 
 
 def calculate_gae(
@@ -79,14 +77,14 @@ def ppo_update(
                 "observations": transitions.observations,
                 "prev_actions": transitions.prev_actions,
                 "positions": transitions.agent_positions,
-                "relic_nodes_positions": transitions.relic_nodes_positions,
-                "team_positions": transitions.team_positions,
-                "opponent_positions": transitions.opponent_positions,
-                "prev_rewards": jnp.expand_dims(transitions.prev_rewards, axis=2),
-                "match_phases": transitions.agent_episode_info[:, :, 0].astype(jnp.int32),
-                "matches": transitions.agent_episode_info[:, :, 1].astype(jnp.int32),
+                "prev_points": jnp.expand_dims(transitions.prev_points, axis=2),
+                "match_phases": jnp.expand_dims(transitions.agent_episode_info[:, :, 0].astype(jnp.int32), axis=2),
                 "team_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 2], axis=2),
                 "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 3], axis=2),
+                "unit_move_cost": jnp.expand_dims(transitions.env_information[:, :, 0], axis=2),
+                "unit_sap_cost": jnp.expand_dims(transitions.env_information[:, :, 1], axis=2),
+                "unit_sap_range": jnp.expand_dims(transitions.env_information[:, :, 2], axis=2),
+                "unit_sensor_range": jnp.expand_dims(transitions.env_information[:, :, 3], axis=2),
             }
         )
         logits1, logits2, logits3 = logits
@@ -142,7 +140,6 @@ def ppo_update(
             {
                 "states": transitions.states,
                 "match_phases": transitions.episode_info[:, :, 0].astype(jnp.int32),
-                "matches": transitions.episode_info[:, :, 1].astype(jnp.int32),
                 "team_points": jnp.expand_dims(transitions.episode_info[:, :, 2], axis=2),
                 "opponent_points": jnp.expand_dims(transitions.episode_info[:, :, 3], axis=2),
             }
