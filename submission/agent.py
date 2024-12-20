@@ -194,12 +194,10 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits3 = masked_logits3.at[..., : sap_ranges].set(large_negative)
     masked_logits3 = masked_logits3.at[..., -sap_ranges:].set(large_negative)
 
-    # action1 = np.argmax(masked_logits1, axis=-1)
-    # action2 = np.argmax(masked_logits2, axis=-1)
-    # action3 = np.argmax(masked_logits3, axis=-1)
-    action1 = jax.random.categorical(rng, masked_logits1, axis=-1)
-    action2 = jax.random.categorical(rng, masked_logits2, axis=-1)
-    action3 = jax.random.categorical(rng, masked_logits3, axis=-1)
+    rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
+    action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
+    action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
+    action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
 
     return [action1, action2, action3]
 
@@ -211,7 +209,10 @@ class Agent():
         self.team_id = 0 if self.player == "player_0" else 1
         self.opponent_team_id = 1 if self.team_id == 0 else 0
         self.env_cfg = env_cfg
-        self.sap_range = env_cfg["unit_sap_range"]
+        self.unit_sap_range = jnp.array([[[env_cfg["unit_sap_range"]]]]).repeat(16, 1) / 8.0
+        self.unit_move_cost = jnp.array([[[env_cfg["unit_move_cost"]]]]).repeat(16, 1) / 6.0
+        self.unit_sap_cost = jnp.array([[[env_cfg["unit_sap_cost"]]]]).repeat(16, 1) / 50.0
+        self.unit_sensor_range = jnp.array([[[env_cfg["unit_sensor_range"]]]]).repeat(16, 1) / 6.0
 
         checkpoint_path = os.path.join(script_dir, 'checkpoint')
         orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
@@ -223,7 +224,7 @@ class Agent():
 
         BATCH = 16
         SEQ = 1
-        self.actor_hstates = ScannedRNN.initialize_carry(16, 256)
+        self.actor_hstates = ScannedRNN.initialize_carry(16, 128)
         # self.params = self.actor.init(self.rng, self.actor_hstates, {
         #     "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
         #     "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
@@ -282,12 +283,15 @@ class Agent():
             {
                 "observations": agent_observations,
                 "prev_actions": self.prev_actions,
-                "match_phases": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=0),
+                "match_phases": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "positions": agent_positions,
                 "prev_points": self.prev_points,
                 "team_points": jnp.expand_dims(agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(agent_episode_info[:, 3], axis=[0, -1]),
-
+                "unit_move_cost": self.unit_move_cost,
+                "unit_sap_cost": self.unit_sap_cost,
+                "unit_sap_range": self.unit_sap_range,
+                "unit_sensor_range": self.unit_sensor_range,
             }
         )
 
@@ -298,7 +302,7 @@ class Agent():
             opponent_idx=self.opponent_team_id,
             logits=logits,
             observations=observation,
-            sap_ranges=self.sap_range,
+            sap_ranges=self.env_cfg["unit_sap_range"],
         )
 
         # previous action doesn't need to modified for agent1 because we only transform actions
