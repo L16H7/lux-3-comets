@@ -310,10 +310,12 @@ class Agent():
 
         actions = jnp.squeeze(jnp.stack(actions), axis=1).T
 
+        transformed_targets = transform_coordinates(actions[:, 1:], 17, 17)
+
         transformed_p1_actions = jnp.zeros_like(actions)
         transformed_p1_actions = transformed_p1_actions.at[:, 0].set(vectorized_transform_actions(actions[:, 0]))
-        transformed_p1_actions = transformed_p1_actions.at[:, 1].set(actions[:, 2])
-        transformed_p1_actions = transformed_p1_actions.at[:, 2].set(actions[:, 1])
+        transformed_p1_actions = transformed_p1_actions.at[:, 1].set(transformed_targets[:, 0])
+        transformed_p1_actions = transformed_p1_actions.at[:, 2].set(transformed_targets[:, 1])
         actions = actions if self.team_id == 0 else transformed_p1_actions
 
         actions = actions.at[:, 1:].set(actions[:, 1:] - 8)
