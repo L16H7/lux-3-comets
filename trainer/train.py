@@ -200,6 +200,7 @@ def make_train(config: Config):
 
                     (
                         p0_states,
+                        p0_observations,
                         p0_episode_info,
                         p0_points_map,
                         p0_team_positions,
@@ -207,7 +208,8 @@ def make_train(config: Config):
                     ) = p0_representations
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
-                    p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(config.n_agents, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
+                    # p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(config.n_agents, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
+                    p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
                     p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
                     unit_move_cost = jnp.expand_dims(meta_env_params.unit_move_cost, axis=[0, -1]).repeat(config.n_agents, axis=1) / 6.0
@@ -265,6 +267,7 @@ def make_train(config: Config):
 
                     (
                         p1_states,
+                        p1_observations,
                         p1_episode_info,
                         p1_points_map,
                         p1_team_positions,
@@ -272,7 +275,8 @@ def make_train(config: Config):
                     ) = p1_representations
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
-                    p1_agent_observations = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
+                    # p1_agent_observations = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
+                    p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
                     p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
                     p1_logits, p1_actor_hstates = actor_train_state.apply_fn(
@@ -441,6 +445,7 @@ def make_train(config: Config):
 
                 (
                     p0_states,
+                    _,
                     p0_episode_info,
                     _,
                     _,
@@ -449,6 +454,7 @@ def make_train(config: Config):
 
                 (
                     p1_states,
+                    _,
                     p1_episode_info,
                     _,
                     _,

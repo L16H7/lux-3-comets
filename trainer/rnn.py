@@ -100,48 +100,26 @@ class Actor(nn.Module):
         observation_encoder = nn.Sequential(
             [
                 nn.Conv(
-                    32,
+                    64,
                     (2, 2),
                     strides=1,
-                    padding='SAME',
+                    padding=0,
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
-                nn.LayerNorm(),
                 nn.Conv(
-                    32,
+                    64,
                     (2, 2),
-                    strides=1,
-                    padding='SAME',
+                    strides=2,
+                    padding=0,
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
-                nn.LayerNorm(),
-                nn.Conv(
-                    32,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.LayerNorm(),
-                nn.Conv(
-                    32,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.LayerNorm(),
                 lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
                 nn.Dense(256),
                 nn.leaky_relu,
-                nn.LayerNorm(),
             ]
         )
-
         observation_embeddings = observation_encoder(actor_input['observations'])
 
         position_embeddings = get_2d_positional_embeddings(
