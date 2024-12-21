@@ -165,9 +165,19 @@ def create_representations(
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
+    transformed_unit_positions = transform_coordinates(unit_positions_team)
+    transformed_unit_positions = jnp.where(
+        transformed_unit_positions == 24,
+        -1,
+        transformed_unit_positions,
+    )
+
     updated_points_map = update_points_map_batch(
         points_map,
-        unit_positions_team,
+        jnp.concatenate(
+            (unit_positions_team, transformed_unit_positions),
+            axis=1
+        ),
         points_gained,
     )
     # SCALE
@@ -195,12 +205,7 @@ def create_representations(
 
     episode_info = jnp.concatenate((match_phases, matches, team_points), axis=1)
 
-    unit_positions_team = unit_positions_team if team_idx == 0 else transform_coordinates(unit_positions_team)
-    unit_positions_team = jnp.where(
-        unit_positions_team == 24,
-        -1,
-        unit_positions_team,
-    )
+    unit_positions_team = unit_positions_team if team_idx == 0 else transformed_unit_positions
  
     unit_positions_opponent = unit_positions_opponent if team_idx == 0 else transform_coordinates(unit_positions_opponent)
     unit_positions_opponent = jnp.where(
