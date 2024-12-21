@@ -65,7 +65,7 @@ class Actor(nn.Module):
                 nn.leaky_relu,
                 nn.LayerNorm(),
                 nn.Conv(
-                    64,
+                    32,
                     (3, 3),
                     strides=2,
                     padding='SAME',
@@ -74,7 +74,7 @@ class Actor(nn.Module):
                 nn.leaky_relu,
                 nn.LayerNorm(),
                 nn.Conv(
-                    64,
+                    32,
                     (3, 3),
                     strides=2,
                     padding='SAME',
@@ -83,7 +83,7 @@ class Actor(nn.Module):
                 nn.leaky_relu,
                 nn.LayerNorm(),
                 nn.Conv(
-                    64,
+                    32,
                     (3, 3),
                     strides=1,
                     padding='SAME',
