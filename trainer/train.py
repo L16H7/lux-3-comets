@@ -231,6 +231,7 @@ def make_train(config: Config):
                             "positions": p0_agent_positions,
                             "prev_points": p0_prev_points,
                             "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
+                            "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                             "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
                             "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
                             "unit_move_cost": unit_move_cost,
@@ -250,7 +251,6 @@ def make_train(config: Config):
                         observations=observations['player_0'],
                         sap_ranges=meta_env_params.unit_sap_range,
                     )
-                    jax.debug.breakpoint()
 
                     p0_values, p0_critic_hstates = critic_train_state.apply_fn(
                         critic_train_state.params,
@@ -284,6 +284,7 @@ def make_train(config: Config):
                             "positions": p1_agent_positions,
                             "prev_points": p1_prev_points,
                             "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
+                            "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                             "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
                             "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
                             "unit_move_cost": unit_move_cost,
@@ -355,7 +356,6 @@ def make_train(config: Config):
 
                     p0_rewards = rewards[:, 0, :].reshape(1, -1, 1)
                     p1_rewards = rewards[:, 1, :].reshape(1, -1, 1)
-                    jax.debug.breakpoint()
 
                     transition = Transition(
                         observations=jnp.squeeze(jnp.concat([p0_agent_observations, p1_agent_observations], axis=1), axis=0),

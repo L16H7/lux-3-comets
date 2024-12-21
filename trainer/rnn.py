@@ -33,7 +33,8 @@ class ScannedRNN(nn.Module):
 class ActorInput(TypedDict):
     positions: jax.Array
     observations: jax.Array
-    match_phases: jax.Array         # 4 phases each with 25 steps
+    match_phases: jax.Array
+    matches: jax.Array
     team_points: jax.Array
     opponent_points: jax.Array
     prev_points: jax.Array
@@ -56,63 +57,79 @@ class Actor(nn.Module):
             [
                 nn.Conv(
                     32,
-                    (2, 2),
+                    (3, 3),
                     strides=1,
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
+                nn.LayerNorm(),
                 nn.Conv(
-                    32,
-                    (2, 2),
-                    strides=1,
+                    64,
+                    (3, 3),
+                    strides=2,
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
+                nn.LayerNorm(),
                 nn.Conv(
-                    32,
-                    (2, 2),
-                    strides=1,
+                    64,
+                    (3, 3),
+                    strides=2,
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
+                nn.LayerNorm(),
                 nn.Conv(
-                    32,
-                    (2, 2),
+                    64,
+                    (3, 3),
                     strides=1,
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
+                nn.LayerNorm(),
                 lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
-                nn.Dense(128),
+                nn.Dense(256),
                 nn.leaky_relu,
+                nn.LayerNorm(),
             ]
         )
 
         observation_embeddings = observation_encoder(actor_input['observations'])
 
-        position_embeddings = nn.Dense(self.position_emb_dim)(actor_input['positions'])
+        def pos_to_idx(pos):
+            x, y = pos[..., 0], pos[..., 1]
+            idx = x + y * 24
+            return idx
+
+        position_embeddings = nn.Embed(576, self.position_emb_dim)(
+            pos_to_idx(actor_input['positions'])
+        )
         prev_action_embeddings = nn.Embed(
             self.n_actions,
             self.action_emb_dim
         )(actor_input['prev_actions'])
 
-        info_embeddings = nn.Dense(self.info_emb_dim)(
-            jnp.concat([
-                actor_input['match_phases'],
-                actor_input['prev_points'],
-                actor_input['team_points'],
-                actor_input['opponent_points'],
-                actor_input['unit_move_cost'],
-                actor_input['unit_sap_cost'],
-                actor_input['unit_sap_range'],
-                actor_input['unit_sensor_range'],
-            ], axis=-1)
-        )
+        info_input = jnp.concat([
+            actor_input['match_phases'],
+            actor_input['matches'],
+            actor_input['prev_points'],
+            actor_input['team_points'],
+            actor_input['opponent_points'],
+            actor_input['unit_move_cost'],
+            actor_input['unit_sap_cost'],
+            actor_input['unit_sap_range'],
+            actor_input['unit_sensor_range'],
+        ], axis=-1)
 
+        info_embeddings = nn.Sequential([
+            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+            nn.LayerNorm()
+        ])(info_input)
 
         embeddings = jnp.concat([
             position_embeddings,
@@ -129,6 +146,8 @@ class Actor(nn.Module):
                 nn.leaky_relu,
             ]
         )
+        # Normalize before RNN
+        embeddings = nn.LayerNorm()(embeddings)
 
         hstate, out = ScannedRNN()(hstate, embeddings)
         x = actor(out)

@@ -79,6 +79,7 @@ def ppo_update(
                 "positions": transitions.agent_positions,
                 "prev_points": jnp.expand_dims(transitions.prev_points, axis=2),
                 "match_phases": jnp.expand_dims(transitions.agent_episode_info[:, :, 0].astype(jnp.int32), axis=2),
+                "matches": jnp.expand_dims(transitions.agent_episode_info[:, :, 1].astype(jnp.int32), axis=2),
                 "team_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 2], axis=2),
                 "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 3], axis=2),
                 "unit_move_cost": jnp.expand_dims(transitions.env_information[:, :, 0], axis=2),
