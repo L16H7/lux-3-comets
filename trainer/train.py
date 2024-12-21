@@ -753,7 +753,7 @@ if __name__ == "__main__":
         n_actor_steps=16,
         n_update_steps=32,
         n_envs=512,
-        n_envs_per_device=512
+        n_envs_per_device=512,
         n_eval_envs=256,
         n_minibatches=8,
         actor_learning_rate=3e-4,

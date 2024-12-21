@@ -213,6 +213,8 @@ class Agent():
         self.unit_move_cost = jnp.array([[[env_cfg["unit_move_cost"]]]]).repeat(16, 1) / 6.0
         self.unit_sap_cost = jnp.array([[[env_cfg["unit_sap_cost"]]]]).repeat(16, 1) / 50.0
         self.unit_sensor_range = jnp.array([[[env_cfg["unit_sensor_range"]]]]).repeat(16, 1) / 6.0
+        self.points_map = jnp.zeros((1, 24, 24))
+        self.points_gained = 0
 
         checkpoint_path = os.path.join(script_dir, 'checkpoint')
         orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
@@ -260,6 +262,8 @@ class Agent():
             obs=observation,
             discovered_relic_nodes=discovered_relic_nodes,
             max_steps_in_match=100,
+            points_map=self.points_map,
+            points_gained=jnp.array([self.points_gained]),
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id
         )
@@ -267,9 +271,11 @@ class Agent():
         (
             state,
             episode_info,
+            points_map,
             agent_positions,
             _,
         ) = representations
+        self.points_map = points_map
 
         agent_observations = jnp.expand_dims(state, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
         agent_episode_info = episode_info.repeat(16, axis=0)
@@ -325,11 +331,10 @@ class Agent():
         actions = actions.at[:, 1:].set(actions[:, 1:] - 8)
 
         team_points = obs['team_points'][self.team_id]
-        points_gained = jnp.maximum(team_points - self.prev_team_points, 0) / 16.0
-        points_gained = jnp.expand_dims(points_gained.repeat(16), axis=[0, -1])
+        self.points_gained = jnp.maximum(team_points - self.prev_team_points, 0) / 16.0
+        self.prev_points = jnp.expand_dims(self.points_gained.repeat(16), axis=[0, -1])
 
         self.prev_team_points = team_points
-        self.prev_points = points_gained
         
         return actions
         # return jnp.zeros((16, 3), jnp.int32)
