@@ -30,6 +30,50 @@ class ScannedRNN(nn.Module):
         return cell.initialize_carry(jax.random.PRNGKey(0), (batch_size, hidden_size))
 
 
+def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
+    """
+    Generate positional embeddings for 2D coordinates.
+    
+    Args:
+        positions: Array of shape (n_envs, n_units, 2) containing x,y coordinates
+        embedding_dim: Dimension of the output embeddings (must be divisible by 4)
+        max_size: Maximum size of the grid (used for scaling)
+    
+    Returns:
+        Array of shape (n_envs, n_units, embedding_dim) containing positional embeddings
+    """
+    if embedding_dim % 4 != 0:
+        raise ValueError("embedding_dim must be divisible by 4")
+        
+    n_envs, n_units, _ = positions.shape
+    
+    # Normalize positions to [-1, 1]
+    positions = positions / (max_size / 2) - 1
+    
+    # Generate frequency bands
+    freq_bands = jnp.arange(embedding_dim // 4)
+    freqs = 1.0 / (10000 ** (freq_bands / (embedding_dim // 4)))
+    
+    # Reshape for broadcasting
+    x = positions[..., 0:1]  # (n_envs, n_units, 1)
+    y = positions[..., 1:2]  # (n_envs, n_units, 1)
+    freqs = freqs.reshape(1, 1, -1)  # (1, 1, embedding_dim//4)
+    
+    # Calculate embeddings for x and y separately
+    x_sines = jnp.sin(x * freqs * jnp.pi)
+    x_cosines = jnp.cos(x * freqs * jnp.pi)
+    y_sines = jnp.sin(y * freqs * jnp.pi)
+    y_cosines = jnp.cos(y * freqs * jnp.pi)
+    
+    # Concatenate all components
+    embeddings = jnp.concatenate(
+        [x_sines, x_cosines, y_sines, y_cosines],
+        axis=-1
+    )
+    
+    return embeddings
+
+
 class ActorInput(TypedDict):
     positions: jax.Array
     observations: jax.Array
@@ -57,7 +101,7 @@ class Actor(nn.Module):
             [
                 nn.Conv(
                     32,
-                    (3, 3),
+                    (2, 2),
                     strides=1,
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
@@ -66,8 +110,8 @@ class Actor(nn.Module):
                 nn.LayerNorm(),
                 nn.Conv(
                     32,
-                    (3, 3),
-                    strides=2,
+                    (2, 2),
+                    strides=1,
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
@@ -75,8 +119,8 @@ class Actor(nn.Module):
                 nn.LayerNorm(),
                 nn.Conv(
                     32,
-                    (3, 3),
-                    strides=2,
+                    (2, 2),
+                    strides=1,
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
@@ -84,7 +128,7 @@ class Actor(nn.Module):
                 nn.LayerNorm(),
                 nn.Conv(
                     32,
-                    (3, 3),
+                    (2, 2),
                     strides=1,
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
@@ -100,14 +144,12 @@ class Actor(nn.Module):
 
         observation_embeddings = observation_encoder(actor_input['observations'])
 
-        def pos_to_idx(pos):
-            x, y = pos[..., 0], pos[..., 1]
-            idx = x + y * 24
-            return idx
-
-        position_embeddings = nn.Embed(576, self.position_emb_dim)(
-            pos_to_idx(actor_input['positions'])
+        position_embeddings = get_2d_positional_embeddings(
+            actor_input['positions'],
+            embedding_dim=32,  # Must be divisible by 4
+            max_size=24
         )
+
         prev_action_embeddings = nn.Embed(
             self.n_actions,
             self.action_emb_dim
