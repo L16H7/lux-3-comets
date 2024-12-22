@@ -241,7 +241,6 @@ def create_representations(
     # )
     # opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
     # relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
-    jax.debug.breakpoint()
 
     return (
         state_representation,
