@@ -270,6 +270,7 @@ class Agent():
         
         (
             state,
+            observations,
             episode_info,
             points_map,
             agent_positions,
@@ -277,7 +278,8 @@ class Agent():
         ) = representations
         self.points_map = points_map
 
-        agent_observations = jnp.expand_dims(state, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
+        # agent_observations = jnp.expand_dims(state, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
+        agent_observations = observations.reshape(1, -1, 10, 17, 17)
         agent_episode_info = episode_info.repeat(16, axis=0)
 
         BATCH = 16
@@ -290,6 +292,7 @@ class Agent():
                 "observations": agent_observations,
                 "prev_actions": self.prev_actions,
                 "match_phases": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
+                "matches": jnp.expand_dims(agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "positions": agent_positions,
                 "prev_points": self.prev_points,
                 "team_points": jnp.expand_dims(agent_episode_info[:, 2], axis=[0, -1]),

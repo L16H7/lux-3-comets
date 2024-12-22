@@ -87,15 +87,17 @@ def create_unit_maps(
 
 # @profile
 def create_agent_patches(state_representation, unit_positions_team):
+    side = 8
+    full = (side * 2) + 1
     n_envs, _, _, _ = state_representation.shape
     padding = ((0, 0),  # No padding for the batch dimension
                (0, 0),  # No padding for the channel dimension
-               (4, 4),  # Pad height (top, bottom)
-               (4, 4))  # Pad width (left, right)
+               (side, side),  # Pad height (top, bottom)
+               (side, side))  # Pad width (left, right)
     maps_padded = jnp.pad(state_representation, padding, mode='constant', constant_values=0)
 
     # Adjust agent positions to account for padding
-    agent_positions_padded = unit_positions_team + 4  # Shape: (n_envs, n_agents_per_env, 2)
+    agent_positions_padded = unit_positions_team + side  # Shape: (n_envs, n_agents_per_env, 2)
 
     # Generate environment indices for all agents
     n_agents_per_env = agent_positions_padded.shape[1]
@@ -111,8 +113,8 @@ def create_agent_patches(state_representation, unit_positions_team):
         def extract_patch(env_idx, position):
             x, y = position.astype(jnp.int32)  # Ensure position indices are int32
             # Ensure all indices are of type int32
-            start_indices = (env_idx.astype(jnp.int32), jnp.int32(0), y - 4, x - 4)
-            slice_sizes = (1, state_representation.shape[1], 9, 9)
+            start_indices = (env_idx.astype(jnp.int32), jnp.int32(0), y - side, x - side)
+            slice_sizes = (1, state_representation.shape[1], full, full)
             patch = jax.lax.dynamic_slice(maps_padded, start_indices, slice_sizes)
             return patch.squeeze(0)  # Remove the batch dimension
 
@@ -124,7 +126,7 @@ def create_agent_patches(state_representation, unit_positions_team):
     # Call the function
     agent_patches = extract_patches_for_all_agents(maps_padded, flat_positions, env_indices)  # Shape: (n_envs * n_agents_per_env, 9, 9, 9)
     # Reshape back to (n_envs, n_agents_per_env, 9, 9, 9)
-    agent_patches = agent_patches.reshape(n_envs, n_agents_per_env, state_representation.shape[1], 9, 9)
+    agent_patches = agent_patches.reshape(n_envs, n_agents_per_env, state_representation.shape[1], full, full)
 
     return agent_patches
 
@@ -165,9 +167,19 @@ def create_representations(
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
+    transformed_unit_positions = transform_coordinates(unit_positions_team)
+    transformed_unit_positions = jnp.where(
+        transformed_unit_positions == 24,
+        -1,
+        transformed_unit_positions,
+    )
+
     updated_points_map = update_points_map_batch(
         points_map,
-        unit_positions_team,
+        jnp.concatenate(
+            (unit_positions_team, transformed_unit_positions),
+            axis=1
+        ),
         points_gained,
     )
     # SCALE
@@ -187,19 +199,15 @@ def create_representations(
     state_representation = jnp.stack(maps, axis=1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
-    match_phases = jnp.minimum(obs.match_steps[:, None] // 25, 3) # 4 phases
+    # match_phases = jnp.minimum(obs.match_steps[:, None] // 25, 3) # 4 phases
+    match_phases = obs.match_steps[:, None] / 100.0
     matches = jnp.minimum(obs.steps[:, None] // max_steps_in_match, 4) # 5 matches
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
     team_points = team_points / 400.0
 
     episode_info = jnp.concatenate((match_phases, matches, team_points), axis=1)
 
-    unit_positions_team = unit_positions_team if team_idx == 0 else transform_coordinates(unit_positions_team)
-    unit_positions_team = jnp.where(
-        unit_positions_team == 24,
-        -1,
-        unit_positions_team,
-    )
+    unit_positions_team = unit_positions_team if team_idx == 0 else transformed_unit_positions
  
     unit_positions_opponent = unit_positions_opponent if team_idx == 0 else transform_coordinates(unit_positions_opponent)
     unit_positions_opponent = jnp.where(
@@ -208,17 +216,18 @@ def create_representations(
         unit_positions_opponent,
     )
     
-    agent_positions = (unit_positions_team + 1) / Constants.MAP_HEIGHT
+    agent_positions = unit_positions_team
 
-    # agent_observations = create_agent_patches(
-    #     state_representation=state_representation,
-    #     unit_positions_team=unit_positions_team,
-    # )
+    agent_observations = create_agent_patches(
+        state_representation=state_representation,
+        unit_positions_team=unit_positions_team,
+    )
     # opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
     # relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
 
     return (
         state_representation,
+        agent_observations,
         episode_info,
         updated_points_map,
         agent_positions,
