@@ -74,6 +74,27 @@ def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
     return embeddings
 
 
+import jax
+import jax.numpy as jnp
+from flax import linen as nn
+from jax.nn.initializers import orthogonal
+from typing import Tuple
+
+class ResidualBlock(nn.Module):
+    features: int
+    kernel_size: Tuple[int, int] = (3, 3)
+    strides: Tuple[int, int] = (1, 1)
+
+    @nn.compact
+    def __call__(self, x):
+        residual = x
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(x)
+        y = nn.leaky_relu(y)
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(y)
+        y += residual  # Adding the input x to the output of the convolution block
+        return nn.leaky_relu(y)  # Apply activation after adding the residual
+
+
 class ActorInput(TypedDict):
     positions: jax.Array
     observations: jax.Array
@@ -97,45 +118,18 @@ class Actor(nn.Module):
  
     @nn.compact
     def __call__(self, hstate: jax.Array, actor_input: ActorInput):
-        observation_encoder = nn.Sequential(
-            [
-                nn.Conv(
-                    32,
-                    (2, 2),
-                    strides=1,
-                    padding=0,
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    32,
-                    (2, 2),
-                    strides=2,
-                    padding=0,
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    32,
-                    (2, 2),
-                    strides=1,
-                    padding=0,
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    32,
-                    (2, 2),
-                    strides=1,
-                    padding=0,
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
-                nn.Dense(256),
-                nn.leaky_relu,
-            ]
-        )
+        observation_encoder = nn.Sequential([
+            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+            ResidualBlock(32),
+            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+            ResidualBlock(32),
+            lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
+            nn.Dense(256),
+            nn.leaky_relu
+        ])
+
         observation_embeddings = observation_encoder(actor_input['observations'])
 
         position_embeddings = get_2d_positional_embeddings(
@@ -144,15 +138,15 @@ class Actor(nn.Module):
             max_size=24
         )
 
-        prev_action_embeddings = nn.Embed(
-            self.n_actions,
-            self.action_emb_dim
-        )(actor_input['prev_actions'])
+        # prev_action_embeddings = nn.Embed(
+        #     self.n_actions,
+        #     self.action_emb_dim
+        # )(actor_input['prev_actions'])
 
         info_input = jnp.concat([
             actor_input['match_phases'],
             actor_input['matches'],
-            actor_input['prev_points'],
+            # actor_input['prev_points'],
             actor_input['team_points'],
             actor_input['opponent_points'],
             actor_input['unit_move_cost'],
@@ -170,7 +164,7 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             position_embeddings,
             observation_embeddings,
-            prev_action_embeddings,
+            # prev_action_embeddings,
             info_embeddings,
         ], axis=-1)
 
