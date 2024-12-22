@@ -212,8 +212,8 @@ def make_train(config: Config):
                     ) = p0_representations
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
-                    # p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(config.n_agents, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
-                    p0_agent_observations = p0_observations.reshape(1, -1, 11, 24, 24)
+                    p0_agent_states = jnp.expand_dims(p0_states, axis=0).repeat(config.n_agents, axis=1) # 1, N_TOTAL_AGENTS, 11, 24, 24
+                    p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
                     p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
                     unit_move_cost = jnp.expand_dims(meta_env_params.unit_move_cost, axis=[0, -1]).repeat(config.n_agents, axis=1) / 6.0
@@ -232,6 +232,7 @@ def make_train(config: Config):
                         actor_train_state.params,
                         p0_prev_actor_hstates,
                         {
+                            "states": p0_agent_states,
                             "observations": p0_agent_observations,
                             "prev_actions": p0_prev_actions,
                             "positions": p0_agent_positions,
@@ -280,14 +281,15 @@ def make_train(config: Config):
                     ) = p1_representations
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
-                    # p1_agent_observations = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
-                    p1_agent_observations = p1_observations.reshape(1, -1, 11, 24, 24)
+                    p1_agent_states = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 10, 24, 24
+                    p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
                     p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
                     p1_logits, p1_new_actor_hstates = actor_train_state.apply_fn(
                         actor_train_state.params,
                         p1_prev_actor_hstates,
                         {
+                            "states": p1_agent_states,
                             "observations": p1_agent_observations,
                             "prev_actions": p1_prev_actions,
                             "positions": p1_agent_positions,
@@ -368,6 +370,7 @@ def make_train(config: Config):
                     p1_rewards = rewards[:, 1, :].reshape(1, -1, 1)
 
                     transition = Transition(
+                        agent_states=jnp.squeeze(jnp.concat([p0_agent_states, p1_agent_states], axis=1), axis=0),
                         observations=jnp.squeeze(jnp.concat([p0_agent_observations, p1_agent_observations], axis=1), axis=0),
                         states=jnp.concat([p0_states, p1_states], axis=0),
                         episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),

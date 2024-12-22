@@ -97,6 +97,7 @@ class ResidualBlock(nn.Module):
 
 class ActorInput(TypedDict):
     positions: jax.Array
+    states: jax.Array
     observations: jax.Array
     match_phases: jax.Array
     matches: jax.Array
@@ -118,37 +119,42 @@ class Actor(nn.Module):
  
     @nn.compact
     def __call__(self, hstate: jax.Array, actor_input: ActorInput):
+        state_encoder = nn.Sequential([
+            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+            ResidualBlock(32),
+            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+            lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
+            nn.Dense(128),
+            nn.leaky_relu
+        ])
+
         observation_encoder = nn.Sequential([
             nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             ResidualBlock(32),
             nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
-            #ResidualBlock(32),
             lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
             nn.Dense(256),
             nn.leaky_relu
         ])
 
         observation_embeddings = observation_encoder(actor_input['observations'])
+        state_embeddings = state_encoder(actor_input['states'])
 
         position_embeddings = get_2d_positional_embeddings(
             actor_input['positions'],
-            embedding_dim=32,  # Must be divisible by 4
+            embedding_dim=32,
             max_size=24
         )
 
-        # prev_action_embeddings = nn.Embed(
-        #     self.n_actions,
-        #     self.action_emb_dim
-        # )(actor_input['prev_actions'])
-
         info_input = jnp.concat([
-            actor_input['match_phases'],
-            actor_input['matches'],
-            # actor_input['prev_points'],
             actor_input['team_points'],
             actor_input['opponent_points'],
+            actor_input['match_phases'],
+            actor_input['matches'],
             actor_input['unit_move_cost'],
             actor_input['unit_sap_cost'],
             actor_input['unit_sap_range'],
@@ -158,13 +164,12 @@ class Actor(nn.Module):
         info_embeddings = nn.Sequential([
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
-            nn.LayerNorm()
         ])(info_input)
 
         embeddings = jnp.concat([
             position_embeddings,
+            state_embeddings,
             observation_embeddings,
-            # prev_action_embeddings,
             info_embeddings,
         ], axis=-1)
 
@@ -174,12 +179,15 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.leaky_relu,
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
             ]
         )
-        # Normalize before RNN
-        embeddings = nn.LayerNorm()(embeddings)
 
         hstate, out = ScannedRNN()(hstate, embeddings)
+
         x = actor(out)
         logits1 = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))(x)
         logits2 = nn.Dense(17, kernel_init=orthogonal(0.01))(x)

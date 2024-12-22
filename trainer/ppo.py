@@ -6,6 +6,7 @@ from typing import NamedTuple
 
 
 class Transition(NamedTuple):
+    agent_states: jnp.ndarray
     observations: jnp.ndarray
     episode_info: jnp.ndarray
     agent_episode_info: jnp.ndarray
@@ -74,6 +75,7 @@ def ppo_update(
             actor_params,
             actor_hstates,
             {
+                "states": transitions.agent_states,
                 "observations": transitions.observations,
                 "prev_actions": transitions.prev_actions,
                 "positions": transitions.agent_positions,
