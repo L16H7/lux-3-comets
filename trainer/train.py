@@ -228,7 +228,7 @@ def make_train(config: Config):
                         unit_sensor_range,
                     ], axis=-1).repeat(2, axis=1), axis=0)
  
-                    p0_logits, p0_actor_hstates = actor_train_state.apply_fn(
+                    p0_logits, p0_new_actor_hstates = actor_train_state.apply_fn(
                         actor_train_state.params,
                         p0_prev_actor_hstates,
                         {
@@ -247,6 +247,7 @@ def make_train(config: Config):
  
                         }
                     )
+                    p0_new_actor_hstates = p0_new_actor_hstates * p0_units_mask.reshape(-1, 1)
 
                     rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
                     p0_actions, p0_log_probs, p0_logits_mask = get_actions(
@@ -283,7 +284,7 @@ def make_train(config: Config):
                     p1_agent_observations = p1_observations.reshape(1, -1, 11, 24, 24)
                     p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-                    p1_logits, p1_actor_hstates = actor_train_state.apply_fn(
+                    p1_logits, p1_new_actor_hstates = actor_train_state.apply_fn(
                         actor_train_state.params,
                         p1_prev_actor_hstates,
                         {
@@ -301,6 +302,7 @@ def make_train(config: Config):
                             "unit_sensor_range": unit_sensor_range,
                         }
                     )
+                    p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
 
                     p1_actions, p1_log_probs, p1_logits_mask = get_actions(
                         rng=p1_action_rng,
@@ -411,9 +413,9 @@ def make_train(config: Config):
                         next_states,
                         p0_new_discovered_relic_nodes,
                         p1_new_discovered_relic_nodes,
-                        p0_actor_hstates,
+                        p0_new_actor_hstates,
                         p0_critic_hstates,
-                        p1_actor_hstates,
+                        p1_new_actor_hstates,
                         p1_critic_hstates,
                     )
 
