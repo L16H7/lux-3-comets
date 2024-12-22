@@ -665,8 +665,8 @@ def make_train(config: Config):
 
             eval_info = evaluate(
                 eval_rng,
-                meta_keys,
-                meta_env_params,
+                eval_meta_keys,
+                eval_meta_env_params,
                 updated_runner_state.actor_train_state,
                 config.n_eval_envs,
                 config.n_agents,
@@ -722,8 +722,8 @@ def train(config: Config):
     meta_step = 0
     update_step = 0
     while True:
-        #rng, train_rng = jax.random.split(rng)
-        train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
+        rng, train_rng = jax.random.split(rng)
+        train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
         loop += 1
         t = time()
         train_summary = jax.block_until_ready(train_fn(train_device_rngs, actor_train_state, critic_train_state))
