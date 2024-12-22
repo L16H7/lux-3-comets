@@ -247,7 +247,7 @@ def make_train(config: Config):
  
                         }
                     )
-                    p0_new_actor_hstates = p0_new_actor_hstates * p0_units_mask.reshape(-1, 1)
+                    # p0_new_actor_hstates = p0_new_actor_hstates * p0_units_mask.reshape(-1, 1)
 
                     rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
                     p0_actions, p0_log_probs, p0_logits_mask = get_actions(
@@ -302,7 +302,7 @@ def make_train(config: Config):
                             "unit_sensor_range": unit_sensor_range,
                         }
                     )
-                    p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
+                    # p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
 
                     p1_actions, p1_log_probs, p1_logits_mask = get_actions(
                         rng=p1_action_rng,
