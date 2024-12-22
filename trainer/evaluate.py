@@ -75,7 +75,7 @@ def evaluate(
             p0_episode_info,
             p0_points_map,
             p0_team_positions,
-            _,
+            p0_units_mask,
         ) = p0_representations
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
@@ -88,7 +88,7 @@ def evaluate(
         unit_sap_range = jnp.expand_dims(meta_env_params.unit_sap_range, axis=[0, -1]).repeat(n_agents, axis=1) / 8.0
         unit_sensor_range = jnp.expand_dims(meta_env_params.unit_sensor_range, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
 
-        p0_logits, p0_actor_hstates = actor_train_state.apply_fn(
+        p0_logits, p0_new_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
             p0_prev_actor_hstates,
             {
@@ -106,6 +106,7 @@ def evaluate(
                 "unit_sensor_range": unit_sensor_range,
             }
         )
+        p0_new_actor_hstates = p0_new_actor_hstates * p0_units_mask.reshape(-1, 1)
 
         rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
         p0_actions, _, _ = get_actions(
@@ -123,7 +124,7 @@ def evaluate(
             p1_episode_info,
             p1_points_map,
             p1_team_positions,
-            _,
+            p1_units_mask,
         ) = p1_representations
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
@@ -132,7 +133,7 @@ def evaluate(
         p1_agent_observations = p1_observations.reshape(1, -1, 11, 24, 24)
         p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-        p1_logits, p1_actor_hstates = actor_train_state.apply_fn(
+        p1_logits, p1_new_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
             p1_prev_actor_hstates,
             {
@@ -150,6 +151,7 @@ def evaluate(
                 "unit_sensor_range": unit_sensor_range,
             }
         )
+        p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
 
         p1_actions, _, _ = get_actions(
             rng=p1_action_rng,
@@ -218,8 +220,8 @@ def evaluate(
             next_observations,
             next_states,
             (p0_new_discovered_relic_nodes, p1_new_discovered_relic_nodes),
-            p0_actor_hstates,
-            p1_actor_hstates,
+            p0_new_actor_hstates,
+            p1_new_actor_hstates,
         )
     
         return runner_state, info
