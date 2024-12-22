@@ -189,6 +189,8 @@ def create_representations(
         opponent_unit_maps / 8.0,
         opponent_energy_maps / 400.0,
         relic_node_maps,
+        # we need to transpose because map system and indicing are not same.
+        # To access map coordinates x, y, we need to index tensor.at[y, x]
         obs.map_features.energy.transpose((0, 2, 1)) / 20.0,
         asteroid_maps.transpose((0, 2, 1)),
         nebula_maps.transpose((0, 2, 1)),

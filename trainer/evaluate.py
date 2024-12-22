@@ -80,7 +80,7 @@ def evaluate(
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
         # p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(16, axis=1)
-        p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
+        p0_agent_observations = p0_observations.reshape(1, -1, 11, 24, 24)
         p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
         unit_move_cost = jnp.expand_dims(meta_env_params.unit_move_cost, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
@@ -129,7 +129,7 @@ def evaluate(
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
 
         # p1_agent_observations = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1)
-        p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
+        p1_agent_observations = p1_observations.reshape(1, -1, 11, 24, 24)
         p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
         p1_logits, p1_actor_hstates = actor_train_state.apply_fn(

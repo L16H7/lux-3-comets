@@ -95,8 +95,10 @@ def make_train(config: Config):
             observations=observations,
             p0_discovered_relic_nodes=observations['player_0'].relic_nodes,
             p1_discovered_relic_nodes=observations['player_1'].relic_nodes,
-            p0_points_map=jnp.zeros((n_envs, config.map_width, config.map_height)),
-            p1_points_map=jnp.zeros((n_envs, config.map_width, config.map_height)),
+            # p0_points_map=jnp.zeros((n_envs, config.map_width, config.map_height)),
+            p0_points_map=(states.relic_nodes_map_weights > 0),
+            # p1_points_map=jnp.zeros((n_envs, config.map_width, config.map_height)),
+            p1_points_map=(states.relic_nodes_map_weights > 0),
             points_gained=jnp.zeros((n_envs, 2)),
         )
         return p0_representations, p1_representations, observations, states
@@ -138,8 +140,10 @@ def make_train(config: Config):
             observations=observations,
             p0_discovered_relic_nodes=p0_discovered_relic_nodes,
             p1_discovered_relic_nodes=p1_discovered_relic_nodes,
-            p0_points_map=p0_points_map,
-            p1_points_map=p1_points_map,
+            # p0_points_map=p0_points_map,
+            p0_points_map=(states.relic_nodes_map_weights > 0),
+            # p1_points_map=p1_points_map,
+            p1_points_map=(states.relic_nodes_map_weights > 0),
             points_gained=envinfo["points_gained"],
         )
         return p0_representations, p1_representations, observations, states, rewards, terminated, truncated, info
@@ -209,7 +213,7 @@ def make_train(config: Config):
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
                     # p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(config.n_agents, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
-                    p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
+                    p0_agent_observations = p0_observations.reshape(1, -1, 11, 24, 24)
                     p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
                     unit_move_cost = jnp.expand_dims(meta_env_params.unit_move_cost, axis=[0, -1]).repeat(config.n_agents, axis=1) / 6.0
@@ -276,7 +280,7 @@ def make_train(config: Config):
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
                     # p1_agent_observations = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 9, 24, 24
-                    p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
+                    p1_agent_observations = p1_observations.reshape(1, -1, 11, 24, 24)
                     p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
                     p1_logits, p1_actor_hstates = actor_train_state.apply_fn(
@@ -766,6 +770,7 @@ if __name__ == "__main__":
         n_minibatches=2,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
-        wandb_project="pure-self-play"
+        wandb_project="pure-self-play",
+        train_seed=29,
     )
     train(config=config)

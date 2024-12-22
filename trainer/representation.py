@@ -174,14 +174,14 @@ def create_representations(
         transformed_unit_positions,
     )
 
-    updated_points_map = update_points_map_batch(
-        points_map,
-        jnp.concatenate(
-            (unit_positions_team, transformed_unit_positions),
-            axis=1
-        ),
-        points_gained,
-    )
+    # updated_points_map = update_points_map_batch(
+    #     points_map,
+    #     jnp.concatenate(
+    #         (unit_positions_team, transformed_unit_positions),
+    #         axis=1
+    #     ),
+    #     points_gained,
+    # )
     # SCALE
     maps = [
         team_unit_maps / 8.0,
@@ -193,7 +193,7 @@ def create_representations(
         asteroid_maps.transpose((0, 2, 1)),
         nebula_maps.transpose((0, 2, 1)),
         obs.sensor_mask.transpose((0, 2, 1)),
-        updated_points_map,
+        points_map.transpose((0, 2, 1)),
     ]
 
     state_representation = jnp.stack(maps, axis=1)
@@ -218,18 +218,36 @@ def create_representations(
     
     agent_positions = unit_positions_team
 
-    agent_observations = create_agent_patches(
-        state_representation=state_representation,
-        unit_positions_team=unit_positions_team,
+    n_envs, n_agents = agent_positions.shape[:2]
+    agent_position_channel = jnp.zeros((n_envs, n_agents, 24, 24))
+
+    env_indices = jnp.arange(n_envs).reshape(-1, 1)
+    agent_indices = jnp.arange(n_agents)
+    x_indices, y_indices = agent_positions[..., 0], agent_positions[..., 1]  # Split x and y coordinates
+
+    agent_position_channel = agent_position_channel.at[env_indices, agent_indices, x_indices, y_indices].set(1)
+
+    agent_observations = jnp.concatenate(
+        [
+            jnp.expand_dims(state_representation, axis=1).repeat(n_agents, axis=1),
+            jnp.expand_dims(agent_position_channel, axis=2),
+        ],
+        axis=2
     )
+
+    # agent_observations = create_agent_patches(
+    #     state_representation=state_representation,
+    #     unit_positions_team=unit_positions_team,
+    # )
     # opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
     # relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
+    jax.debug.breakpoint()
 
     return (
         state_representation,
         agent_observations,
         episode_info,
-        updated_points_map,
+        points_map,
         agent_positions,
         unit_masks_team,
     )
