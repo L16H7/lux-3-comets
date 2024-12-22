@@ -665,8 +665,8 @@ def make_train(config: Config):
 
             eval_info = evaluate(
                 eval_rng,
-                eval_meta_keys,
-                eval_meta_env_params,
+                meta_keys,
+                meta_env_params,
                 updated_runner_state.actor_train_state,
                 config.n_eval_envs,
                 config.n_agents,
@@ -697,10 +697,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
@@ -722,8 +722,8 @@ def train(config: Config):
     meta_step = 0
     update_step = 0
     while True:
-        rng, train_rng = jax.random.split(rng)
-        train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
+        #rng, train_rng = jax.random.split(rng)
+        train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
         loop += 1
         t = time()
         train_summary = jax.block_until_ready(train_fn(train_device_rngs, actor_train_state, critic_train_state))
@@ -766,13 +766,15 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=4,
-        n_envs_per_device=4,
-        n_eval_envs=4,
-        n_minibatches=2,
+        n_envs=32,
+        n_envs_per_device=32,
+        n_eval_envs=32,
+        n_minibatches=4,
+        n_epochs=2,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
         wandb_project="pure-self-play",
         train_seed=29,
+        entropy_coeff=0.005
     )
     train(config=config)

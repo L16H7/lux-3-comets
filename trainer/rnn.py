@@ -122,9 +122,9 @@ class Actor(nn.Module):
             nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             ResidualBlock(32),
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
-            ResidualBlock(32),
+            #ResidualBlock(32),
             lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
             nn.Dense(256),
             nn.leaky_relu
