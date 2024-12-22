@@ -740,7 +740,7 @@ class LuxAIS3Env(environment.Environment):
             >= (params.max_steps_in_match + 1) * params.match_count_per_episode
         )
 
-        POINT_REWARDS = 0.01
+        POINT_REWARDS = 0.1
         p0_point_rewards = team_scores[0] * POINT_REWARDS
         p0_point_rewards = jnp.expand_dims(p0_point_rewards.repeat(16), axis=0)
         p1_point_rewards = team_scores[1] * POINT_REWARDS
@@ -748,7 +748,7 @@ class LuxAIS3Env(environment.Environment):
 
         rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
         energy = jnp.squeeze(state.units.energy, axis=-1)
-        rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
+        rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.1), rewards) * initial_units_mask
         terminated = self.is_terminal(state, params)
         return (
             lax.stop_gradient(self.get_obs(state, params, key=key)),
