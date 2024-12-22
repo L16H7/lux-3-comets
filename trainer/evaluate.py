@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 from collections import OrderedDict
 
-from agent import get_actions, vectorized_transform_actions
+from agent import get_actions, vectorized_transform_actions, transform_coordinates
 from rnn import ScannedRNN
 from utils import calculate_sapping_stats
 
@@ -162,10 +162,11 @@ def evaluate(
 
         p0_actions = p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 8)
 
+        transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
         transformed_p1_actions = jnp.zeros_like(p1_actions)
         transformed_p1_actions = transformed_p1_actions.at[:, :, 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
-        transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(p1_actions[:, :, 2])
-        transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(p1_actions[:, :, 1])
+        transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(transformed_targets[..., 0])
+        transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(transformed_targets[..., 1])
         transformed_p1_actions = transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - 8)
 
         p0_relic_mask = observations['player_0'].relic_nodes != -1
