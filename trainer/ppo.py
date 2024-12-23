@@ -181,6 +181,7 @@ def ppo_update(
     (loss, update_info), grads = grad_fn(
         actor_train_state.params, critic_train_state.params
     )
+    (loss, update_info) = jax.lax.pmean((loss, update_info), axis_name="devices")
     actor_grads, critic_grads = grads
     updated_actor_train_state = actor_train_state.apply_gradients(grads=actor_grads)
     updated_critic_train_state = critic_train_state.apply_gradients(grads=critic_grads)
