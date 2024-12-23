@@ -749,13 +749,22 @@ class LuxAIS3Env(environment.Environment):
         p1_point_rewards = jnp.expand_dims(p1_point_rewards.repeat(16), axis=0)
 
         rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
-        energy = jnp.squeeze(state.units.energy, axis=-1)
-        rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
 
         DESTROYED_REWARDS = 0.05
-        destroyed_units = jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)
+        destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
 
-        rewards = rewards + (destroyed_units * DESTROYED_REWARDS)
+        p1_destroyed_counts = destroyed_units[1] - destroyed_units[0]
+        p0_destroyed_rewards = p1_destroyed_counts * DESTROYED_REWARDS
+        p0_destroyed_rewards = jnp.expand_dims(p0_destroyed_rewards.repeat(16), axis=0)
+        p1_destroyed_rewards = -p1_destroyed_counts * DESTROYED_REWARDS
+        p1_destroyed_rewards = jnp.expand_dims(p1_destroyed_rewards.repeat(16), axis=0)
+
+        destroyed_rewards = jnp.concat([p0_destroyed_rewards, p1_destroyed_rewards], axis=0)
+
+        rewards = rewards + destroyed_rewards
+        
+        energy = jnp.squeeze(state.units.energy, axis=-1)
+        rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
 
         terminated = self.is_terminal(state, params)
         return (
