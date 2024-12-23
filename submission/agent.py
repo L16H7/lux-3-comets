@@ -195,9 +195,12 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits3 = masked_logits3.at[..., -sap_ranges:].set(large_negative)
 
     rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
-    action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
-    action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
-    action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
+    # action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
+    # action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
+    # action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
+    action1 = np.argmax(masked_logits1, axis=-1)
+    action2 = np.argmax(masked_logits2, axis=-1)
+    action3 = np.argmax(masked_logits3, axis=-1)
 
     return [action1, action2, action3]
 
