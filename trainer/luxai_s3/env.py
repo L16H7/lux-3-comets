@@ -404,6 +404,7 @@ class LuxAIS3Env(environment.Environment):
                 )
             return all_units
 
+        units_mask_before_sap = state.units_mask.copy()
         state = state.replace(
             units=sap_unit(
                 original_unit_energy,
@@ -413,6 +414,7 @@ class LuxAIS3Env(environment.Environment):
                 state.units_mask,
             )
         )
+        units_mask_after_sap = state.units_mask.copy()
 
         """resolve collisions and energy void fields"""
 
@@ -739,16 +741,22 @@ class LuxAIS3Env(environment.Environment):
             state.steps
             >= (params.max_steps_in_match + 1) * params.match_count_per_episode
         )
-
         POINT_REWARDS = 0.01
-        p0_point_rewards = team_scores[0] * POINT_REWARDS
+        point_diff = state.team_points[0] - state.team_points[1]
+        p0_point_rewards = point_diff * POINT_REWARDS
         p0_point_rewards = jnp.expand_dims(p0_point_rewards.repeat(16), axis=0)
-        p1_point_rewards = team_scores[1] * POINT_REWARDS
+        p1_point_rewards = -point_diff * POINT_REWARDS
         p1_point_rewards = jnp.expand_dims(p1_point_rewards.repeat(16), axis=0)
 
         rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
         energy = jnp.squeeze(state.units.energy, axis=-1)
         rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
+
+        DESTROYED_REWARDS = 0.05
+        destroyed_units = jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)
+
+        rewards = rewards + (destroyed_units * DESTROYED_REWARDS)
+
         terminated = self.is_terminal(state, params)
         return (
             lax.stop_gradient(self.get_obs(state, params, key=key)),
