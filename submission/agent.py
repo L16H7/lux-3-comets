@@ -203,7 +203,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
 
 class Agent():
-    def __init__(self, player: str, env_cfg) -> None:
+    def __init__(self, player: str, env_cfg, reward_nodes) -> None:
         self.player = player
 
         self.team_id = 0 if self.player == "player_0" else 1
@@ -213,7 +213,15 @@ class Agent():
         self.unit_move_cost = jnp.array([[[env_cfg["unit_move_cost"]]]]).repeat(16, 1) / 6.0
         self.unit_sap_cost = jnp.array([[[env_cfg["unit_sap_cost"]]]]).repeat(16, 1) / 50.0
         self.unit_sensor_range = jnp.array([[[env_cfg["unit_sensor_range"]]]]).repeat(16, 1) / 6.0
+
+        reward_nodes = jnp.array(reward_nodes)
+        reward_nodes_transformed = transform_coordinates(reward_nodes)
+        reward_nodes = jnp.concatenate([
+            reward_nodes,
+            reward_nodes_transformed,
+        ], axis=0)
         self.points_map = jnp.zeros((1, 24, 24))
+        self.points_map = self.points_map.at[:, reward_nodes[:, 0], reward_nodes[:, 1]].set(1)
         self.points_gained = 0
 
         checkpoint_path = os.path.join(script_dir, 'checkpoint')
