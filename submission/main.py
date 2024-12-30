@@ -1,6 +1,7 @@
 import json
 from argparse import Namespace
 
+from rule_based_agent import Agent as RuleBased
 from agent import Agent
 from lux.kit import from_json
 
@@ -20,9 +21,20 @@ def agent_fn(observation, configurations):
     player = observation.player
     remainingOverageTime = observation.remainingOverageTime
     if step == 0:
-        agent_dict[player] = Agent(player, configurations["env_cfg"])
+        agent_dict[player] = RuleBased(player, configurations["env_cfg"])
+    if step == 100:
+        agent = agent_dict[player]
+        _, reward_nodes = agent.act(step, from_json(obs), remainingOverageTime)
+        reward_nodes = [list(node.coordinates) for node in reward_nodes]
+        agent_dict[player] = Agent(player, configurations["env_cfg"], reward_nodes)
+
     agent = agent_dict[player]
-    actions = agent.act(step, from_json(obs), remainingOverageTime)
+
+    if step < 100:
+        actions, reward_nodes = agent.act(step, from_json(obs), remainingOverageTime)
+    else:
+        actions = agent.act(step, from_json(obs), remainingOverageTime)
+        
     return dict(action=actions.tolist())
 
 if __name__ == "__main__":

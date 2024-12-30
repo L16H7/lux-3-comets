@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 from collections import OrderedDict
 
-from agent import get_actions, vectorized_transform_actions
+from agent import get_actions, vectorized_transform_actions, transform_coordinates
 from rnn import ScannedRNN
 from utils import calculate_sapping_stats
 
@@ -71,13 +71,16 @@ def evaluate(
 
         (
             p0_states,
+            p0_observations,
             p0_episode_info,
+            p0_points_map,
             p0_team_positions,
-            _,
+            p0_units_mask,
         ) = p0_representations
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
-        p0_agent_observations = jnp.expand_dims(p0_states, axis=0).repeat(16, axis=1)
+        p0_agent_states = jnp.expand_dims(p0_states, axis=0).repeat(16, axis=1)
+        p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
         p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
         unit_move_cost = jnp.expand_dims(meta_env_params.unit_move_cost, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
@@ -85,15 +88,17 @@ def evaluate(
         unit_sap_range = jnp.expand_dims(meta_env_params.unit_sap_range, axis=[0, -1]).repeat(n_agents, axis=1) / 8.0
         unit_sensor_range = jnp.expand_dims(meta_env_params.unit_sensor_range, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
 
-        p0_logits, p0_actor_hstates = actor_train_state.apply_fn(
+        p0_logits, p0_new_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
             p0_prev_actor_hstates,
             {
+                "states": p0_agent_states,
                 "observations": p0_agent_observations,
                 "prev_actions": p0_prev_actions,
                 "positions": p0_agent_positions,
                 "prev_points": p0_prev_points,
                 "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
+                "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
                 "unit_move_cost": unit_move_cost,
@@ -102,6 +107,7 @@ def evaluate(
                 "unit_sensor_range": unit_sensor_range,
             }
         )
+        # p0_new_actor_hstates = p0_new_actor_hstates * p0_units_mask.reshape(-1, 1)
 
         rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
         p0_actions, _, _ = get_actions(
@@ -115,25 +121,30 @@ def evaluate(
 
         (
             p1_states,
+            p1_observations,
             p1_episode_info,
+            p1_points_map,
             p1_team_positions,
-            _,
+            p1_units_mask,
         ) = p1_representations
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
 
-        p1_agent_observations = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1)
+        p1_agent_states = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1)
+        p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
         p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-        p1_logits, p1_actor_hstates = actor_train_state.apply_fn(
+        p1_logits, p1_new_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,
             p1_prev_actor_hstates,
             {
+                "states": p1_agent_states,
                 "observations": p1_agent_observations,
                 "prev_actions": p1_prev_actions,
                 "positions": p1_agent_positions,
                 "prev_points": p1_prev_points,
                 "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
+                "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
                 "unit_move_cost": unit_move_cost,
@@ -142,6 +153,7 @@ def evaluate(
                 "unit_sensor_range": unit_sensor_range,
             }
         )
+        # p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
 
         p1_actions, _, _ = get_actions(
             rng=p1_action_rng,
@@ -154,10 +166,11 @@ def evaluate(
 
         p0_actions = p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 8)
 
+        transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
         transformed_p1_actions = jnp.zeros_like(p1_actions)
         transformed_p1_actions = transformed_p1_actions.at[:, :, 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
-        transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(p1_actions[:, :, 2])
-        transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(p1_actions[:, :, 1])
+        transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(transformed_targets[..., 0])
+        transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(transformed_targets[..., 1])
         transformed_p1_actions = transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - 8)
 
         p0_relic_mask = observations['player_0'].relic_nodes != -1
@@ -182,6 +195,8 @@ def evaluate(
             }),
             p0_new_discovered_relic_nodes,
             p1_new_discovered_relic_nodes,
+            p0_points_map,
+            p1_points_map,
             meta_keys,
             meta_env_params,
         )
@@ -207,8 +222,8 @@ def evaluate(
             next_observations,
             next_states,
             (p0_new_discovered_relic_nodes, p1_new_discovered_relic_nodes),
-            p0_actor_hstates,
-            p1_actor_hstates,
+            p0_new_actor_hstates,
+            p1_new_actor_hstates,
         )
     
         return runner_state, info

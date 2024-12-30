@@ -6,6 +6,7 @@ from typing import NamedTuple
 
 
 class Transition(NamedTuple):
+    agent_states: jnp.ndarray
     observations: jnp.ndarray
     episode_info: jnp.ndarray
     agent_episode_info: jnp.ndarray
@@ -74,11 +75,13 @@ def ppo_update(
             actor_params,
             actor_hstates,
             {
+                "states": transitions.agent_states,
                 "observations": transitions.observations,
                 "prev_actions": transitions.prev_actions,
                 "positions": transitions.agent_positions,
                 "prev_points": jnp.expand_dims(transitions.prev_points, axis=2),
                 "match_phases": jnp.expand_dims(transitions.agent_episode_info[:, :, 0].astype(jnp.int32), axis=2),
+                "matches": jnp.expand_dims(transitions.agent_episode_info[:, :, 1].astype(jnp.int32), axis=2),
                 "team_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 2], axis=2),
                 "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 3], axis=2),
                 "unit_move_cost": jnp.expand_dims(transitions.env_information[:, :, 0], axis=2),
@@ -178,6 +181,7 @@ def ppo_update(
     (loss, update_info), grads = grad_fn(
         actor_train_state.params, critic_train_state.params
     )
+    (loss, update_info) = jax.lax.pmean((loss, update_info), axis_name="devices")
     actor_grads, critic_grads = grads
     updated_actor_train_state = actor_train_state.apply_gradients(grads=actor_grads)
     updated_critic_train_state = critic_train_state.apply_gradients(grads=critic_grads)

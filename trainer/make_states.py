@@ -15,10 +15,12 @@ def make_states(config: Config):
     SEQ = 2
     actor_init_hstate = ScannedRNN.initialize_carry(BATCH, 128)
     actor_network_params = actor.init(rng, actor_init_hstate, {
-        "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
+        "states": jnp.zeros((SEQ, BATCH, 10, 24, 24)),
+        "observations": jnp.zeros((SEQ, BATCH, 10, 17, 17)),
         "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        "match_phases": jnp.zeros((SEQ, BATCH, 1), dtype=jnp.int32),
-        "positions": jnp.zeros((SEQ, BATCH, 2)),
+        "match_phases": jnp.zeros((SEQ, BATCH, 1), dtype=jnp.float32),
+        "matches": jnp.zeros((SEQ, BATCH, 1), dtype=jnp.float32),
+        "positions": jnp.zeros((SEQ, BATCH, 2), dtype=jnp.int32),
         "prev_points": jnp.zeros((SEQ, BATCH, 1)),
         "team_points": jnp.zeros((SEQ, BATCH, 1)),
         "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
@@ -34,7 +36,7 @@ def make_states(config: Config):
     critic = Critic()
     critic_init_hstate = ScannedRNN.initialize_carry(BATCH, 256)
     critic_network_params = critic.init(rng, critic_init_hstate, {
-        "states": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
+        "states": jnp.zeros((SEQ, BATCH, 10, 24, 24)),
         "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
         "team_points": jnp.zeros((SEQ, BATCH, 1)),
         "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
