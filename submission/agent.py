@@ -1,5 +1,7 @@
 # It throws error if I don't put it.
 import absl.logging
+import jax.random
+import jax.random
 absl.logging.set_verbosity(absl.logging.ERROR)
 
 import os
@@ -83,6 +85,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     
     agent_positions = observations.units.position[:, team_idx, ..., None, :] 
     agent_positions = agent_positions if team_idx == 0 else transform_coordinates(agent_positions)
+
     new_positions = agent_positions + directions
 
     in_bounds = (
@@ -99,7 +102,6 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         new_positions[..., 1].clip(0, Constants.MAP_HEIGHT - 1),
     ]
     valid_movements = in_bounds & (~is_asteroid)
-
 
     team_positions = observations.units.position[:, team_idx, ...]
     team_positions = team_positions if team_idx == 0 else transform_coordinates(team_positions)
@@ -118,7 +120,25 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     )
 
     opponent_positions = opponent_positions + Constants.MAX_SAP_RANGE
-    diff = -team_positions[:, :, None, :] + opponent_positions[:, None, :, :]
+
+    neighboring_positions = jnp.expand_dims(opponent_positions, axis=2) + directions
+    neighboring_positions = jnp.where(
+        neighboring_positions == -1,
+        -100,
+        neighboring_positions
+    )
+    neighboring_positions = jnp.where(
+        neighboring_positions == 24,
+        -100,
+        neighboring_positions
+    )
+
+    target_positions = jnp.concatenate([
+        opponent_positions,
+        neighboring_positions.reshape(neighboring_positions.shape[0], -1, 2)
+    ], axis=1)
+
+    diff = -team_positions[:, :, None, :] + target_positions[:, None, :, :]
     diff = jnp.where(diff < 0, -100, diff)
 
     # Function to set True for one row given indices
@@ -134,18 +154,27 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     update_bool_array_jit = jax.jit(update_bool_array)
 
     bool_array = jnp.zeros_like(
-        jnp.squeeze(logits[1], axis=0),
+        jnp.squeeze(logits[1].reshape(1, -1, 17), axis=0),
         dtype=bool
     )
 
-    diff = diff.reshape(-1, 16, 2)
+    diff = diff.reshape(-1, 80, 2)
     x = diff[..., 0]
     attack_x = update_bool_array_jit(bool_array, x)
 
     y = diff[..., 1]
     attack_y = update_bool_array_jit(bool_array, y)
 
-    attack_available = attack_x.sum(-1) & attack_y.sum(-1) & ((diff.sum(-1) < (4 * Constants.MAX_SAP_RANGE)).sum(-1) > 0)
+    sap_range_mask = jnp.ones((16, 17))
+
+    sap_range_mask = sap_range_mask.at[..., : sap_ranges].set(False)
+    sap_range_mask = sap_range_mask.at[..., -sap_ranges:].set(False)
+
+
+    logits2_mask = attack_x & (sap_range_mask > 0)
+    logits3_mask = attack_y & (sap_range_mask > 0)
+
+    attack_available = logits2_mask.sum(-1) & logits3_mask.sum(-1)
 
     logits1_mask = jnp.concat(
         [ 
@@ -156,28 +185,28 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         axis=-1
     )
 
-    logits2_mask = attack_x
-    logits3_mask = attack_y
-
     logits2_mask = jnp.where(
         jnp.expand_dims(attack_available, axis=-1).repeat(17, axis=-1) == 0,
         1,
         logits2_mask
     )
-    logits2_mask = jnp.expand_dims(logits2_mask, axis=0)
 
     logits3_mask = jnp.where(
         jnp.expand_dims(attack_available, axis=-1).repeat(17, axis=-1) == 0,
         1,
         logits3_mask
     )
-    logits3_mask = jnp.expand_dims(logits3_mask, axis=0)
 
     logits1, logits2, logits3 = logits
+
+    logits1_mask = logits1_mask.reshape(logits1.shape)
+    logits2_mask = logits2_mask.reshape(logits2.shape)
+    logits3_mask = logits3_mask.reshape(logits3.shape)
+
     large_negative = -1e9
-    masked_logits1 = jnp.where(logits1_mask, logits1, large_negative)
-    masked_logits2 = jnp.where(logits2_mask, logits2, large_negative)
-    masked_logits3 = jnp.where(logits3_mask, logits3, large_negative)
+    masked_logits1 = jnp.where(logits1_mask.reshape(logits1.shape), logits1, large_negative)
+    masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
+    masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
 
     '''
     sap_range_clip = Constants.MAX_SAP_RANGE - 1
@@ -188,16 +217,11 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3 = logits3.at[..., -sap_range_clip:].set(-100)
     '''
 
-    masked_logits2 = masked_logits2.at[..., : sap_ranges].set(large_negative)
-    masked_logits2 = masked_logits2.at[..., -sap_ranges:].set(large_negative)
-
-    masked_logits3 = masked_logits3.at[..., : sap_ranges].set(large_negative)
-    masked_logits3 = masked_logits3.at[..., -sap_ranges:].set(large_negative)
-
-    rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
+    # rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
     # action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
     # action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
     # action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
+
     action1 = np.argmax(masked_logits1, axis=-1)
     action2 = np.argmax(masked_logits2, axis=-1)
     action3 = np.argmax(masked_logits3, axis=-1)
