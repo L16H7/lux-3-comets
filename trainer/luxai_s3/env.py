@@ -404,7 +404,7 @@ class LuxAIS3Env(environment.Environment):
                 )
             return all_units
 
-        units_mask_before_sap = state.units_mask.copy()
+        units_mask_before_sap = (state.units.energy[..., 0] >= 0)
         state = state.replace(
             units=sap_unit(
                 original_unit_energy,
