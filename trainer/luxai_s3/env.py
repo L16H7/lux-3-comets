@@ -414,7 +414,6 @@ class LuxAIS3Env(environment.Environment):
                 state.units_mask,
             )
         )
-        units_mask_after_sap = state.units_mask.copy()
 
         """resolve collisions and energy void fields"""
 
@@ -516,6 +515,7 @@ class LuxAIS3Env(environment.Environment):
             )
 
         """apply energy field to the units"""
+        units_mask_after_sap = state.units_mask.copy()
 
         # Update unit energy based on the energy field and nebula tileof their current position
         def update_unit_energy(unit: UnitState, mask):
