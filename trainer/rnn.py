@@ -216,7 +216,9 @@ class Actor(nn.Module):
         logits1 = action_head(x)
         logits2 = coordinate_head(x)
         logits3 = coordinate_head(x)
-        jax.debug.breakpoint()
+        logits1 = logits1.reshape((seq_len, batch_size, self.n_actions))
+        logits2 = logits2.reshape((seq_len, batch_size, 17))
+        logits3 = logits3.reshape((seq_len, batch_size, 17))
        
         return [logits1, logits2, logits3], hstate
 

@@ -94,19 +94,19 @@ def ppo_update(
         
         large_negative = -1e9
         masked_logits1 = jnp.where(
-            jnp.expand_dims(transitions.logits1_mask, axis=1),
+            transitions.logits1_mask,
             logits1,
             large_negative,
         )
 
         masked_logits2 = jnp.where(
-            jnp.expand_dims(transitions.logits2_mask, axis=1),
+            transitions.logits2_mask,
             logits2,
             large_negative,
         )
 
         masked_logits3 = jnp.where(
-            jnp.expand_dims(transitions.logits3_mask, axis=1),
+            transitions.logits3_mask,
             logits3,
             large_negative
         )
@@ -119,12 +119,11 @@ def ppo_update(
         n_steps, n_agents = transitions.observations.shape[:2]
         log_probs = dist.log_prob(
             [
-                transitions.actions[:, :, :, 0].reshape(n_steps, 1, n_agents),
-                transitions.actions[:, :, :, 1].reshape(n_steps, 1, n_agents),
-                transitions.actions[:, :, :, 2].reshape(n_steps, 1, n_agents)
+                transitions.actions[..., 0].reshape(n_steps, n_agents),
+                transitions.actions[..., 1].reshape(n_steps, n_agents),
+                transitions.actions[..., 2].reshape(n_steps, n_agents)
             ]
         )
-        import pdb; pdb.set_trace()
         log_ratio = log_probs.reshape(-1) - transitions.log_probs.reshape(-1)
         log_ratio = log_ratio * units_mask
         
