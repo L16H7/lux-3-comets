@@ -266,8 +266,10 @@ def evaluate(
     info2_ = {
         "eval/p0_wins": info["p0_wins"][-1],
         "eval/p1_wins": info["p1_wins"][-1],
-        "eval/p0_destroyed_units": info["p0_units_destroyed"].sum(),
-        "eval/p1_destroyed_units": info["p1_units_destroyed"].sum(),
+        "eval/p0_sap_destroyed_units": info["p0_sap_units_destroyed"].sum(),
+        "eval/p1_sap_destroyed_units": info["p1_sap_units_destroyed"].sum(),
+        "eval/p0_collision_destroyed_units": info["p0_collision_units_destroyed"].sum(),
+        "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
     }
     info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 

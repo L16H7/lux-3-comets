@@ -134,8 +134,10 @@ def make_train(config: Config):
             "p1_wins": team_wins[:, 1].mean(),
             "p0_energy_depletions": jnp.sum(observations["player_0"].units.energy[:, 0, :] == 0) / len(meta_keys),
             "p1_energy_depletions": jnp.sum(observations["player_1"].units.energy[:, 1, :] == 0) / len(meta_keys),
-            "p0_units_destroyed": envinfo["destroyed_units"][:, 0].mean(),
-            "p1_units_destroyed": envinfo["destroyed_units"][:, 1].mean(),
+            "p0_sap_units_destroyed": envinfo["sap_destroyed_units"][:, 0].mean(),
+            "p1_sap_units_destroyed": envinfo["sap_destroyed_units"][:, 1].mean(),
+            "p0_collision_units_destroyed": envinfo["collision_destroyed_units"][:, 0].mean(),
+            "p1_collision_units_destroyed": envinfo["collision_destroyed_units"][:, 1].mean(),
         }
 
         p0_representations, p1_representations = create_agent_representations(

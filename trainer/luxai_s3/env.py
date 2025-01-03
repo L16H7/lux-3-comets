@@ -414,8 +414,11 @@ class LuxAIS3Env(environment.Environment):
                 state.units_mask,
             )
         )
+        # this is because Stone Tao wants to see the units that are marked for removal in the visualizer
+        units_mask_after_sap = (state.units.energy[..., 0] < 0)
 
         """resolve collisions and energy void fields"""
+        units_mask_before_collision = state.units_mask.copy()
 
         # compute energy void fields for all teams and the energy + unit counts
         unit_aggregate_energy_void_map = jnp.zeros(
@@ -515,7 +518,7 @@ class LuxAIS3Env(environment.Environment):
             )
 
         """apply energy field to the units"""
-        units_mask_after_sap = state.units_mask.copy()
+        units_mask_after_collision = state.units_mask.copy()
 
         # Update unit energy based on the energy field and nebula tileof their current position
         def update_unit_energy(unit: UnitState, mask):
@@ -741,6 +744,7 @@ class LuxAIS3Env(environment.Environment):
             state.steps
             >= (params.max_steps_in_match + 1) * params.match_count_per_episode
         )
+
         POINT_REWARDS = 0.01
         point_diff = state.team_points[0] - state.team_points[1]
         p0_point_rewards = point_diff * POINT_REWARDS
@@ -750,18 +754,29 @@ class LuxAIS3Env(environment.Environment):
 
         rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
 
-        DESTROYED_REWARDS = 0.05
-        destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
+        SAP_DESTROYED_REWARDS = 0.1
+        sap_destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
 
-        p1_destroyed_counts = destroyed_units[1] - destroyed_units[0]
-        p0_destroyed_rewards = p1_destroyed_counts * DESTROYED_REWARDS
-        p0_destroyed_rewards = jnp.expand_dims(p0_destroyed_rewards.repeat(16), axis=0)
-        p1_destroyed_rewards = -p1_destroyed_counts * DESTROYED_REWARDS
-        p1_destroyed_rewards = jnp.expand_dims(p1_destroyed_rewards.repeat(16), axis=0)
+        p1_sap_destroyed_counts = sap_destroyed_units[1] - sap_destroyed_units[0]
+        p0_sap_destroyed_rewards = p1_sap_destroyed_counts * SAP_DESTROYED_REWARDS
+        p0_sap_destroyed_rewards = jnp.expand_dims(p0_sap_destroyed_rewards.repeat(16), axis=0)
+        p1_sap_destroyed_rewards = -p1_sap_destroyed_counts * SAP_DESTROYED_REWARDS
+        p1_sap_destroyed_rewards = jnp.expand_dims(p1_sap_destroyed_rewards.repeat(16), axis=0)
 
-        destroyed_rewards = jnp.concat([p0_destroyed_rewards, p1_destroyed_rewards], axis=0)
+        sap_destroyed_rewards = jnp.concat([p0_sap_destroyed_rewards, p1_sap_destroyed_rewards], axis=0)
 
-        rewards = rewards + destroyed_rewards
+        COLLISION_DESTROYED_REWARDS = 0.05
+        collision_destroyed_units = (jnp.logical_and(units_mask_before_collision, ~units_mask_after_collision)).sum(axis=-1)
+
+        p1_collision_destroyed_counts = collision_destroyed_units[1] - collision_destroyed_units[0]
+        p0_collision_destroyed_rewards = p1_collision_destroyed_counts * COLLISION_DESTROYED_REWARDS
+        p0_collision_destroyed_rewards = jnp.expand_dims(p0_collision_destroyed_rewards.repeat(16), axis=0)
+        p1_collision_destroyed_rewards = -p1_collision_destroyed_counts * COLLISION_DESTROYED_REWARDS
+        p1_collision_destroyed_rewards = jnp.expand_dims(p1_collision_destroyed_rewards.repeat(16), axis=0)
+
+        collision_destroyed_rewards = jnp.concat([p0_collision_destroyed_rewards, p1_collision_destroyed_rewards], axis=0)
+
+        rewards = rewards + sap_destroyed_rewards + collision_destroyed_rewards
         
         energy = jnp.squeeze(state.units.energy, axis=-1)
         rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
@@ -776,7 +791,8 @@ class LuxAIS3Env(environment.Environment):
             {
                 "discount": self.discount(state, params),
                 "points_gained": team_scores,
-                "destroyed_units": destroyed_units
+                "sap_destroyed_units": sap_destroyed_units,
+                "collision_destroyed_units": collision_destroyed_units,
             },
 
         )
