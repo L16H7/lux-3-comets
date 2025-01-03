@@ -120,10 +120,12 @@ class Actor(nn.Module):
     @nn.compact
     def __call__(self, hstate: jax.Array, actor_input: ActorInput):
         state_encoder = nn.Sequential([
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(features=64, kernel_size=(3, 3), strides=1, padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
-            ResidualBlock(32),
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            ResidualBlock(features=64),
+            nn.Conv(128, kernel_size=(3, 3), strides=2, padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            ResidualBlock(features=128),
+            nn.Conv(256, kernel_size=(3, 3), strides=2, padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(128),
@@ -131,10 +133,10 @@ class Actor(nn.Module):
         ])
 
         observation_encoder = nn.Sequential([
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(features=32, kernel_size=(3, 3), strides=2, padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             ResidualBlock(32),
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(256),
@@ -159,7 +161,10 @@ class Actor(nn.Module):
             actor_input['team_points'],
             actor_input['opponent_points'],
             actor_input['match_phases'],
-            actor_input['matches'],
+            # actor_input['matches'],
+        ], axis=-1)
+
+        env_info_input = jnp.concat([
             actor_input['unit_move_cost'],
             actor_input['unit_sap_cost'],
             actor_input['unit_sap_range'],
@@ -171,12 +176,10 @@ class Actor(nn.Module):
             nn.leaky_relu,
         ])(info_input)
 
-        embeddings = jnp.concat([
-            position_embeddings,
-            state_embeddings.reshape((seq_len, batch_size, -1)),
-            observation_embeddings.reshape((seq_len, batch_size, -1)),
-            info_embeddings,
-        ], axis=-1)
+        env_info_embeddings = nn.Sequential([
+            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+        ])(env_info_input)
 
         actor = nn.Sequential(
             [
@@ -191,12 +194,29 @@ class Actor(nn.Module):
             ]
         )
 
-        hstate, out = ScannedRNN()(hstate, embeddings)
+        hstate, temporal_embeddings = ScannedRNN()(
+            hstate,
+            jnp.concat([
+                state_embeddings.reshape((seq_len, batch_size, -1)),
+                info_embeddings,
+            ], axis=-1)
+        )
 
-        x = actor(out)
-        logits1 = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))(x)
-        logits2 = nn.Dense(17, kernel_init=orthogonal(0.01))(x)
-        logits3 = nn.Dense(17, kernel_init=orthogonal(0.01))(x)
+        embeddings = jnp.concat([
+            temporal_embeddings.reshape((seq_len, batch_size, -1)),
+            env_info_embeddings,
+            position_embeddings,
+            observation_embeddings.reshape((seq_len, batch_size, -1)),
+        ], axis=-1)
+
+        x = actor(embeddings)
+        action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
+        coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
+    
+        logits1 = action_head(x)
+        logits2 = coordinate_head(x)
+        logits3 = coordinate_head(x)
+        jax.debug.breakpoint()
        
         return [logits1, logits2, logits3], hstate
 

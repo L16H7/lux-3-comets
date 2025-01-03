@@ -124,6 +124,7 @@ def ppo_update(
                 transitions.actions[:, :, :, 2].reshape(n_steps, 1, n_agents)
             ]
         )
+        import pdb; pdb.set_trace()
         log_ratio = log_probs.reshape(-1) - transitions.log_probs.reshape(-1)
         log_ratio = log_ratio * units_mask
         
