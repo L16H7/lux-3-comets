@@ -199,13 +199,13 @@ def create_representations(
     state_representation = jnp.stack(maps, axis=1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
-    # match_phases = jnp.minimum(obs.match_steps[:, None] // 25, 3) # 4 phases
-    match_phases = obs.match_steps[:, None] / 100.0
+    # match_steps = jnp.minimum(obs.match_steps[:, None] // 25, 3) # 4 phases
+    match_steps = obs.match_steps[:, None] / 100.0
     matches = jnp.minimum(obs.steps[:, None] // max_steps_in_match, 4) # 5 matches
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
     team_points = team_points / 400.0
 
-    episode_info = jnp.concatenate((match_phases, matches, team_points), axis=1)
+    episode_info = jnp.concatenate((match_steps, matches, team_points), axis=1)
 
     unit_positions_team = unit_positions_team if team_idx == 0 else transformed_unit_positions
  

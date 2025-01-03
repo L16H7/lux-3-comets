@@ -99,7 +99,7 @@ class ActorInput(TypedDict):
     positions: jax.Array
     states: jax.Array
     observations: jax.Array
-    match_phases: jax.Array
+    match_steps: jax.Array
     matches: jax.Array
     team_points: jax.Array
     opponent_points: jax.Array
@@ -160,8 +160,8 @@ class Actor(nn.Module):
         info_input = jnp.concat([
             actor_input['team_points'],
             actor_input['opponent_points'],
-            actor_input['match_phases'],
-            # actor_input['matches'],
+            actor_input['match_steps'],
+            actor_input['matches'],
         ], axis=-1)
 
         env_info_input = jnp.concat([
@@ -225,77 +225,50 @@ class Actor(nn.Module):
 
 class CriticInput(TypedDict):
     states: jax.Array
-    match_phases: jax.Array         # 4 phases each with 25 steps
+    match_steps: jax.Array         # 4 phases each with 25 steps
     team_points: jax.Array
     opponent_points: jax.Array
  
-
+ 
 class Critic(nn.Module):
-    match_phase_emb_dim: int = 16
-    point_info_emb_dim: int = 16
-    hidden_dim: int = 256
+    info_emb_dim: int = 32
+    hidden_dim: int = 512
  
     @nn.compact
     def __call__(self, hstate: jax.Array, critic_input):
-        state_encoder = nn.Sequential(
-            [
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
-                nn.Dense(256),
-                nn.leaky_relu,
-            ]
-        )
-
         seq_len, batch_size = critic_input['states'].shape[:2]
 
+        state_encoder = nn.Sequential([
+            nn.Conv(features=128, kernel_size=(3, 3), strides=1, padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+            ResidualBlock(features=128),
+            nn.Conv(256, kernel_size=(3, 3), strides=2, padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            ResidualBlock(features=256),
+            nn.Conv(512, kernel_size=(3, 3), strides=2, padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Dense(256),
+            nn.leaky_relu
+        ])
         state_embeddings = state_encoder(
             critic_input['states'].reshape((-1, 10, 24, 24)).transpose((0, 2, 3, 1))
         )
+        info_input = jnp.concat([
+            critic_input['team_points'],
+            critic_input['opponent_points'],
+            critic_input['match_steps'],
+            critic_input['matches'],
+        ], axis=-1)
 
-        match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(critic_input['match_phases'])
 
-        point_info_embeddings = nn.Dense(self.point_info_emb_dim)(
-            jnp.concat([
-                critic_input['team_points'],
-                critic_input['opponent_points'],
-            ], axis=-1)
-        )
+        info_embeddings = nn.Sequential([
+            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+        ])(info_input)
 
         embeddings = jnp.concat([
             state_embeddings.reshape((seq_len, batch_size, -1)),
-            match_phase_embeddings,
-            point_info_embeddings,
+            info_embeddings,
         ], axis=-1)
 
         critic = nn.Sequential(

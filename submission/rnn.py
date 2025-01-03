@@ -99,7 +99,7 @@ class ActorInput(TypedDict):
     positions: jax.Array
     states: jax.Array
     observations: jax.Array
-    match_phases: jax.Array
+    match_steps: jax.Array
     matches: jax.Array
     team_points: jax.Array
     opponent_points: jax.Array
@@ -153,7 +153,7 @@ class Actor(nn.Module):
         info_input = jnp.concat([
             actor_input['team_points'],
             actor_input['opponent_points'],
-            actor_input['match_phases'],
+            actor_input['match_steps'],
             actor_input['matches'],
             actor_input['unit_move_cost'],
             actor_input['unit_sap_cost'],

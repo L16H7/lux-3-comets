@@ -241,7 +241,7 @@ class Agent():
         # self.params = self.actor.init(self.rng, self.actor_hstates, {
         #     "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
         #     "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        #     "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
+        #     "match_steps": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
         #     "positions": jnp.zeros((SEQ, BATCH, 2)),
         #     "prev_points": jnp.zeros((SEQ, BATCH, 1)),
         #     "team_points": jnp.zeros((SEQ, BATCH, 1)),
@@ -303,7 +303,7 @@ class Agent():
                 "states": agent_states,
                 "observations": agent_observations,
                 "prev_actions": self.prev_actions,
-                "match_phases": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
+                "match_steps": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "matches": jnp.expand_dims(agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "positions": agent_positions,
                 "prev_points": self.prev_points,
