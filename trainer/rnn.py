@@ -142,10 +142,10 @@ class Actor(nn.Module):
         ])
 
         observation_embeddings = observation_encoder(
-            actor_input['observations'].transpose((0, 1, 3, 4, 2))
+            actor_input['observations'].reshape((-1, 10, 17, 17)).transpose((0, 2, 3, 1))
         )
         state_embeddings = state_encoder(
-            actor_input['states'].transpose((0, 1, 3, 4, 2))
+            actor_input['states'].reshape((-1, 10, 24, 24)).transpose((0, 2, 3, 1))
         )
 
         position_embeddings = get_2d_positional_embeddings(
@@ -255,7 +255,7 @@ class Critic(nn.Module):
         )
 
         state_embeddings = state_encoder(
-            critic_input['states'].transpose((0, 1, 3, 4, 2))
+            critic_input['states'].reshape((-1, 10, 17, 17)).transpose((0, 2, 3, 1))
         )
 
         match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(critic_input['match_phases'])
