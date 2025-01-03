@@ -773,7 +773,12 @@ class LuxAIS3Env(environment.Environment):
             lax.stop_gradient(rewards),
             terminated,
             truncated,
-            {"discount": self.discount(state, params), "points_gained": team_scores},
+            {
+                "discount": self.discount(state, params),
+                "points_gained": team_scores,
+                "destroyed_units": destroyed_units
+            },
+
         )
 
     def reset_env(
