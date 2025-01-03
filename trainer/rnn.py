@@ -125,7 +125,7 @@ class Actor(nn.Module):
             ResidualBlock(32),
             nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
-            lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
+            lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(128),
             nn.leaky_relu
         ])
@@ -136,11 +136,12 @@ class Actor(nn.Module):
             ResidualBlock(32),
             nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
-            lambda x: x.reshape((x.shape[0], x.shape[1], -1)),
+            lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(256),
             nn.leaky_relu
         ])
 
+        seq_len, batch_size = actor_input['states'].shape[:2]
         observation_embeddings = observation_encoder(
             actor_input['observations'].reshape((-1, 10, 17, 17)).transpose((0, 2, 3, 1))
         )
@@ -172,8 +173,8 @@ class Actor(nn.Module):
 
         embeddings = jnp.concat([
             position_embeddings,
-            state_embeddings,
-            observation_embeddings,
+            state_embeddings.reshape((seq_len, batch_size, -1)),
+            observation_embeddings.reshape((seq_len, batch_size, -1)),
             info_embeddings,
         ], axis=-1)
 
@@ -254,8 +255,10 @@ class Critic(nn.Module):
             ]
         )
 
+        seq_len, batch_size = critic_input['states'].shape[:2]
+
         state_embeddings = state_encoder(
-            critic_input['states'].reshape((-1, 10, 17, 17)).transpose((0, 2, 3, 1))
+            critic_input['states'].reshape((-1, 10, 24, 24)).transpose((0, 2, 3, 1))
         )
 
         match_phase_embeddings = nn.Embed(4, self.match_phase_emb_dim)(critic_input['match_phases'])
@@ -268,7 +271,7 @@ class Critic(nn.Module):
         )
 
         embeddings = jnp.concat([
-            state_embeddings,
+            state_embeddings.reshape((seq_len, batch_size, -1)),
             match_phase_embeddings,
             point_info_embeddings,
         ], axis=-1)
