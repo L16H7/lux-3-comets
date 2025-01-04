@@ -242,13 +242,18 @@ class Agent():
         self.unit_sensor_range = jnp.array([[[env_cfg["unit_sensor_range"]]]]).repeat(16, 1) / 6.0
 
         reward_nodes = jnp.array(reward_nodes)
-        reward_nodes_transformed = transform_coordinates(reward_nodes)
-        reward_nodes = jnp.concatenate([
-            reward_nodes,
-            reward_nodes_transformed,
-        ], axis=0)
         self.points_map = jnp.zeros((1, 24, 24))
-        self.points_map = self.points_map.at[:, reward_nodes[:, 0], reward_nodes[:, 1]].set(1)
+        if len(reward_nodes) > 0:
+            try:
+                reward_nodes_transformed = transform_coordinates(reward_nodes)
+                reward_nodes = jnp.concatenate([
+                    reward_nodes,
+                    reward_nodes_transformed,
+                ], axis=0)
+                self.points_map = self.points_map.at[:, reward_nodes[:, 0], reward_nodes[:, 1]].set(1)
+            except:
+                print(reward_nodes)
+
         self.points_gained = 0
 
         checkpoint_path = os.path.join(script_dir, 'checkpoint')
