@@ -158,6 +158,7 @@ def make_train(config: Config):
         rng: jax.Array,
         actor_train_state: TrainState,
         critic_train_state: TrainState,
+        opponent_state: TrainState,
     ):
         N_TOTAL_AGENTS = config.n_envs * config.n_agents
 
@@ -241,8 +242,8 @@ def make_train(config: Config):
                             "prev_actions": p0_prev_actions,
                             "positions": p0_agent_positions,
                             "prev_points": p0_prev_points,
-                            "match_steps": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
-                            "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
+                            "match_steps": jnp.expand_dims(p0_agent_episode_info[:, 0], axis=[0, -1]),
+                            "matches": jnp.expand_dims(p0_agent_episode_info[:, 1], axis=[0, -1]),
                             "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
                             "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
                             "unit_move_cost": unit_move_cost,
@@ -290,8 +291,8 @@ def make_train(config: Config):
                     p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
                     p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-                    p1_logits, p1_new_actor_hstates = actor_train_state.apply_fn(
-                        actor_train_state.params,
+                    p1_logits, p1_new_actor_hstates = opponent_state.apply_fn(
+                        opponent_state.params,
                         p1_prev_actor_hstates,
                         {
                             "states": p1_agent_states,
@@ -482,8 +483,8 @@ def make_train(config: Config):
                         "states": jnp.expand_dims(p0_states, axis=0),
                         "match_steps": jnp.expand_dims(p0_episode_info[:, 0], axis=[0, -1]),
                         "matches": jnp.expand_dims(p0_episode_info[:, 1], axis=[0, -1]),
-                        "team_points": jnp.expand_dims(p0_episode_info[:, 2].astype(jnp.int32), axis=[0, -1]),
-                        "opponent_points": jnp.expand_dims(p0_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
+                        "team_points": jnp.expand_dims(p0_episode_info[:, 2], axis=[0, -1]),
+                        "opponent_points": jnp.expand_dims(p0_episode_info[:, 3], axis=[0, -1]),
                     }
                 )
 
@@ -712,17 +713,37 @@ def train(config: Config):
     #     project=config.wandb_project,
     #     config={**asdict(config)}
     # )
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    checkpoint_path = os.path.join(script_dir, 'checkpoint')
+    orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+    opponent_params = orbax_checkpointer.restore(checkpoint_path)
+
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
+
+    from rnn import Actor
+    import optax
+    actor = Actor()
+    actor_tx = optax.chain(
+        optax.clip_by_global_norm(config.max_grad_norm),
+        optax.adamw(config.actor_learning_rate),
+    )
+    opponent_state = TrainState.create(
+        apply_fn=actor.apply,
+        params=opponent_params,
+        tx=actor_tx,
+    )
+    opponent_state = replicate(opponent_state, jax.local_devices())
+    jax.debug.breakpoint()
     print("Compiling...")
     t = time()
     train_fn = make_train(
         config=config,
     )
-    train_fn = train_fn.lower(train_device_rngs, actor_train_state, critic_train_state).compile()
+    train_fn = train_fn.lower(train_device_rngs, actor_train_state, critic_train_state, opponent_state).compile()
     elapsed_time = time() - t
     print(f"Done in {elapsed_time:.2f}s.") 
 
@@ -737,7 +758,7 @@ def train(config: Config):
         train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
         loop += 1
         t = time()
-        train_summary = jax.block_until_ready(train_fn(train_device_rngs, actor_train_state, critic_train_state))
+        train_summary = jax.block_until_ready(train_fn(train_device_rngs, actor_train_state, critic_train_state, opponent_state))
         elapsed_time = time() - t
         print(f"Done in {elapsed_time:.4f}s.")
         print("Logginig...")
