@@ -231,7 +231,7 @@ def make_train(config: Config):
                         unit_sap_cost,
                         unit_sap_range,
                         unit_sensor_range,
-                    ], axis=-1).repeat(2, axis=1), axis=0)
+                    ], axis=-1), axis=0)
  
                     p0_logits, p0_new_actor_hstates = actor_train_state.apply_fn(
                         actor_train_state.params,
