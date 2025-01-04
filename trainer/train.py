@@ -539,8 +539,8 @@ def make_train(config: Config):
                     permutation = jax.random.permutation(_rng, config.n_minibatches)
 
                     batch = (
-                        jnp.expand_dims(jnp.concat([p0_actor_init_hstates, p1_actor_init_hstates], axis=0), axis=0),
-                        jnp.expand_dims(jnp.concat([p0_critic_init_hstates, p1_critic_init_hstates], axis=0), axis=0),
+                        jnp.expand_dims(p0_actor_init_hstates, axis=0),
+                        jnp.expand_dims(p0_critic_init_hstates, axis=0),
                         transitions,
                         advantages,
                         targets,
