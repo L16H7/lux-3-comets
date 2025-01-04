@@ -710,10 +710,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
     script_dir = os.path.dirname(os.path.abspath(__file__))
     checkpoint_path = os.path.join(script_dir, 'checkpoint')
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
@@ -738,7 +738,6 @@ def train(config: Config):
         tx=actor_tx,
     )
     opponent_state = replicate(opponent_state, jax.local_devices())
-    jax.debug.breakpoint()
     print("Compiling...")
     t = time()
     train_fn = make_train(
@@ -796,17 +795,17 @@ def train(config: Config):
 
 if __name__ == "__main__":
     config = Config(
-        n_meta_steps=1,
+        n_meta_steps=10,
         n_actor_steps=16,
-        n_update_steps=4,
-        n_envs=4,
-        n_envs_per_device=4,
-        n_eval_envs=4,
-        n_minibatches=2,
+        n_update_steps=32,
+        n_envs=512,
+        n_envs_per_device=512,
+        n_eval_envs=256,
+        n_minibatches=16,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
-        wandb_project="pure-self-play",
+        wandb_project="fixed-target",
         train_seed=29,
         entropy_coeff=0.005
     )
