@@ -404,7 +404,7 @@ class LuxAIS3Env(environment.Environment):
                 )
             return all_units
 
-        units_mask_before_sap = (state.units.energy[..., 0] >= 0)
+        units_mask_before_sap = (state.units.energy[..., 0] > 0)
         state = state.replace(
             units=sap_unit(
                 original_unit_energy,
@@ -415,7 +415,7 @@ class LuxAIS3Env(environment.Environment):
             )
         )
         # this is because Stone Tao wants to see the units that are marked for removal in the visualizer
-        units_mask_after_sap = (state.units.energy[..., 0] < 0)
+        units_mask_after_sap = (state.units.energy[..., 0] > 0)
 
         """resolve collisions and energy void fields"""
         units_mask_before_collision = state.units_mask.copy()
