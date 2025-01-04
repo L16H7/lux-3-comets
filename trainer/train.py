@@ -425,7 +425,7 @@ def make_train(config: Config):
                         p0_new_actor_hstates,
                         p0_critic_hstates,
                         p1_new_actor_hstates,
-                        p1_critic_hstates,
+                        p0_critic_hstates,
                     )
 
                     return runner_state, transition
@@ -679,6 +679,7 @@ def make_train(config: Config):
                 eval_meta_keys,
                 eval_meta_env_params,
                 updated_runner_state.actor_train_state,
+                opponent_state,
                 config.n_eval_envs,
                 config.n_agents,
                 v_reset,

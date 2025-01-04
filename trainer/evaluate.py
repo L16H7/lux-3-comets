@@ -45,6 +45,7 @@ def evaluate(
     meta_keys,
     meta_env_params,
     actor_train_state,
+    opponent_state,
     n_envs,
     n_agents,
     v_reset,
@@ -134,8 +135,8 @@ def evaluate(
         p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
         p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-        p1_logits, p1_new_actor_hstates = actor_train_state.apply_fn(
-            actor_train_state.params,
+        p1_logits, p1_new_actor_hstates = opponent_state.apply_fn(
+            opponent_state.params,
             p1_prev_actor_hstates,
             {
                 "states": p1_agent_states,
