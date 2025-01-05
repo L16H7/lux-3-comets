@@ -418,7 +418,7 @@ class LuxAIS3Env(environment.Environment):
         units_mask_after_sap = (state.units.energy[..., 0] > 0)
 
         """resolve collisions and energy void fields"""
-        units_mask_before_collision = state.units_mask.copy()
+        units_mask_before_collision = (state.units.energy[..., 0] > 0)
 
         # compute energy void fields for all teams and the energy + unit counts
         unit_aggregate_energy_void_map = jnp.zeros(
@@ -518,7 +518,7 @@ class LuxAIS3Env(environment.Environment):
             )
 
         """apply energy field to the units"""
-        units_mask_after_collision = state.units_mask.copy()
+        units_mask_after_collision = (state.units.energy[..., 0] > 0)
 
         # Update unit energy based on the energy field and nebula tileof their current position
         def update_unit_energy(unit: UnitState, mask):
@@ -754,7 +754,7 @@ class LuxAIS3Env(environment.Environment):
 
         rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
 
-        SAP_DESTROYED_REWARDS = 0.1
+        SAP_DESTROYED_REWARDS = 0.2
         sap_destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
 
         p1_sap_destroyed_counts = sap_destroyed_units[1] - sap_destroyed_units[0]
@@ -765,7 +765,7 @@ class LuxAIS3Env(environment.Environment):
 
         sap_destroyed_rewards = jnp.concat([p0_sap_destroyed_rewards, p1_sap_destroyed_rewards], axis=0)
 
-        COLLISION_DESTROYED_REWARDS = 0.05
+        COLLISION_DESTROYED_REWARDS = 0.2
         collision_destroyed_units = (jnp.logical_and(units_mask_before_collision, ~units_mask_after_collision)).sum(axis=-1)
 
         p1_collision_destroyed_counts = collision_destroyed_units[1] - collision_destroyed_units[0]
@@ -782,6 +782,13 @@ class LuxAIS3Env(environment.Environment):
         rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
 
         terminated = self.is_terminal(state, params)
+        
+        win_rewards = jnp.zeros_like(rewards)
+        win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 2.0, 0.0))
+        lose_rewards = jnp.zeros_like(rewards)
+        lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -2.0, 0.0))
+        rewards = rewards + win_rewards + lose_rewards
+
         return (
             lax.stop_gradient(self.get_obs(state, params, key=key)),
             lax.stop_gradient(state),
