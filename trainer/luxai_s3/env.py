@@ -418,7 +418,7 @@ class LuxAIS3Env(environment.Environment):
         units_mask_after_sap = (state.units.energy[..., 0] > 0)
 
         """resolve collisions and energy void fields"""
-        units_mask_before_collision = (state.units.energy[..., 0] > 0)
+        units_mask_before_collision = state.units_mask.copy()
 
         # compute energy void fields for all teams and the energy + unit counts
         unit_aggregate_energy_void_map = jnp.zeros(
@@ -518,7 +518,7 @@ class LuxAIS3Env(environment.Environment):
             )
 
         """apply energy field to the units"""
-        units_mask_after_collision = (state.units.energy[..., 0] > 0)
+        units_mask_after_collision = state.units_mask.copy()
 
         # Update unit energy based on the energy field and nebula tileof their current position
         def update_unit_energy(unit: UnitState, mask):
