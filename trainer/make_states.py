@@ -56,6 +56,7 @@ def make_states(config: Config):
     )
 
     ### --------- RESUME HERE --------- ###
+    '''
     actor_checkpoint_path = '/root/lux-3-comets/checkpoints_old/35_actor'
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     actor_network_params = orbax_checkpointer.restore(actor_checkpoint_path)
@@ -63,6 +64,7 @@ def make_states(config: Config):
     critic_checkpoint_path = '/root/lux-3-comets/checkpoints_old/35_critic'
     critic_network_params = orbax_checkpointer.restore(critic_checkpoint_path)
     print('resumed from', actor_checkpoint_path, critic_checkpoint_path)
+    '''
     ### ------------------------------- ###
 
 

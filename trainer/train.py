@@ -714,8 +714,7 @@ def train(config: Config):
         project=config.wandb_project,
         config={**asdict(config)}
     )
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    checkpoint_path = os.path.join(script_dir, 'checkpoint')
+    checkpoint_path = ''
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     opponent_params = orbax_checkpointer.restore(checkpoint_path)
 
@@ -737,7 +736,12 @@ def train(config: Config):
         params=opponent_params,
         tx=actor_tx,
     )
+
+    ''' DEGUGGING
+    opponent_state, _ = make_states(config=config)
     opponent_state = replicate(opponent_state, jax.local_devices())
+    '''
+    
     print("Compiling...")
     t = time()
     train_fn = make_train(
@@ -798,15 +802,15 @@ if __name__ == "__main__":
         n_meta_steps=10,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=512,
-        n_envs_per_device=512,
-        n_eval_envs=256,
-        n_minibatches=16,
+        n_envs=4,
+        n_envs_per_device=4,
+        n_eval_envs=4,
+        n_minibatches=2,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
         wandb_project="fixed-target",
-        train_seed=29,
+        train_seed=42,
         entropy_coeff=0.005
     )
     train(config=config)

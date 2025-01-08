@@ -765,7 +765,7 @@ class LuxAIS3Env(environment.Environment):
 
         sap_destroyed_rewards = jnp.concat([p0_sap_destroyed_rewards, p1_sap_destroyed_rewards], axis=0)
 
-        COLLISION_DESTROYED_REWARDS = 0.2
+        COLLISION_DESTROYED_REWARDS = 0.05
         collision_destroyed_units = (jnp.logical_and(units_mask_before_collision, ~units_mask_after_collision)).sum(axis=-1)
 
         p1_collision_destroyed_counts = collision_destroyed_units[1] - collision_destroyed_units[0]
@@ -783,11 +783,11 @@ class LuxAIS3Env(environment.Environment):
 
         terminated = self.is_terminal(state, params)
         
-        win_rewards = jnp.zeros_like(rewards)
-        win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 2.0, 0.0))
-        lose_rewards = jnp.zeros_like(rewards)
-        lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -2.0, 0.0))
-        rewards = rewards + win_rewards + lose_rewards
+        # win_rewards = jnp.zeros_like(rewards)
+        # win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 1.0, 0.0))
+        # lose_rewards = jnp.zeros_like(rewards)
+        # lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -1.0, 0.0))
+        # rewards = rewards + win_rewards + lose_rewards
 
         return (
             lax.stop_gradient(self.get_obs(state, params, key=key)),
