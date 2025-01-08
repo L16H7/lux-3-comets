@@ -60,17 +60,21 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     ]
     valid_movements = in_bounds & (~is_asteroid)
 
-    def mask_sap_range(logits_slice, sap_range):
+    def mask_sap_range(logits_slice, cutoff_range):
         cols = logits_slice.shape[1]
-        mask = jnp.arange(cols) < sap_range
+        mask = jnp.arange(cols) < cutoff_range
         logits_slice = jnp.where(mask[None, :], 0, logits_slice)
         
-        mask2 = jnp.arange(cols) > (16 - sap_range)
+        mask2 = jnp.arange(cols) > (16 - cutoff_range)
         logits_slice = jnp.where(mask2[None, :], 0, logits_slice)
         return logits_slice
 
-    sap_range_mask = jnp.ones((n_envs, 16, 17), sap_ranges)
-    sap_range_mask = jax.vmap(mask_sap_range, in_axes=(0, 0))(sap_range_mask, sap_ranges)
+    sap_range_mask = jnp.ones((n_envs, 16, 17))
+    sap_range_mask = jax.vmap(
+        mask_sap_range,
+        in_axes=(0, 0)
+    )(sap_range_mask, Constants.MAX_SAP_RANGE - sap_ranges)
+
     sap_range_mask = sap_range_mask.reshape(-1, 17)
 
     logits2_mask = sap_range_mask
@@ -78,13 +82,12 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     logits1_mask = jnp.concat(
         [ 
-            jnp.ones((1, valid_movements.shape[0], 1)),
+            jnp.ones((1, n_envs * 16, 1)),
             valid_movements.reshape(1, -1, 4),
-            jnp.ones((1, valid_movements.shape[0], 1)),
+            jnp.ones((1, n_envs * 16, 1)),
         ],
         axis=-1
     )
-    jax.debug.breakpoint()
 
     logits1, logits2, logits3 = logits
 
@@ -96,6 +99,8 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits1 = jnp.where(logits1_mask.reshape(logits1.shape), logits1, large_negative)
     masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
     masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
+
+    jax.debug.breakpoint()
 
     '''
     sap_range_clip = Constants.MAX_SAP_RANGE - 1
