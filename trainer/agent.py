@@ -107,17 +107,6 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
     masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
 
-    jax.debug.breakpoint()
-
-    '''
-    sap_range_clip = Constants.MAX_SAP_RANGE - 1
-    logits2 = logits2.at[..., : sap_range_clip].set(-100)
-    logits2 = logits2.at[..., -sap_range_clip:].set(-100)
-
-    logits3 = logits3.at[..., : sap_range_clip].set(-100)
-    logits3 = logits3.at[..., -sap_range_clip:].set(-100)
-    '''
-
     dist1 = distrax.Categorical(logits=masked_logits1)
     dist2 = distrax.Categorical(logits=masked_logits2)
     dist3 = distrax.Categorical(logits=masked_logits3)
