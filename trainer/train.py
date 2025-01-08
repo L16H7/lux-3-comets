@@ -27,6 +27,7 @@ from evaluate import evaluate
 from luxai_s3.env import LuxAIS3Env
 from luxai_s3.params import EnvParams, env_params_ranges
 from make_states import make_states
+from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
 from representation import create_representations, transform_coordinates
 from rnn import ScannedRNN
@@ -314,7 +315,7 @@ def make_train(config: Config):
                     )
                     # p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
 
-                    p1_actions, p1_log_probs, p1_logits_mask = get_actions(
+                    p1_actions, p1_log_probs, p1_logits_mask = get_opponent_actions(
                         rng=p1_action_rng,
                         team_idx=1,
                         opponent_idx=0,

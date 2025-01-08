@@ -4,6 +4,7 @@ import jax.tree_util as jtu
 from collections import OrderedDict
 
 from agent import get_actions, vectorized_transform_actions, transform_coordinates
+from opponent import get_actions as get_opponent_actions
 from rnn import ScannedRNN
 from utils import calculate_sapping_stats
 
@@ -156,7 +157,7 @@ def evaluate(
         )
         # p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
 
-        p1_actions, _, _ = get_actions(
+        p1_actions, _, _ = get_opponent_actions(
             rng=p1_action_rng,
             team_idx=1,
             opponent_idx=0,
