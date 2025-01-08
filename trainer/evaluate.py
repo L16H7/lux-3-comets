@@ -271,6 +271,8 @@ def evaluate(
         "eval/p1_sap_destroyed_units": info["p1_sap_units_destroyed"].sum(),
         "eval/p0_collision_destroyed_units": info["p0_collision_units_destroyed"].sum(),
         "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
+        "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
+        "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
     }
     info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 

@@ -138,6 +138,8 @@ def make_train(config: Config):
             "p1_sap_units_destroyed": envinfo["sap_destroyed_units"][:, 1].mean(),
             "p0_collision_units_destroyed": envinfo["collision_destroyed_units"][:, 0].mean(),
             "p1_collision_units_destroyed": envinfo["collision_destroyed_units"][:, 1].mean(),
+            "p0_net_energy_of_sap_loss": envinfo["net_energy_of_sap_loss"][:, 0].mean(),
+            "p1_net_energy_of_sap_loss": envinfo["net_energy_of_sap_loss"][:, 1].mean(),
         }
 
         p0_representations, p1_representations = create_agent_representations(
