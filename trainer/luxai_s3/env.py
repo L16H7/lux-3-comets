@@ -747,14 +747,14 @@ class LuxAIS3Env(environment.Environment):
             >= (params.max_steps_in_match + 1) * params.match_count_per_episode
         )
 
-        # POINT_REWARDS = 0.01
-        # point_diff = state.team_points[0] - state.team_points[1]
-        # p0_point_rewards = point_diff * POINT_REWARDS
-        # p0_point_rewards = jnp.expand_dims(p0_point_rewards.repeat(16), axis=0)
-        # p1_point_rewards = -point_diff * POINT_REWARDS
-        # p1_point_rewards = jnp.expand_dims(p1_point_rewards.repeat(16), axis=0)
+        POINT_REWARDS = 0.01
+        point_diff = state.team_points[0] - state.team_points[1]
+        p0_point_rewards = point_diff * POINT_REWARDS
+        p0_point_rewards = jnp.expand_dims(p0_point_rewards.repeat(16), axis=0)
+        p1_point_rewards = -point_diff * POINT_REWARDS
+        p1_point_rewards = jnp.expand_dims(p1_point_rewards.repeat(16), axis=0)
 
-        # rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
+        point_rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
 
         SAP_DESTROYED_REWARDS = 0.2
         sap_destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
@@ -786,7 +786,7 @@ class LuxAIS3Env(environment.Environment):
 
         # collision_destroyed_rewards = jnp.concat([p0_collision_destroyed_rewards, p1_collision_destroyed_rewards], axis=0)
 
-        rewards = sap_destroyed_rewards + sapped_energy_rewards
+        rewards = point_rewards + sap_destroyed_rewards + sapped_energy_rewards
         
         energy = jnp.squeeze(state.units.energy, axis=-1)
         rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
