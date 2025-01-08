@@ -77,8 +77,15 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     sap_range_mask = sap_range_mask.reshape(-1, 17)
 
-    logits2_mask = sap_range_mask
-    logits3_mask = sap_range_mask
+    target_coods = jnp.arange(-8, 9)
+    target_x = agent_positions.reshape(-1, 2)[:, 0][:, None] + target_coods[None, :]
+    target_x = (target_x >= 0) & (target_x < Constants.MAP_WIDTH)
+
+    target_y = agent_positions.reshape(-1, 2)[:, 1][:, None] + target_coods[None, :]
+    target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
+
+    logits2_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_x, axis=0))
+    logits3_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_y, axis=0))
 
     logits1_mask = jnp.concat(
         [ 
