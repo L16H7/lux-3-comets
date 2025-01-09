@@ -17,11 +17,9 @@ def make_states(config: Config):
     actor_network_params = actor.init(rng, actor_init_hstate, {
         "states": jnp.zeros((SEQ, BATCH, 10, 24, 24)),
         "observations": jnp.zeros((SEQ, BATCH, 10, 17, 17)),
-        "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        "match_phases": jnp.zeros((SEQ, BATCH, 1), dtype=jnp.float32),
+        "match_steps": jnp.zeros((SEQ, BATCH, 1), dtype=jnp.float32),
         "matches": jnp.zeros((SEQ, BATCH, 1), dtype=jnp.float32),
         "positions": jnp.zeros((SEQ, BATCH, 2), dtype=jnp.int32),
-        "prev_points": jnp.zeros((SEQ, BATCH, 1)),
         "team_points": jnp.zeros((SEQ, BATCH, 1)),
         "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
         "unit_move_cost": jnp.zeros((SEQ, BATCH, 1)),
@@ -37,7 +35,8 @@ def make_states(config: Config):
     critic_init_hstate = ScannedRNN.initialize_carry(BATCH, 256)
     critic_network_params = critic.init(rng, critic_init_hstate, {
         "states": jnp.zeros((SEQ, BATCH, 10, 24, 24)),
-        "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
+        "match_steps": jnp.zeros((SEQ, BATCH, 1)),
+        "matches": jnp.zeros((SEQ, BATCH, 1)),
         "team_points": jnp.zeros((SEQ, BATCH, 1)),
         "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
     })
@@ -56,12 +55,13 @@ def make_states(config: Config):
 
     ### --------- RESUME HERE --------- ###
     '''
-    actor_checkpoint_path = './checkpoints/40_actor'
+    actor_checkpoint_path = '/root/lux-3-comets/checkpoints_old/35_actor'
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     actor_network_params = orbax_checkpointer.restore(actor_checkpoint_path)
 
-    critic_checkpoint_path = './checkpoints/40_critic'
+    critic_checkpoint_path = '/root/lux-3-comets/checkpoints_old/35_critic'
     critic_network_params = orbax_checkpointer.restore(critic_checkpoint_path)
+    print('resumed from', actor_checkpoint_path, critic_checkpoint_path)
     '''
     ### ------------------------------- ###
 

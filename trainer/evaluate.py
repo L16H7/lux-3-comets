@@ -4,6 +4,7 @@ import jax.tree_util as jtu
 from collections import OrderedDict
 
 from agent import get_actions, vectorized_transform_actions, transform_coordinates
+from opponent import get_actions as get_opponent_actions
 from rnn import ScannedRNN
 from utils import calculate_sapping_stats
 
@@ -45,6 +46,7 @@ def evaluate(
     meta_keys,
     meta_env_params,
     actor_train_state,
+    opponent_state,
     n_envs,
     n_agents,
     v_reset,
@@ -60,7 +62,6 @@ def evaluate(
             rng,
             actor_train_state,
             (p0_representations, p1_representations),
-            (p0_prev_actions, p1_prev_actions),
             (p0_prev_points, p1_prev_points),
             observations,
             states,
@@ -94,10 +95,8 @@ def evaluate(
             {
                 "states": p0_agent_states,
                 "observations": p0_agent_observations,
-                "prev_actions": p0_prev_actions,
                 "positions": p0_agent_positions,
-                "prev_points": p0_prev_points,
-                "match_phases": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
+                "match_steps": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
@@ -134,16 +133,14 @@ def evaluate(
         p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
         p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-        p1_logits, p1_new_actor_hstates = actor_train_state.apply_fn(
-            actor_train_state.params,
+        p1_logits, p1_new_actor_hstates = opponent_state.apply_fn(
+            opponent_state.params,
             p1_prev_actor_hstates,
             {
                 "states": p1_agent_states,
                 "observations": p1_agent_observations,
-                "prev_actions": p1_prev_actions,
                 "positions": p1_agent_positions,
-                "prev_points": p1_prev_points,
-                "match_phases": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
+                "match_steps": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
@@ -217,7 +214,6 @@ def evaluate(
             rng,
             actor_train_state,
             (p0_next_representations, p1_next_representations),
-            (p0_actions[:, :, 0].reshape(1, -1), p1_actions[:, :, 0].reshape(1, -1)),
             (p0_points_gained, p1_points_gained),
             next_observations,
             next_states,
@@ -234,8 +230,6 @@ def evaluate(
 
     p1_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 128)
 
-    p0_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
-    p1_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
 
     p0_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
     p1_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
@@ -244,7 +238,6 @@ def evaluate(
         rng,
         actor_train_state,
         (p0_representations, p1_representations),
-        (p0_prev_actions, p1_prev_actions),
         (p0_prev_points, p1_prev_points),
         observations,
         states,
@@ -266,6 +259,12 @@ def evaluate(
     info2_ = {
         "eval/p0_wins": info["p0_wins"][-1],
         "eval/p1_wins": info["p1_wins"][-1],
+        "eval/p0_sap_destroyed_units": info["p0_sap_units_destroyed"].sum(),
+        "eval/p1_sap_destroyed_units": info["p1_sap_units_destroyed"].sum(),
+        "eval/p0_collision_destroyed_units": info["p0_collision_units_destroyed"].sum(),
+        "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
+        "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
+        "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
     }
     info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 

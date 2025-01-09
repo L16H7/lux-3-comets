@@ -60,40 +60,105 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     ]
     valid_movements = in_bounds & (~is_asteroid)
 
-    def mask_sap_range(logits_slice, cutoff_range):
+    team_positions = observations.units.position[:, team_idx, ...]
+    team_positions = team_positions if team_idx == 0 else transform_coordinates(team_positions)
+
+    opponent_positions = observations.units.position[:, opponent_idx, ...]
+    opponent_positions = opponent_positions if team_idx == 0 else transform_coordinates(opponent_positions)
+    opponent_positions = jnp.where(
+        opponent_positions == -1,
+        -100,
+        opponent_positions
+    )
+    opponent_positions = jnp.where(
+        opponent_positions == 24,
+        -100,
+        opponent_positions
+    )
+
+    opponent_positions = opponent_positions + Constants.MAX_SAP_RANGE
+
+    neighboring_positions = jnp.expand_dims(opponent_positions, axis=2) + directions
+    neighboring_positions = jnp.where(
+        neighboring_positions == -1,
+        -100,
+        neighboring_positions
+    )
+    neighboring_positions = jnp.where(
+        neighboring_positions == 24,
+        -100,
+        neighboring_positions
+    )
+
+    target_positions = jnp.concatenate([
+        opponent_positions,
+        neighboring_positions.reshape(neighboring_positions.shape[0], -1, 2)
+    ], axis=1)
+
+    diff = -team_positions[:, :, None, :] + target_positions[:, None, :, :]
+    diff = jnp.where(diff < 0, -100, diff)
+
+    # Function to set True for one row given indices
+    def set_true_row(bool_array, indices):
+        return bool_array.at[indices].set(True)
+
+    # Vectorize the function across rows using vmap
+    def update_bool_array(bool_array, turn_ons):
+        # vmap across the first axis (rows of turn_ons and bool_array)
+        return jax.vmap(set_true_row, in_axes=(0, 0), out_axes=0)(bool_array, turn_ons)
+
+    # Use JIT compilation for performance
+    update_bool_array_jit = jax.jit(update_bool_array)
+
+    bool_array = jnp.zeros_like(
+        jnp.squeeze(logits[1].reshape(1, -1, 17), axis=0),
+        dtype=bool
+    )
+
+    diff = diff.reshape(-1, 80, 2)
+    x = diff[..., 0]
+    attack_x = update_bool_array_jit(bool_array, x)
+
+    y = diff[..., 1]
+    attack_y = update_bool_array_jit(bool_array, y)
+
+    def mask_sap_range(logits_slice, sap_range):
         cols = logits_slice.shape[1]
-        mask = jnp.arange(cols) < cutoff_range
+        mask = jnp.arange(cols) < sap_range
         logits_slice = jnp.where(mask[None, :], 0, logits_slice)
         
-        mask2 = jnp.arange(cols) > (16 - cutoff_range)
+        mask2 = jnp.arange(cols) > (16 - sap_range)
         logits_slice = jnp.where(mask2[None, :], 0, logits_slice)
         return logits_slice
 
-    sap_range_mask = jnp.ones((n_envs, 16, 17))
-    sap_range_mask = jax.vmap(
-        mask_sap_range,
-        in_axes=(0, 0)
-    )(sap_range_mask, Constants.MAX_SAP_RANGE - sap_ranges)
-
+    sap_range_mask = jnp.ones((n_envs, 16, 17), sap_ranges)
+    sap_range_mask = jax.vmap(mask_sap_range, in_axes=(0, 0))(sap_range_mask, sap_ranges)
     sap_range_mask = sap_range_mask.reshape(-1, 17)
 
-    target_coods = jnp.arange(-8, 9)
-    target_x = agent_positions.reshape(-1, 2)[:, 0][:, None] + target_coods[None, :]
-    target_x = (target_x >= 0) & (target_x < Constants.MAP_WIDTH)
+    logits2_mask = attack_x & sap_range_mask
+    logits3_mask = attack_y & sap_range_mask
 
-    target_y = agent_positions.reshape(-1, 2)[:, 1][:, None] + target_coods[None, :]
-    target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
-
-    logits2_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_x, axis=0))
-    logits3_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_y, axis=0))
+    attack_available = logits2_mask.sum(-1) & logits3_mask.sum(-1)
 
     logits1_mask = jnp.concat(
         [ 
-            jnp.ones((1, n_envs * 16, 1)),
+            jnp.ones((1, attack_available.shape[0], 1)),
             valid_movements.reshape(1, -1, 4),
-            jnp.ones((1, n_envs * 16, 1)),
+            attack_available.reshape(1, -1, 1) 
         ],
         axis=-1
+    )
+
+    logits2_mask = jnp.where(
+        jnp.expand_dims(attack_available, axis=-1).repeat(17, axis=-1) == 0,
+        1,
+        logits2_mask
+    )
+
+    logits3_mask = jnp.where(
+        jnp.expand_dims(attack_available, axis=-1).repeat(17, axis=-1) == 0,
+        1,
+        logits3_mask
     )
 
     logits1, logits2, logits3 = logits
@@ -106,6 +171,15 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits1 = jnp.where(logits1_mask.reshape(logits1.shape), logits1, large_negative)
     masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
     masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
+
+    '''
+    sap_range_clip = Constants.MAX_SAP_RANGE - 1
+    logits2 = logits2.at[..., : sap_range_clip].set(-100)
+    logits2 = logits2.at[..., -sap_range_clip:].set(-100)
+
+    logits3 = logits3.at[..., : sap_range_clip].set(-100)
+    logits3 = logits3.at[..., -sap_range_clip:].set(-100)
+    '''
 
     dist1 = distrax.Categorical(logits=masked_logits1)
     dist2 = distrax.Categorical(logits=masked_logits2)

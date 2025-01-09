@@ -404,7 +404,8 @@ class LuxAIS3Env(environment.Environment):
                 )
             return all_units
 
-        units_mask_before_sap = state.units_mask.copy()
+        units_mask_before_sap = (state.units.energy[..., 0] > 0)
+        total_energy_before_sap = state.units.energy[..., 0].sum(axis=-1)
         state = state.replace(
             units=sap_unit(
                 original_unit_energy,
@@ -414,9 +415,12 @@ class LuxAIS3Env(environment.Environment):
                 state.units_mask,
             )
         )
-        units_mask_after_sap = state.units_mask.copy()
+        # this is because Stone Tao wants to see the units that are marked for removal in the visualizer
+        units_mask_after_sap = (state.units.energy[..., 0] > 0)
+        total_energy_after_sap = state.units.energy[..., 0].sum(axis=-1)
 
         """resolve collisions and energy void fields"""
+        units_mask_before_collision = state.units_mask.copy()
 
         # compute energy void fields for all teams and the energy + unit counts
         unit_aggregate_energy_void_map = jnp.zeros(
@@ -516,6 +520,7 @@ class LuxAIS3Env(environment.Environment):
             )
 
         """apply energy field to the units"""
+        units_mask_after_collision = state.units_mask.copy()
 
         # Update unit energy based on the energy field and nebula tileof their current position
         def update_unit_energy(unit: UnitState, mask):
@@ -741,6 +746,8 @@ class LuxAIS3Env(environment.Environment):
             state.steps
             >= (params.max_steps_in_match + 1) * params.match_count_per_episode
         )
+
+        # ZERO SUM
         POINT_REWARDS = 0.01
         point_diff = state.team_points[0] - state.team_points[1]
         p0_point_rewards = point_diff * POINT_REWARDS
@@ -748,32 +755,66 @@ class LuxAIS3Env(environment.Environment):
         p1_point_rewards = -point_diff * POINT_REWARDS
         p1_point_rewards = jnp.expand_dims(p1_point_rewards.repeat(16), axis=0)
 
-        rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
+        point_rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
 
-        DESTROYED_REWARDS = 0.05
-        destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
+        # ZERO SUM
+        SAP_DESTROYED_REWARDS = 0.2
+        sap_destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
 
-        p1_destroyed_counts = destroyed_units[1] - destroyed_units[0]
-        p0_destroyed_rewards = p1_destroyed_counts * DESTROYED_REWARDS
-        p0_destroyed_rewards = jnp.expand_dims(p0_destroyed_rewards.repeat(16), axis=0)
-        p1_destroyed_rewards = -p1_destroyed_counts * DESTROYED_REWARDS
-        p1_destroyed_rewards = jnp.expand_dims(p1_destroyed_rewards.repeat(16), axis=0)
+        p1_sap_destroyed_counts = sap_destroyed_units[1] - sap_destroyed_units[0]
+        p0_sap_destroyed_rewards = p1_sap_destroyed_counts * SAP_DESTROYED_REWARDS
+        p0_sap_destroyed_rewards = jnp.expand_dims(p0_sap_destroyed_rewards.repeat(16), axis=0)
+        p1_sap_destroyed_rewards = -p1_sap_destroyed_counts * SAP_DESTROYED_REWARDS
+        p1_sap_destroyed_rewards = jnp.expand_dims(p1_sap_destroyed_rewards.repeat(16), axis=0)
 
-        destroyed_rewards = jnp.concat([p0_destroyed_rewards, p1_destroyed_rewards], axis=0)
+        sap_destroyed_rewards = jnp.concat([p0_sap_destroyed_rewards, p1_sap_destroyed_rewards], axis=0)
 
-        rewards = rewards + destroyed_rewards
+        NET_SAP_ENERGY_REWARDS = 0.001
+        net_energy_of_sap_loss = total_energy_before_sap - total_energy_after_sap # e.g., 100 - 40 for p1
+        p0_sapped_energy_rewards = net_energy_of_sap_loss[1] * NET_SAP_ENERGY_REWARDS
+        p0_sapped_energy_rewards = jnp.expand_dims(p0_sapped_energy_rewards.repeat(16), axis=0)
+        p1_sapped_energy_rewards = net_energy_of_sap_loss[0] * NET_SAP_ENERGY_REWARDS
+        p1_sapped_energy_rewards = jnp.expand_dims(p1_sapped_energy_rewards.repeat(16), axis=0)
+        sapped_energy_rewards = jnp.concat([p0_sapped_energy_rewards, p1_sapped_energy_rewards], axis=0)
+
+        # We should only penalize collisions.
+        COLLISION_DESTROYED_PENALTY = -0.15
+        collision_destroyed_units = (jnp.logical_and(units_mask_before_collision, ~units_mask_after_collision)).sum(axis=-1)
+
+        p0_collision_destroyed_rewards = collision_destroyed_units[0] * COLLISION_DESTROYED_PENALTY
+        p0_collision_destroyed_rewards = jnp.expand_dims(p0_collision_destroyed_rewards.repeat(16), axis=0)
+        p1_collision_destroyed_rewards = collision_destroyed_units[1] * COLLISION_DESTROYED_PENALTY
+        p1_collision_destroyed_rewards = jnp.expand_dims(p1_collision_destroyed_rewards.repeat(16), axis=0)
+
+        collision_destroyed_rewards = jnp.concat([p0_collision_destroyed_rewards, p1_collision_destroyed_rewards], axis=0)
+
+        rewards = point_rewards + sap_destroyed_rewards + sapped_energy_rewards + collision_destroyed_rewards
         
         energy = jnp.squeeze(state.units.energy, axis=-1)
         rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
 
         terminated = self.is_terminal(state, params)
+        
+        # win_rewards = jnp.zeros_like(rewards)
+        # win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 1.0, 0.0))
+        # lose_rewards = jnp.zeros_like(rewards)
+        # lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -1.0, 0.0))
+        # rewards = rewards + win_rewards + lose_rewards
+
         return (
             lax.stop_gradient(self.get_obs(state, params, key=key)),
             lax.stop_gradient(state),
             lax.stop_gradient(rewards),
             terminated,
             truncated,
-            {"discount": self.discount(state, params), "points_gained": team_scores},
+            {
+                "discount": self.discount(state, params),
+                "points_gained": team_scores,
+                "sap_destroyed_units": sap_destroyed_units,
+                "collision_destroyed_units": collision_destroyed_units,
+                "net_energy_of_sap_loss": net_energy_of_sap_loss,
+            },
+
         )
 
     def reset_env(

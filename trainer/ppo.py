@@ -11,8 +11,6 @@ class Transition(NamedTuple):
     episode_info: jnp.ndarray
     agent_episode_info: jnp.ndarray
     states: jnp.ndarray
-    prev_actions: jnp.ndarray
-    prev_points: jnp.ndarray
     actions: jnp.ndarray
     log_probs: jnp.ndarray
     values: jnp.ndarray
@@ -77,11 +75,9 @@ def ppo_update(
             {
                 "states": transitions.agent_states,
                 "observations": transitions.observations,
-                "prev_actions": transitions.prev_actions,
                 "positions": transitions.agent_positions,
-                "prev_points": jnp.expand_dims(transitions.prev_points, axis=2),
-                "match_phases": jnp.expand_dims(transitions.agent_episode_info[:, :, 0].astype(jnp.int32), axis=2),
-                "matches": jnp.expand_dims(transitions.agent_episode_info[:, :, 1].astype(jnp.int32), axis=2),
+                "match_steps": jnp.expand_dims(transitions.agent_episode_info[:, :, 0], axis=2),
+                "matches": jnp.expand_dims(transitions.agent_episode_info[:, :, 1], axis=2),
                 "team_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 2], axis=2),
                 "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 3], axis=2),
                 "unit_move_cost": jnp.expand_dims(transitions.env_information[:, :, 0], axis=2),
@@ -94,19 +90,19 @@ def ppo_update(
         
         large_negative = -1e9
         masked_logits1 = jnp.where(
-            jnp.expand_dims(transitions.logits1_mask, axis=1),
+            transitions.logits1_mask,
             logits1,
             large_negative,
         )
 
         masked_logits2 = jnp.where(
-            jnp.expand_dims(transitions.logits2_mask, axis=1),
+            transitions.logits2_mask,
             logits2,
             large_negative,
         )
 
         masked_logits3 = jnp.where(
-            jnp.expand_dims(transitions.logits3_mask, axis=1),
+            transitions.logits3_mask,
             logits3,
             large_negative
         )
@@ -119,9 +115,9 @@ def ppo_update(
         n_steps, n_agents = transitions.observations.shape[:2]
         log_probs = dist.log_prob(
             [
-                transitions.actions[:, :, :, 0].reshape(n_steps, 1, n_agents),
-                transitions.actions[:, :, :, 1].reshape(n_steps, 1, n_agents),
-                transitions.actions[:, :, :, 2].reshape(n_steps, 1, n_agents)
+                transitions.actions[..., 0].reshape(n_steps, n_agents),
+                transitions.actions[..., 1].reshape(n_steps, n_agents),
+                transitions.actions[..., 2].reshape(n_steps, n_agents)
             ]
         )
         log_ratio = log_probs.reshape(-1) - transitions.log_probs.reshape(-1)
@@ -142,7 +138,8 @@ def ppo_update(
             critic_hstates,
             {
                 "states": transitions.states,
-                "match_phases": transitions.episode_info[:, :, 0].astype(jnp.int32),
+                "match_steps": jnp.expand_dims(transitions.episode_info[:, :, 0], axis=2),
+                "matches": jnp.expand_dims(transitions.episode_info[:, :, 1], axis=2),
                 "team_points": jnp.expand_dims(transitions.episode_info[:, :, 2], axis=2),
                 "opponent_points": jnp.expand_dims(transitions.episode_info[:, :, 3], axis=2),
             }

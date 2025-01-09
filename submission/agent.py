@@ -1,5 +1,7 @@
 # It throws error if I don't put it.
 import absl.logging
+import jax.random
+import jax.random
 absl.logging.set_verbosity(absl.logging.ERROR)
 
 import os
@@ -83,6 +85,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     
     agent_positions = observations.units.position[:, team_idx, ..., None, :] 
     agent_positions = agent_positions if team_idx == 0 else transform_coordinates(agent_positions)
+
     new_positions = agent_positions + directions
 
     in_bounds = (
@@ -100,84 +103,43 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     ]
     valid_movements = in_bounds & (~is_asteroid)
 
+    sap_range_mask = jnp.ones((16, 17))
 
-    team_positions = observations.units.position[:, team_idx, ...]
-    team_positions = team_positions if team_idx == 0 else transform_coordinates(team_positions)
+    cut_off = Constants.MAX_SAP_RANGE - sap_ranges
+    sap_range_mask = sap_range_mask.at[..., : cut_off].set(False)
+    sap_range_mask = sap_range_mask.at[..., -cut_off:].set(False)
 
-    opponent_positions = observations.units.position[:, opponent_idx, ...]
-    opponent_positions = opponent_positions if team_idx == 0 else transform_coordinates(opponent_positions)
-    opponent_positions = jnp.where(
-        opponent_positions == -1,
-        -100,
-        opponent_positions
-    )
-    opponent_positions = jnp.where(
-        opponent_positions == 24,
-        -100,
-        opponent_positions
-    )
+    target_coods = jnp.arange(-8, 9)
+    target_x = agent_positions.reshape(-1, 2)[:, 0][:, None] + target_coods[None, :]
+    target_x = (target_x >= 0) & (target_x < Constants.MAP_WIDTH)
 
-    opponent_positions = opponent_positions + Constants.MAX_SAP_RANGE
-    diff = -team_positions[:, :, None, :] + opponent_positions[:, None, :, :]
-    diff = jnp.where(diff < 0, -100, diff)
+    target_y = agent_positions.reshape(-1, 2)[:, 1][:, None] + target_coods[None, :]
+    target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
 
-    # Function to set True for one row given indices
-    def set_true_row(bool_array, indices):
-        return bool_array.at[indices].set(True)
 
-    # Vectorize the function across rows using vmap
-    def update_bool_array(bool_array, turn_ons):
-        # vmap across the first axis (rows of turn_ons and bool_array)
-        return jax.vmap(set_true_row, in_axes=(0, 0), out_axes=0)(bool_array, turn_ons)
+    logits2_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_x, axis=0))
+    logits3_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_y, axis=0))
 
-    # Use JIT compilation for performance
-    update_bool_array_jit = jax.jit(update_bool_array)
-
-    bool_array = jnp.zeros_like(
-        jnp.squeeze(logits[1], axis=0),
-        dtype=bool
-    )
-
-    diff = diff.reshape(-1, 16, 2)
-    x = diff[..., 0]
-    attack_x = update_bool_array_jit(bool_array, x)
-
-    y = diff[..., 1]
-    attack_y = update_bool_array_jit(bool_array, y)
-
-    attack_available = attack_x.sum(-1) & attack_y.sum(-1) & ((diff.sum(-1) < (4 * Constants.MAX_SAP_RANGE)).sum(-1) > 0)
 
     logits1_mask = jnp.concat(
         [ 
-            jnp.ones((1, attack_available.shape[0], 1)),
+            jnp.ones((1, 16, 1)),
             valid_movements.reshape(1, -1, 4),
-            attack_available.reshape(1, -1, 1) 
+            jnp.ones((1, 16, 1)),
         ],
         axis=-1
     )
 
-    logits2_mask = attack_x
-    logits3_mask = attack_y
-
-    logits2_mask = jnp.where(
-        jnp.expand_dims(attack_available, axis=-1).repeat(17, axis=-1) == 0,
-        1,
-        logits2_mask
-    )
-    logits2_mask = jnp.expand_dims(logits2_mask, axis=0)
-
-    logits3_mask = jnp.where(
-        jnp.expand_dims(attack_available, axis=-1).repeat(17, axis=-1) == 0,
-        1,
-        logits3_mask
-    )
-    logits3_mask = jnp.expand_dims(logits3_mask, axis=0)
-
     logits1, logits2, logits3 = logits
+
+    logits1_mask = logits1_mask.reshape(logits1.shape)
+    logits2_mask = logits2_mask.reshape(logits2.shape)
+    logits3_mask = logits3_mask.reshape(logits3.shape)
+
     large_negative = -1e9
-    masked_logits1 = jnp.where(logits1_mask, logits1, large_negative)
-    masked_logits2 = jnp.where(logits2_mask, logits2, large_negative)
-    masked_logits3 = jnp.where(logits3_mask, logits3, large_negative)
+    masked_logits1 = jnp.where(logits1_mask.reshape(logits1.shape), logits1, large_negative)
+    masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
+    masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
 
     '''
     sap_range_clip = Constants.MAX_SAP_RANGE - 1
@@ -188,16 +150,11 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3 = logits3.at[..., -sap_range_clip:].set(-100)
     '''
 
-    masked_logits2 = masked_logits2.at[..., : sap_ranges].set(large_negative)
-    masked_logits2 = masked_logits2.at[..., -sap_ranges:].set(large_negative)
-
-    masked_logits3 = masked_logits3.at[..., : sap_ranges].set(large_negative)
-    masked_logits3 = masked_logits3.at[..., -sap_ranges:].set(large_negative)
-
-    rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
+    # rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
     # action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
     # action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
     # action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
+
     action1 = np.argmax(masked_logits1, axis=-1)
     action2 = np.argmax(masked_logits2, axis=-1)
     action3 = np.argmax(masked_logits3, axis=-1)
@@ -218,13 +175,18 @@ class Agent():
         self.unit_sensor_range = jnp.array([[[env_cfg["unit_sensor_range"]]]]).repeat(16, 1) / 6.0
 
         reward_nodes = jnp.array(reward_nodes)
-        reward_nodes_transformed = transform_coordinates(reward_nodes)
-        reward_nodes = jnp.concatenate([
-            reward_nodes,
-            reward_nodes_transformed,
-        ], axis=0)
         self.points_map = jnp.zeros((1, 24, 24))
-        self.points_map = self.points_map.at[:, reward_nodes[:, 0], reward_nodes[:, 1]].set(1)
+        if len(reward_nodes) > 0:
+            try:
+                reward_nodes_transformed = transform_coordinates(reward_nodes)
+                reward_nodes = jnp.concatenate([
+                    reward_nodes,
+                    reward_nodes_transformed,
+                ], axis=0)
+                self.points_map = self.points_map.at[:, reward_nodes[:, 0], reward_nodes[:, 1]].set(1)
+            except:
+                print(reward_nodes)
+
         self.points_gained = 0
 
         checkpoint_path = os.path.join(script_dir, 'checkpoint')
@@ -240,10 +202,8 @@ class Agent():
         self.actor_hstates = ScannedRNN.initialize_carry(16, 128)
         # self.params = self.actor.init(self.rng, self.actor_hstates, {
         #     "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
-        #     "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
-        #     "match_phases": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
+        #     "match_steps": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
         #     "positions": jnp.zeros((SEQ, BATCH, 2)),
-        #     "prev_points": jnp.zeros((SEQ, BATCH, 1)),
         #     "team_points": jnp.zeros((SEQ, BATCH, 1)),
         #     "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
         # })['params']
@@ -251,7 +211,6 @@ class Agent():
 
         self.discovered_relic_nodes = np.ones((1, 6, 2)) * -1
 
-        self.prev_actions = jnp.zeros((1, 16), dtype=jnp.int32)
         self.prev_points = jnp.zeros((1, 16, 1))
         self.prev_team_points = 0
         self.prev_opponent_points = 0
@@ -302,11 +261,9 @@ class Agent():
             {
                 "states": agent_states,
                 "observations": agent_observations,
-                "prev_actions": self.prev_actions,
-                "match_phases": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
+                "match_steps": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "matches": jnp.expand_dims(agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "positions": agent_positions,
-                "prev_points": self.prev_points,
                 "team_points": jnp.expand_dims(agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(agent_episode_info[:, 3], axis=[0, -1]),
                 "unit_move_cost": self.unit_move_cost,
@@ -325,13 +282,6 @@ class Agent():
             observations=observation,
             sap_ranges=self.env_cfg["unit_sap_range"],
         )
-
-        # previous action doesn't need to modified for agent1 because we only transform actions
-        # when we submit to the engine
-        self.prev_actions = actions[0].reshape(1, 16)
-
-        # if self.team_id == 1:
-            # actions[1], actions[2] = actions[2], actions[1]
 
         actions = jnp.squeeze(jnp.stack(actions), axis=1).T
 
@@ -352,4 +302,3 @@ class Agent():
         self.prev_team_points = team_points
         
         return actions
-        # return jnp.zeros((16, 3), jnp.int32)
