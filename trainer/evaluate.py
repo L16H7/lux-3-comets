@@ -62,7 +62,6 @@ def evaluate(
             rng,
             actor_train_state,
             (p0_representations, p1_representations),
-            (p0_prev_actions, p1_prev_actions),
             (p0_prev_points, p1_prev_points),
             observations,
             states,
@@ -96,9 +95,7 @@ def evaluate(
             {
                 "states": p0_agent_states,
                 "observations": p0_agent_observations,
-                "prev_actions": p0_prev_actions,
                 "positions": p0_agent_positions,
-                "prev_points": p0_prev_points,
                 "match_steps": jnp.expand_dims(p0_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "matches": jnp.expand_dims(p0_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
@@ -142,9 +139,7 @@ def evaluate(
             {
                 "states": p1_agent_states,
                 "observations": p1_agent_observations,
-                "prev_actions": p1_prev_actions,
                 "positions": p1_agent_positions,
-                "prev_points": p1_prev_points,
                 "match_steps": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
@@ -157,7 +152,7 @@ def evaluate(
         )
         # p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
 
-        p1_actions, _, _ = get_opponent_actions(
+        p1_actions, _, _ = get_actions(
             rng=p1_action_rng,
             team_idx=1,
             opponent_idx=0,
@@ -219,7 +214,6 @@ def evaluate(
             rng,
             actor_train_state,
             (p0_next_representations, p1_next_representations),
-            (p0_actions[:, :, 0].reshape(1, -1), p1_actions[:, :, 0].reshape(1, -1)),
             (p0_points_gained, p1_points_gained),
             next_observations,
             next_states,
@@ -236,8 +230,6 @@ def evaluate(
 
     p1_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 128)
 
-    p0_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
-    p1_prev_actions = jnp.zeros((1, n_envs * n_agents), dtype=jnp.int32)
 
     p0_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
     p1_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
@@ -246,7 +238,6 @@ def evaluate(
         rng,
         actor_train_state,
         (p0_representations, p1_representations),
-        (p0_prev_actions, p1_prev_actions),
         (p0_prev_points, p1_prev_points),
         observations,
         states,

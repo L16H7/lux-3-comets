@@ -11,8 +11,6 @@ class Transition(NamedTuple):
     episode_info: jnp.ndarray
     agent_episode_info: jnp.ndarray
     states: jnp.ndarray
-    prev_actions: jnp.ndarray
-    prev_points: jnp.ndarray
     actions: jnp.ndarray
     log_probs: jnp.ndarray
     values: jnp.ndarray
@@ -77,9 +75,7 @@ def ppo_update(
             {
                 "states": transitions.agent_states,
                 "observations": transitions.observations,
-                "prev_actions": transitions.prev_actions,
                 "positions": transitions.agent_positions,
-                "prev_points": jnp.expand_dims(transitions.prev_points, axis=2),
                 "match_steps": jnp.expand_dims(transitions.agent_episode_info[:, :, 0], axis=2),
                 "matches": jnp.expand_dims(transitions.agent_episode_info[:, :, 1], axis=2),
                 "team_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 2], axis=2),

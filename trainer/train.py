@@ -1,22 +1,23 @@
-from collections import OrderedDict
 # import sys
-import os
-
 # # Get the parent directory of the current file
 # parent_dir = os.path.dirname(os.path.dirname(__file__))
 # sys.path.append(parent_dir)
 
 import jax
+import optax
 import orbax.checkpoint
+import os
 import wandb
 import jax.numpy as jnp
 import jax.tree_util as jtu
 
+from collections import OrderedDict
 from dataclasses import asdict
 from flax.jax_utils import replicate, unreplicate
 from flax.training import orbax_utils
 from flax.training.train_state import TrainState
 from functools import partial
+from rnn import Actor
 from time import time
 from typing import NamedTuple
 
@@ -39,8 +40,6 @@ class RunnerState(NamedTuple):
     critic_train_state: TrainState
     p0_representations: jnp.ndarray
     p1_representations: jnp.ndarray
-    p0_prev_actions: jnp.ndarray
-    p1_prev_actions: jnp.ndarray
     p0_prev_points: jnp.ndarray
     p1_prev_points: jnp.ndarray
     observations: jnp.ndarray
@@ -161,7 +160,7 @@ def make_train(config: Config):
         rng: jax.Array,
         actor_train_state: TrainState,
         critic_train_state: TrainState,
-        opponent_state: TrainState,
+        # opponent_state: TrainState,
     ):
         N_TOTAL_AGENTS = config.n_envs * config.n_agents
 
@@ -196,8 +195,6 @@ def make_train(config: Config):
                         critic_train_state,
                         p0_representations,
                         p1_representations,
-                        p0_prev_actions,
-                        p1_prev_actions,
                         p0_prev_points,
                         p1_prev_points,
                         observations,
@@ -234,7 +231,8 @@ def make_train(config: Config):
                         unit_sap_cost,
                         unit_sap_range,
                         unit_sensor_range,
-                    ], axis=-1), axis=0)
+                    ], axis=-1).repeat(2, axis=1), axis=0) # SELF PLAY
+                    # ], axis=-1), axis=0) # FIXED OPPONENT
  
                     p0_logits, p0_new_actor_hstates = actor_train_state.apply_fn(
                         actor_train_state.params,
@@ -242,9 +240,7 @@ def make_train(config: Config):
                         {
                             "states": p0_agent_states,
                             "observations": p0_agent_observations,
-                            "prev_actions": p0_prev_actions,
                             "positions": p0_agent_positions,
-                            "prev_points": p0_prev_points,
                             "match_steps": jnp.expand_dims(p0_agent_episode_info[:, 0], axis=[0, -1]),
                             "matches": jnp.expand_dims(p0_agent_episode_info[:, 1], axis=[0, -1]),
                             "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
@@ -256,7 +252,6 @@ def make_train(config: Config):
  
                         }
                     )
-                    # p0_new_actor_hstates = p0_new_actor_hstates * p0_units_mask.reshape(-1, 1)
 
                     rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
                     p0_actions, p0_log_probs, p0_logits_mask = get_actions(
@@ -294,15 +289,17 @@ def make_train(config: Config):
                     p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
                     p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-                    p1_logits, p1_new_actor_hstates = opponent_state.apply_fn(
-                        opponent_state.params,
+                    # FIXED OPPONENT
+                    # p1_logits, p1_new_actor_hstates = opponent_state.apply_fn(
+                    #     opponent_state.params,
+
+                    p1_logits, p1_new_actor_hstates = actor_train_state.apply_fn(
+                        actor_train_state.params,
                         p1_prev_actor_hstates,
                         {
                             "states": p1_agent_states,
                             "observations": p1_agent_observations,
-                            "prev_actions": p1_prev_actions,
                             "positions": p1_agent_positions,
-                            "prev_points": p1_prev_points,
                             "match_steps": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                             "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                             "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
@@ -313,9 +310,8 @@ def make_train(config: Config):
                             "unit_sensor_range": unit_sensor_range,
                         }
                     )
-                    # p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
 
-                    p1_actions, p1_log_probs, p1_logits_mask = get_opponent_actions(
+                    p1_actions, p1_log_probs, p1_logits_mask = get_actions(
                         rng=p1_action_rng,
                         team_idx=1,
                         opponent_idx=0,
@@ -324,17 +320,18 @@ def make_train(config: Config):
                         sap_ranges=meta_env_params.unit_sap_range,
                     )
 
-                    # p1_values, p1_critic_hstates = critic_train_state.apply_fn(
-                    #     critic_train_state.params,
-                    #     p1_prev_critic_hstates,
-                    #     {
-                    #         "states": jnp.expand_dims(p1_states, axis=0),
-                    #         "match_steps": jnp.expand_dims(p1_episode_info[:, 0], axis=[0, -1]),
-                    #         "matches": jnp.expand_dims(p1_episode_info[:, 1], axis=[0, -1]),
-                    #         "team_points": jnp.expand_dims(p1_episode_info[:, 2], axis=[0, -1]),
-                    #         "opponent_points": jnp.expand_dims(p1_episode_info[:, 3], axis=[0, -1]),
-                    #     }
-                    # )
+                    # COMMENT FOR FIXED OPPONENT
+                    p1_values, p1_critic_hstates = critic_train_state.apply_fn(
+                        critic_train_state.params,
+                        p1_prev_critic_hstates,
+                        {
+                            "states": jnp.expand_dims(p1_states, axis=0),
+                            "match_steps": jnp.expand_dims(p1_episode_info[:, 0], axis=[0, -1]),
+                            "matches": jnp.expand_dims(p1_episode_info[:, 1], axis=[0, -1]),
+                            "team_points": jnp.expand_dims(p1_episode_info[:, 2], axis=[0, -1]),
+                            "opponent_points": jnp.expand_dims(p1_episode_info[:, 3], axis=[0, -1]),
+                        }
+                    )
 
                     p0_relic_mask = observations['player_0'].relic_nodes != -1
                     p0_new_discovered_relic_nodes = jnp.where(
@@ -378,26 +375,45 @@ def make_train(config: Config):
                     p0_rewards = rewards[:, 0, :].reshape(1, -1, 1)
                     p1_rewards = rewards[:, 1, :].reshape(1, -1, 1)
 
+                    # COMMENT FOR FIXED OPPONENT
                     transition = Transition(
-                        agent_states=jnp.squeeze(p0_agent_states, axis=0),
-                        observations=jnp.squeeze(p0_agent_observations, axis=0),
-                        states=p0_states,
-                        episode_info=p0_episode_info,
-                        agent_episode_info=p0_agent_episode_info,
-                        actions=p0_actions,
-                        prev_actions=jnp.squeeze(p0_prev_actions, axis=0),
-                        prev_points=jnp.squeeze(p0_prev_points, axis=[0, 2]),
-                        log_probs=jnp.squeeze(p0_log_probs, axis=0),
-                        values=jnp.squeeze(p0_values, axis=[0, 2]),
-                        agent_positions=jnp.squeeze(p0_agent_positions, axis=0),
-                        rewards=jnp.squeeze(p0_rewards, axis=[0, 2]),
-                        dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(config.n_agents),
-                        units_mask=p0_units_mask.reshape(-1),
-                        logits1_mask=jnp.squeeze(p0_logits_mask[0], axis=0),
-                        logits2_mask=jnp.squeeze(p0_logits_mask[1], axis=0),
-                        logits3_mask=jnp.squeeze(p0_logits_mask[2], axis=0),
+                        agent_states=jnp.squeeze(jnp.concat([p0_agent_states, p1_agent_states], axis=1), axis=0),
+                        observations=jnp.squeeze(jnp.concat([p0_agent_observations, p1_agent_observations], axis=1), axis=0),
+                        states=jnp.concat([p0_states, p1_states], axis=0),
+                        episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),
+                        agent_episode_info=jnp.concat([p0_agent_episode_info, p1_agent_episode_info], axis=0),
+                        actions=jnp.concat([p0_actions, p1_actions], axis=0),
+                        log_probs=jnp.squeeze(jnp.concat([p0_log_probs, p1_log_probs], axis=1), axis=0),
+                        values=jnp.squeeze(jnp.concat([p0_values, p1_values], axis=1), axis=[0, 2]),
+                        agent_positions=jnp.squeeze(jnp.concat([p0_agent_positions, p1_agent_positions], axis=1), axis=0),
+                        rewards=jnp.squeeze(jnp.concat([p0_rewards, p1_rewards], axis=1), axis=[0, 2]),
+                        dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(2 * config.n_agents),
+                        units_mask=jnp.concat([p0_units_mask.reshape(-1), p1_units_mask.reshape(-1)], axis=0),
+                        logits1_mask=jnp.squeeze(jnp.concat([p0_logits_mask[0], p1_logits_mask[0]], axis=1), axis=0),
+                        logits2_mask=jnp.squeeze(jnp.concat([p0_logits_mask[1], p1_logits_mask[1]], axis=1), axis=0),
+                        logits3_mask=jnp.squeeze(jnp.concat([p0_logits_mask[2], p1_logits_mask[2]], axis=1), axis=0),
                         env_information=env_information,
                     )
+
+                    # FIXED OPPONENT
+                    # transition = Transition(
+                    #     agent_states=jnp.squeeze(p0_agent_states, axis=0),
+                    #     observations=jnp.squeeze(p0_agent_observations, axis=0),
+                    #     states=p0_states,
+                    #     episode_info=p0_episode_info,
+                    #     agent_episode_info=p0_agent_episode_info,
+                    #     actions=p0_actions,
+                    #     log_probs=jnp.squeeze(p0_log_probs, axis=0),
+                    #     values=jnp.squeeze(p0_values, axis=[0, 2]),
+                    #     agent_positions=jnp.squeeze(p0_agent_positions, axis=0),
+                    #     rewards=jnp.squeeze(p0_rewards, axis=[0, 2]),
+                    #     dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(config.n_agents),
+                    #     units_mask=p0_units_mask.reshape(-1),
+                    #     logits1_mask=jnp.squeeze(p0_logits_mask[0], axis=0),
+                    #     logits2_mask=jnp.squeeze(p0_logits_mask[1], axis=0),
+                    #     logits3_mask=jnp.squeeze(p0_logits_mask[2], axis=0),
+                    #     env_information=env_information,
+                    # )
 
                     p0_team_points = p0_episode_info[:, 3]
                     p0_next_team_points = next_observations['player_0'].team_points[:, 0]
@@ -417,8 +433,6 @@ def make_train(config: Config):
                         critic_train_state,
                         p0_next_representations,
                         p1_next_representations,
-                        p0_actions[:, :, 0].reshape(1, -1),
-                        p1_actions[:, :, 0].reshape(1, -1),
                         p0_points_gained,
                         p1_points_gained,
                         next_observations,
@@ -428,7 +442,8 @@ def make_train(config: Config):
                         p0_new_actor_hstates,
                         p0_critic_hstates,
                         p1_new_actor_hstates,
-                        p0_critic_hstates,
+                        # p0_critic_hstates, # FIXED OPPONENT
+                        p1_critic_hstates
                     )
 
                     return runner_state, transition
@@ -447,8 +462,6 @@ def make_train(config: Config):
                     critic_train_state,
                     p0_representations,
                     p1_representations,
-                    p0_prev_actions,
-                    p1_prev_actions,
                     p0_prev_points,
                     p1_prev_points,
                     observations,
@@ -491,21 +504,31 @@ def make_train(config: Config):
                     }
                 )
 
-                # p1_last_values, _ = critic_train_state.apply_fn(
-                #     critic_train_state.params,
-                #     p1_prev_critic_hstates,
-                #     {
-                #         "states": jnp.expand_dims(p1_states, axis=0),
-                #         "match_steps": jnp.expand_dims(p1_episode_info[:, 0], axis=[0, -1]),
-                #         "matches": jnp.expand_dims(p1_episode_info[:, 1], axis=[0, -1]),
-                #         "team_points": jnp.expand_dims(p1_episode_info[:, 2].astype(jnp.int32), axis=[0, -1]),
-                #         "opponent_points": jnp.expand_dims(p1_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
-                #     }
+                # COMMENT FOR FIXED OPPONENT
+                p1_last_values, _ = critic_train_state.apply_fn(
+                    critic_train_state.params,
+                    p1_prev_critic_hstates,
+                    {
+                        "states": jnp.expand_dims(p1_states, axis=0),
+                        "match_steps": jnp.expand_dims(p1_episode_info[:, 0], axis=[0, -1]),
+                        "matches": jnp.expand_dims(p1_episode_info[:, 1], axis=[0, -1]),
+                        "team_points": jnp.expand_dims(p1_episode_info[:, 2].astype(jnp.int32), axis=[0, -1]),
+                        "opponent_points": jnp.expand_dims(p1_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
+                    }
+                )
+
+                # FIXED OPPONENT
+                # advantages, targets = calculate_gae(
+                #     transitions,
+                #     p0_last_values.repeat(config.n_agents, axis=1).reshape(-1),
+                #     config.gamma,
+                #     config.gae_lambda
                 # )
 
+                # SELF PLAY
                 advantages, targets = calculate_gae(
                     transitions,
-                    p0_last_values.repeat(config.n_agents, axis=1).reshape(-1),
+                    jnp.concat([p0_last_values, p1_last_values], axis=0).repeat(config.n_agents, axis=1).reshape(-1),
                     config.gamma,
                     config.gae_lambda
                 )
@@ -541,9 +564,19 @@ def make_train(config: Config):
                     rng, _rng = jax.random.split(rng)
                     permutation = jax.random.permutation(_rng, config.n_minibatches)
 
+                    # FIXED OPPONENT
+                    # batch = (
+                    #     jnp.expand_dims(p0_actor_init_hstates, axis=0),
+                    #     jnp.expand_dims(p0_critic_init_hstates, axis=0),
+                    #     transitions,
+                    #     advantages,
+                    #     targets,
+                    # )
+
+                    # SELF PLAY
                     batch = (
-                        jnp.expand_dims(p0_actor_init_hstates, axis=0),
-                        jnp.expand_dims(p0_critic_init_hstates, axis=0),
+                        jnp.expand_dims(jnp.concat([p0_actor_init_hstates, p1_actor_init_hstates], axis=0), axis=0),
+                        jnp.expand_dims(jnp.concat([p0_critic_init_hstates, p1_critic_init_hstates], axis=0), axis=0),
                         transitions,
                         advantages,
                         targets,
@@ -620,8 +653,6 @@ def make_train(config: Config):
                     updated_critic_train_states,
                     p0_representations,
                     p1_representations,
-                    p0_prev_actions,
-                    p1_prev_actions,
                     p0_prev_points,
                     p1_prev_points,
                     observations,
@@ -643,9 +674,6 @@ def make_train(config: Config):
             p1_actor_init_hstates = ScannedRNN.initialize_carry(config.n_envs * config.n_agents, 128)
             p1_critic_init_hstates = ScannedRNN.initialize_carry(config.n_envs, 256)
 
-            p0_prev_actions = jnp.zeros((1, config.n_envs * config.n_agents), dtype=jnp.int32)
-            p1_prev_actions = jnp.zeros((1, config.n_envs * config.n_agents), dtype=jnp.int32)
-
             p0_prev_points = jnp.zeros((1, config.n_envs * config.n_agents, 1))
             p1_prev_points = jnp.zeros((1, config.n_envs * config.n_agents, 1))
 
@@ -655,8 +683,6 @@ def make_train(config: Config):
                 critic_train_state=critic_train_state,
                 p0_representations=p0_representations,
                 p1_representations=p1_representations,
-                p0_prev_actions=p0_prev_actions,
-                p1_prev_actions=p1_prev_actions,
                 p0_prev_points=p0_prev_points,
                 p1_prev_points=p1_prev_points,
                 observations=observations,
@@ -682,7 +708,8 @@ def make_train(config: Config):
                 eval_meta_keys,
                 eval_meta_env_params,
                 updated_runner_state.actor_train_state,
-                opponent_state,
+                # opponent_state,
+                updated_runner_state.actor_train_state,
                 config.n_eval_envs,
                 config.n_agents,
                 v_reset,
@@ -713,44 +740,48 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
-    checkpoint_path = ''
-    orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
-    opponent_params = orbax_checkpointer.restore(checkpoint_path)
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
+    # FIXED OPPONENT
+    # checkpoint_path = ''
+    # orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+    # opponent_params = orbax_checkpointer.restore(checkpoint_path)
+    # actor = Actor()
+    # actor_tx = optax.chain(
+    #     optax.clip_by_global_norm(config.max_grad_norm),
+    #     optax.adamw(config.actor_learning_rate),
+    # )
+    # opponent_state = TrainState.create(
+    #     apply_fn=actor.apply,
+    #     params=opponent_params,
+    #     tx=actor_tx,
+    # )
+    ''' DEGUGGING
+    opponent_state, _ = make_states(config=config)
+    '''
+    # opponent_state = replicate(opponent_state, jax.local_devices())
+ 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
 
-    from rnn import Actor
-    import optax
-    actor = Actor()
-    actor_tx = optax.chain(
-        optax.clip_by_global_norm(config.max_grad_norm),
-        optax.adamw(config.actor_learning_rate),
-    )
-    opponent_state = TrainState.create(
-        apply_fn=actor.apply,
-        params=opponent_params,
-        tx=actor_tx,
-    )
-
-    ''' DEGUGGING
-    opponent_state, _ = make_states(config=config)
-    opponent_state = replicate(opponent_state, jax.local_devices())
-    '''
-    
     print("Compiling...")
     t = time()
     train_fn = make_train(
         config=config,
     )
-    train_fn = train_fn.lower(train_device_rngs, actor_train_state, critic_train_state, opponent_state).compile()
+    train_fn = train_fn.lower(
+        train_device_rngs,
+        actor_train_state,
+        critic_train_state,
+        # opponent_state,
+    ).compile()
+
     elapsed_time = time() - t
     print(f"Done in {elapsed_time:.2f}s.") 
 
@@ -761,11 +792,18 @@ def train(config: Config):
     meta_step = 0
     update_step = 0
     while True:
-        rng, train_rng = jax.random.split(rng)
+        rng, train_rng, _, _ = jax.random.split(rng, num=4)
         train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
         loop += 1
         t = time()
-        train_summary = jax.block_until_ready(train_fn(train_device_rngs, actor_train_state, critic_train_state, opponent_state))
+        train_summary = jax.block_until_ready(
+            train_fn(
+                train_device_rngs,
+                actor_train_state,
+                critic_train_state,
+                # opponent_state
+            )
+        )
         elapsed_time = time() - t
         print(f"Done in {elapsed_time:.4f}s.")
         print("Logginig...")
@@ -774,17 +812,6 @@ def train(config: Config):
         eval_info = unreplicate(train_info["eval_info"])
         actor_train_state = train_summary["actor_state"]
         critic_train_state = train_summary["critic_state"]
-
-        orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
-        orbax_checkpointer.save(
-            os.path.abspath(f"{config.checkpoint_path}/{loop}_actor"),
-            unreplicate(train_summary["actor_state"]).params
-        )
-
-        orbax_checkpointer.save(
-            os.path.abspath(f"{config.checkpoint_path}/{loop}_critic"),
-            unreplicate(train_summary["critic_state"]).params
-        )
 
         for i in range(config.n_meta_steps):
             meta_step += 1
@@ -798,6 +825,17 @@ def train(config: Config):
                 info["transitions"] = total_transitions
                 info["update_steps"] = update_step
                 wandb.log(info)
+
+        orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+        orbax_checkpointer.save(
+            os.path.abspath(f"{config.checkpoint_path}/{meta_step}_actor"),
+            unreplicate(train_summary["actor_state"]).params
+        )
+
+        orbax_checkpointer.save(
+            os.path.abspath(f"{config.checkpoint_path}/{meta_step}_critic"),
+            unreplicate(train_summary["critic_state"]).params
+        )
 
 
 if __name__ == "__main__":

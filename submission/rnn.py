@@ -103,8 +103,6 @@ class ActorInput(TypedDict):
     matches: jax.Array
     team_points: jax.Array
     opponent_points: jax.Array
-    prev_points: jax.Array
-    prev_actions: jax.Array
     unit_move_cost: jax.Array
     unit_sap_cost: jax.Array
     unit_sap_range: jax.Array

@@ -202,10 +202,8 @@ class Agent():
         self.actor_hstates = ScannedRNN.initialize_carry(16, 128)
         # self.params = self.actor.init(self.rng, self.actor_hstates, {
         #     "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
-        #     "prev_actions": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
         #     "match_steps": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
         #     "positions": jnp.zeros((SEQ, BATCH, 2)),
-        #     "prev_points": jnp.zeros((SEQ, BATCH, 1)),
         #     "team_points": jnp.zeros((SEQ, BATCH, 1)),
         #     "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
         # })['params']
@@ -213,7 +211,6 @@ class Agent():
 
         self.discovered_relic_nodes = np.ones((1, 6, 2)) * -1
 
-        self.prev_actions = jnp.zeros((1, 16), dtype=jnp.int32)
         self.prev_points = jnp.zeros((1, 16, 1))
         self.prev_team_points = 0
         self.prev_opponent_points = 0
@@ -264,11 +261,9 @@ class Agent():
             {
                 "states": agent_states,
                 "observations": agent_observations,
-                "prev_actions": self.prev_actions,
                 "match_steps": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
                 "matches": jnp.expand_dims(agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
                 "positions": agent_positions,
-                "prev_points": self.prev_points,
                 "team_points": jnp.expand_dims(agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(agent_episode_info[:, 3], axis=[0, -1]),
                 "unit_move_cost": self.unit_move_cost,
@@ -287,13 +282,6 @@ class Agent():
             observations=observation,
             sap_ranges=self.env_cfg["unit_sap_range"],
         )
-
-        # previous action doesn't need to modified for agent1 because we only transform actions
-        # when we submit to the engine
-        self.prev_actions = actions[0].reshape(1, 16)
-
-        # if self.team_id == 1:
-            # actions[1], actions[2] = actions[2], actions[1]
 
         actions = jnp.squeeze(jnp.stack(actions), axis=1).T
 
@@ -314,4 +302,3 @@ class Agent():
         self.prev_team_points = team_points
         
         return actions
-        # return jnp.zeros((16, 3), jnp.int32)
