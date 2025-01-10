@@ -117,8 +117,8 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
 
 
-    logits2_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_x, axis=0))
-    logits3_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_y, axis=0))
+    logits2_mask = (sap_range_mask > 0) & target_x
+    logits3_mask = (sap_range_mask > 0) & target_y
 
 
     logits1_mask = jnp.concat(
@@ -150,20 +150,20 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3 = logits3.at[..., -sap_range_clip:].set(-100)
     '''
 
-    # rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
-    # action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
-    # action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
-    # action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
+    rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
+    action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
+    action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
+    action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
 
-    action1 = np.argmax(masked_logits1, axis=-1)
-    action2 = np.argmax(masked_logits2, axis=-1)
-    action3 = np.argmax(masked_logits3, axis=-1)
+    # action1 = np.argmax(masked_logits1, axis=-1)
+    # action2 = np.argmax(masked_logits2, axis=-1)
+    # action3 = np.argmax(masked_logits3, axis=-1)
 
     return [action1, action2, action3]
 
 
 class Agent():
-    def __init__(self, player: str, env_cfg, reward_nodes) -> None:
+    def __init__(self, player: str, env_cfg) -> None:
         self.player = player
 
         self.team_id = 0 if self.player == "player_0" else 1
@@ -174,32 +174,11 @@ class Agent():
         self.unit_sap_cost = jnp.array([[[env_cfg["unit_sap_cost"]]]]).repeat(16, 1) / 50.0
         self.unit_sensor_range = jnp.array([[[env_cfg["unit_sensor_range"]]]]).repeat(16, 1) / 6.0
 
-        reward_nodes = jnp.array(reward_nodes)
-        self.points_map = jnp.zeros((1, 24, 24))
-        if len(reward_nodes) > 0:
-            try:
-                reward_nodes_transformed = transform_coordinates(reward_nodes)
-                reward_nodes = jnp.concatenate([
-                    reward_nodes,
-                    reward_nodes_transformed,
-                ], axis=0)
-                self.points_map = self.points_map.at[:, reward_nodes[:, 0], reward_nodes[:, 1]].set(1)
-            except:
-                print(reward_nodes)
-
-        self.points_gained = 0
-
         checkpoint_path = os.path.join(script_dir, 'checkpoint')
         orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
         self.params = orbax_checkpointer.restore(checkpoint_path)
-
-        self.rng = jax.random.PRNGKey(42)
-        
-        self.actor = Actor(n_actions=6)
-
-        BATCH = 16
-        SEQ = 1
-        self.actor_hstates = ScannedRNN.initialize_carry(16, 128)
+        # BATCH = 16
+        # SEQ = 1
         # self.params = self.actor.init(self.rng, self.actor_hstates, {
         #     "observations": jnp.zeros((SEQ, BATCH, 9, 24, 24)),
         #     "match_steps": jnp.zeros((SEQ, BATCH,), dtype=jnp.int32),
@@ -207,13 +186,19 @@ class Agent():
         #     "team_points": jnp.zeros((SEQ, BATCH, 1)),
         #     "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
         # })['params']
+
+        self.rng = jax.random.PRNGKey(42)
+        self.actor = Actor(n_actions=6)
+        self.actor_hstates = ScannedRNN.initialize_carry(16, 128)
+
         self.inference_fn = jax.jit(lambda x, x1, x2: self.actor.apply(x, x1, x2))
 
         self.discovered_relic_nodes = np.ones((1, 6, 2)) * -1
-
-        self.prev_points = jnp.zeros((1, 16, 1))
         self.prev_team_points = 0
-        self.prev_opponent_points = 0
+        self.points_map = jnp.zeros((1, 24, 24), dtype=jnp.int32)
+        self.points_gained = 0
+        self.prev_agent_positions = jnp.ones((1, 16, 2), dtype=jnp.int32) * -1
+
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         observation = DotDict(reshape_observation(obs))
@@ -221,21 +206,15 @@ class Agent():
         relic_mask = observation.relic_nodes != -1
         self.discovered_relic_nodes[relic_mask] = observation.relic_nodes[relic_mask]
 
-        discovered_relic_nodes = self.discovered_relic_nodes
-        if self.team_id == 1:
-            discovered_relic_nodes = jnp.concatenate(
-                (self.discovered_relic_nodes[:, 3:, :], self.discovered_relic_nodes[:, :3, :]),
-                axis=1
-            )
-
         representations = create_representations(
             obs=observation,
-            discovered_relic_nodes=discovered_relic_nodes,
+            discovered_relic_nodes=self.discovered_relic_nodes,
             max_steps_in_match=100,
+            prev_agent_positions=self.prev_agent_positions,
             points_map=self.points_map,
             points_gained=jnp.array([self.points_gained]),
             team_idx=self.team_id,
-            opponent_idx=self.opponent_team_id
+            opponent_idx=self.opponent_team_id,
         )
         
         (
@@ -252,9 +231,6 @@ class Agent():
         agent_observations = observations.reshape(1, -1, 10, 17, 17)
         agent_episode_info = episode_info.repeat(16, axis=0)
 
-        BATCH = 16
-        SEQ = 1
- 
         logits, self.actor_hstates = self.inference_fn(
             { "params": self.params },
             self.actor_hstates,
@@ -274,6 +250,7 @@ class Agent():
         )
 
         self.rng, action_rng = jax.random.split(self.rng)
+
         actions = get_actions(
             rng=action_rng,
             team_idx=self.team_id,
@@ -296,9 +273,9 @@ class Agent():
         actions = actions.at[:, 1:].set(actions[:, 1:] - 8)
 
         team_points = obs['team_points'][self.team_id]
-        self.points_gained = jnp.maximum(team_points - self.prev_team_points, 0) / 16.0
-        self.prev_points = jnp.expand_dims(self.points_gained.repeat(16), axis=[0, -1])
 
         self.prev_team_points = team_points
+        self.points_gained = team_points - self.prev_team_points
+        self.prev_agent_positions = agent_positions
         
         return actions

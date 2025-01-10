@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
+from points import update_points_map_batch
 
 
 NEBULA_TILE = 1
@@ -134,6 +135,7 @@ def create_agent_patches(state_representation, unit_positions_team):
 def create_representations(
     obs,
     discovered_relic_nodes,
+    prev_agent_positions,
     points_map,
     points_gained,
     max_steps_in_match=100,
@@ -174,14 +176,18 @@ def create_representations(
         transformed_unit_positions,
     )
 
-    # updated_points_map = update_points_map_batch(
-    #     points_map,
-    #     jnp.concatenate(
-    #         (unit_positions_team, transformed_unit_positions),
-    #         axis=1
-    #     ),
-    #     points_gained,
-    # )
+    updated_points_map = update_points_map_batch(
+        points_map,
+        jnp.concatenate(
+            [
+                prev_agent_positions,
+                transform_coordinates(prev_agent_positions)
+            ],
+            axis=1
+        ),
+        points_gained,
+    )
+
     # SCALE
     maps = [
         team_unit_maps / 8.0,
@@ -193,9 +199,8 @@ def create_representations(
         asteroid_maps.transpose((0, 2, 1)),
         nebula_maps.transpose((0, 2, 1)),
         obs.sensor_mask.transpose((0, 2, 1)),
-        points_map.transpose((0, 2, 1)),
+        updated_points_map.transpose((0, 2, 1)),
     ]
-
     state_representation = jnp.stack(maps, axis=1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
@@ -251,20 +256,3 @@ def create_representations(
         unit_masks_team,
     )
         
-def update_points_map(points_map, positions, points_gained):
-    # pos is shape (16, 2)
-    rows = positions[:, 1]
-    cols = positions[:, 0]
-
-    # If gain == 0, set to -1
-    # Else increment by 0.01
-    updated_map = jax.lax.cond(
-        points_gained == 0,
-        lambda m: m.at[rows, cols].set(-1.0),
-        lambda m: m.at[rows, cols].add(0.01 * points_gained),
-        points_map,
-    )
-
-    return updated_map
-
-update_points_map_batch = jax.vmap(update_points_map, in_axes=(0, 0, 0))
