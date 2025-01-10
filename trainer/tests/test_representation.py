@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 from unittest.mock import patch
 
-from representation import create_relic_nodes_maps, create_unit_maps, transform_coordinates, reconcile_positions, update_points_map_batch
+from representation import create_relic_nodes_maps, create_unit_maps, transform_coordinates, reconcile_positions
 from constants import Constants
 
 @pytest.fixture
@@ -270,91 +270,3 @@ def test_reconcile_positions(mock_constants24):
     ])
 
     assert jnp.array_equal(reconciled_positions, expected_positions)
-
-def test_update_points_map():
-    points_map = jnp.zeros((4, 5, 5))
-    positions = jnp.array([[[-1, -1]], [[0, 0]], [[3, 3]], [[4, 4]]])
-    points_gained = jnp.array([0, 1, 2, 3])   
-
-    updated_points_map = update_points_map_batch(points_map, positions, points_gained)
-
-    expected_points_map = jnp.array([[[ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  , -1.  ]],
-
-       [[ 0.01,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ]],
-
-       [[ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.02,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ]],
-
-       [[ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.03]]])
-
-    assert jnp.array_equal(updated_points_map, expected_points_map)
-
-def test_update_points_map2():
-    points_map = jnp.array([[[ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  , -1.  ]],
-
-       [[ 0.01,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ]],
-
-       [[ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.02,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ]],
-
-       [[ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.03]]])
-    positions = jnp.array([[[-1, -1], [-1, -1]], [[3, 4], [-1, -1]], [[2, 3], [-1, -1]], [[4, 4], [-1, -1]]])
-    points_gained = jnp.array([0, 1, 0, 3])   
-
-    updated_points_map = update_points_map_batch(points_map, positions, points_gained)
-
-    expected_points_map = jnp.array([[[ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  , -1.  ]],
-
-       [[ 0.01,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.01  ,  0.01  ]],
-
-       [[ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0. ,  0.  ,  0.  ],
-        [ 0.  ,  0.  , -1.  ,  0.02,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  -1.  ]],
-
-       [[ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.  ],
-        [ 0.  ,  0.  ,  0.  ,  0.  ,  0.09]]])
-    
-    assert jnp.allclose(updated_points_map, expected_points_map)

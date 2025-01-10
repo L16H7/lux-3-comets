@@ -268,3 +268,33 @@ def update_points_map(points_map, positions, points_gained):
     return updated_map
 
 update_points_map_batch = jax.vmap(update_points_map, in_axes=(0, 0, 0))
+
+
+def create_agent_representations(
+    observations,
+    p0_discovered_relic_nodes,
+    p1_discovered_relic_nodes,
+    p0_points_map,
+    p1_points_map,
+    points_gained,
+):
+    p0_observations = observations["player_0"]
+    p0_representations = create_representations(
+        obs=p0_observations,
+        discovered_relic_nodes=p0_discovered_relic_nodes,
+        points_map=p0_points_map,
+        points_gained=points_gained[:, 0],
+        team_idx=0,
+        opponent_idx=1,
+    )
+
+    p1_observations = observations["player_1"]
+    p1_representations = create_representations(
+        obs=p1_observations,
+        discovered_relic_nodes=p1_discovered_relic_nodes,
+        points_map=p1_points_map,
+        points_gained=points_gained[:, 1],
+        team_idx=1,
+        opponent_idx=0,
+    )
+    return p0_representations, p1_representations

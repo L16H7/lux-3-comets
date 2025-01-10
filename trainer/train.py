@@ -30,7 +30,7 @@ from luxai_s3.params import EnvParams, env_params_ranges
 from make_states import make_states
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
-from representation import create_representations, transform_coordinates
+from representation import create_agent_representations, transform_coordinates
 from rnn import ScannedRNN
 
 
@@ -50,36 +50,6 @@ class RunnerState(NamedTuple):
     p0_critic_hstate: jnp.ndarray
     p1_actor_hstate: jnp.ndarray
     p1_critic_hstate: jnp.ndarray
-
-
-def create_agent_representations(
-    observations,
-    p0_discovered_relic_nodes,
-    p1_discovered_relic_nodes,
-    p0_points_map,
-    p1_points_map,
-    points_gained,
-):
-    p0_observations = observations["player_0"]
-    p0_representations = create_representations(
-        obs=p0_observations,
-        discovered_relic_nodes=p0_discovered_relic_nodes,
-        points_map=p0_points_map,
-        points_gained=points_gained[:, 0],
-        team_idx=0,
-        opponent_idx=1,
-    )
-
-    p1_observations = observations["player_1"]
-    p1_representations = create_representations(
-        obs=p1_observations,
-        discovered_relic_nodes=p1_discovered_relic_nodes,
-        points_map=p1_points_map,
-        points_gained=points_gained[:, 1],
-        team_idx=1,
-        opponent_idx=0,
-    )
-    return p0_representations, p1_representations
 
 
 def make_train(config: Config):
