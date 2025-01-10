@@ -106,7 +106,6 @@ def evaluate(
                 "unit_sensor_range": unit_sensor_range,
             }
         )
-        # p0_new_actor_hstates = p0_new_actor_hstates * p0_units_mask.reshape(-1, 1)
 
         rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
         p0_actions, _, _ = get_actions(
@@ -192,6 +191,8 @@ def evaluate(
             }),
             p0_new_discovered_relic_nodes,
             p1_new_discovered_relic_nodes,
+            p0_team_positions,
+            p1_team_positions,
             p0_points_map,
             p1_points_map,
             meta_keys,
