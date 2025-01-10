@@ -233,7 +233,7 @@ def make_train(config: Config):
                         sap_ranges=meta_env_params.unit_sap_range,
                     )
 
-                    p0_values, p0_critic_hstates = critic_train_state.apply_fn(
+                    p0_values, p0_new_critic_hstates = critic_train_state.apply_fn(
                         critic_train_state.params,
                         p0_prev_critic_hstates,
                         {
@@ -291,7 +291,7 @@ def make_train(config: Config):
                     )
 
                     # COMMENT FOR FIXED OPPONENT
-                    p1_values, p1_critic_hstates = critic_train_state.apply_fn(
+                    p1_values, p1_new_critic_hstates = critic_train_state.apply_fn(
                         critic_train_state.params,
                         p1_prev_critic_hstates,
                         {
@@ -315,10 +315,6 @@ def make_train(config: Config):
                         p1_relic_mask, 
                         observations['player_1'].relic_nodes, 
                         p1_discovered_relic_nodes
-                    )
-                    p1_new_discovered_relic_nodes = jnp.concatenate(
-                        (p1_new_discovered_relic_nodes[:, 3:, :], p1_new_discovered_relic_nodes[:, :3, :]),
-                        axis=1
                     )
 
                     transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
@@ -398,10 +394,10 @@ def make_train(config: Config):
                         p0_new_discovered_relic_nodes,
                         p1_new_discovered_relic_nodes,
                         p0_new_actor_hstates,
-                        p0_critic_hstates,
+                        p0_new_critic_hstates,
                         p1_new_actor_hstates,
                         # p0_critic_hstates, # FIXED OPPONENT
-                        p1_critic_hstates
+                        p1_new_critic_hstates
                     )
 
                     return runner_state, transition
@@ -689,10 +685,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
@@ -791,15 +787,15 @@ if __name__ == "__main__":
     config = Config(
         n_meta_steps=1,
         n_actor_steps=16,
-        n_update_steps=1,
-        n_envs=4,
-        n_envs_per_device=4,
-        n_eval_envs=4,
-        n_minibatches=2,
+        n_update_steps=32,
+        n_envs=512,
+        n_envs_per_device=512,
+        n_eval_envs=256,
+        n_minibatches=32,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
-        wandb_project="fixed-target",
+        wandb_project="point-map",
         train_seed=42,
         entropy_coeff=0.005
     )

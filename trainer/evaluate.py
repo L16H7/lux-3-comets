@@ -4,41 +4,9 @@ import jax.tree_util as jtu
 from collections import OrderedDict
 
 from agent import get_actions, vectorized_transform_actions, transform_coordinates
+from constants import Constants
 from opponent import get_actions as get_opponent_actions
 from rnn import ScannedRNN
-from utils import calculate_sapping_stats
-
-
-def analyse_stats(
-    observations,
-    next_observations,
-    p0_actions,
-    p1_actions,
-):
-    p0_sap_info = calculate_sapping_stats(
-        actions=p0_actions.reshape(-1, 3) * observations['player_0'].units_mask[:, 0, :].reshape(-1, 1),
-        units_position=observations['player_0'].units.position[:, 0, ...].reshape(-1, 2),
-        units_mask=observations['player_0'].units_mask[:, 0, :].reshape(-1),
-        opponent_units_position=next_observations['player_1'].units.position[:, 1, ...].reshape(-1, 2),
-        opponent_units_mask=next_observations['player_1'].units_mask[:, 1, :].reshape(-1),
-    )
-
-    p1_sap_info = calculate_sapping_stats(
-        actions=p1_actions.reshape(-1, 3) * observations['player_1'].units_mask[:, 1, :].reshape(-1, 1),
-        units_position=observations['player_1'].units.position[:, 1, ...].reshape(-1, 2),
-        units_mask=observations['player_1'].units_mask[:, 1, :].reshape(-1),
-        opponent_units_position=next_observations['player_0'].units.position[:, 0, ...].reshape(-1, 2),
-        opponent_units_mask=next_observations['player_0'].units_mask[:, 0, :].reshape(-1),
-    )
- 
-    return {
-        "p0_total_direct_hits": p0_sap_info["total_direct_hits"],
-        "p0_total_indirect_hits": p0_sap_info["total_indirect_hits"],
-        "p0_total_sapped_actions": p0_sap_info["total_sapped_actions"],
-        "p1_total_direct_hits": p1_sap_info["total_direct_hits"],
-        "p1_total_indirect_hits": p1_sap_info["total_indirect_hits"],
-        "p1_total_sapped_actions": p1_sap_info["total_sapped_actions"],
-    }
 
 
 def evaluate(
@@ -62,7 +30,6 @@ def evaluate(
             rng,
             actor_train_state,
             (p0_representations, p1_representations),
-            (p0_prev_points, p1_prev_points),
             observations,
             states,
             (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
@@ -149,7 +116,6 @@ def evaluate(
                 "unit_sensor_range": unit_sensor_range,
             }
         )
-        # p1_new_actor_hstates = p1_new_actor_hstates * p1_units_mask.reshape(-1, 1)
 
         p1_actions, _, _ = get_actions(
             rng=p1_action_rng,
@@ -160,14 +126,12 @@ def evaluate(
             sap_ranges=meta_env_params.unit_sap_range,
         )
 
-        p0_actions = p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - 8)
-
         transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
+
         transformed_p1_actions = jnp.zeros_like(p1_actions)
-        transformed_p1_actions = transformed_p1_actions.at[:, :, 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
-        transformed_p1_actions = transformed_p1_actions.at[:, :, 1].set(transformed_targets[..., 0])
-        transformed_p1_actions = transformed_p1_actions.at[:, :, 2].set(transformed_targets[..., 1])
-        transformed_p1_actions = transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - 8)
+        transformed_p1_actions = transformed_p1_actions.at[..., 0].set(vectorized_transform_actions(p1_actions[:, :, 0]))
+        transformed_p1_actions = transformed_p1_actions.at[..., 1].set(transformed_targets[..., 0])
+        transformed_p1_actions = transformed_p1_actions.at[..., 2].set(transformed_targets[..., 1])
 
         p0_relic_mask = observations['player_0'].relic_nodes != -1
         p0_new_discovered_relic_nodes = jnp.where(
@@ -186,8 +150,8 @@ def evaluate(
         p0_next_representations, p1_next_representations, next_observations, next_states, rewards, _, _, info = v_step(
             states,
             OrderedDict({
-                "player_0": p0_actions,
-                "player_1": transformed_p1_actions,
+                "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
+                "player_1": transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
             }),
             p0_new_discovered_relic_nodes,
             p1_new_discovered_relic_nodes,
@@ -199,23 +163,10 @@ def evaluate(
             meta_env_params,
         )
 
-        p0_team_points = p0_episode_info[:, 3]
-        p0_next_team_points = next_observations['player_0'].team_points[:, 0]
-        p0_points_gained = jnp.maximum(p0_next_team_points - p0_team_points, 0)
-        p0_points_gained = jnp.expand_dims(p0_points_gained, axis=[0, -1]).repeat(16, axis=1)
-        p0_points_gained = p0_points_gained / 16.0
-
-        p1_team_points = p1_episode_info[:, 3]
-        p1_next_team_points = next_observations['player_1'].team_points[:, 1]
-        p1_points_gained = jnp.maximum(p1_next_team_points - p1_team_points, 0)
-        p1_points_gained = jnp.expand_dims(p1_points_gained, axis=[0, -1]).repeat(16, axis=1)
-        p1_points_gained = p1_points_gained / 16.0
-
         runner_state = (
             rng,
             actor_train_state,
             (p0_next_representations, p1_next_representations),
-            (p0_points_gained, p1_points_gained),
             next_observations,
             next_states,
             (p0_new_discovered_relic_nodes, p1_new_discovered_relic_nodes),
@@ -231,21 +182,17 @@ def evaluate(
 
     p1_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 128)
 
-
-    p0_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
-    p1_prev_points = jnp.zeros((1, n_envs * n_agents, 1))
-
     runner_state = (
         rng,
         actor_train_state,
         (p0_representations, p1_representations),
-        (p0_prev_points, p1_prev_points),
         observations,
         states,
         (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
         p0_actor_init_hstates,
         p1_actor_init_hstates,
     )
+
     runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 503]), axis=0), info)
 
