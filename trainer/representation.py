@@ -251,7 +251,7 @@ def create_representations(
         state_representation,
         agent_observations,
         episode_info,
-        points_map,
+        updated_points_map,
         agent_positions,
         unit_masks_team,
     )
