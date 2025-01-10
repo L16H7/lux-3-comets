@@ -176,12 +176,18 @@ def create_representations(
         transformed_unit_positions,
     )
 
+    transformed_previous_positions = transform_coordinates(prev_agent_positions)
+    transformed_previous_positions = jnp.where(
+        transformed_previous_positions == 24,
+        -1,
+        transformed_previous_positions,
+    )
     updated_points_map = update_points_map_batch(
         points_map,
         jnp.concatenate(
             [
                 prev_agent_positions,
-                transform_coordinates(prev_agent_positions)
+                transformed_unit_positions,
             ],
             axis=1
         ),

@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
-from points import update_points_map_batch
+from points import update_points_map_batch, update_points_map
 
 
 NEBULA_TILE = 1
@@ -176,7 +176,7 @@ def create_representations(
         transformed_unit_positions,
     )
 
-    updated_points_map = update_points_map_batch(
+    updated_points_map = update_points_map(
         points_map,
         jnp.concatenate(
             [

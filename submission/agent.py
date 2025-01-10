@@ -212,7 +212,7 @@ class Agent():
             max_steps_in_match=100,
             prev_agent_positions=self.prev_agent_positions,
             points_map=self.points_map,
-            points_gained=jnp.array([self.points_gained]),
+            points_gained=self.points_gained,
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
         )
@@ -274,8 +274,14 @@ class Agent():
 
         team_points = obs['team_points'][self.team_id]
 
-        self.prev_team_points = team_points
         self.points_gained = team_points - self.prev_team_points
+        self.prev_team_points = team_points
         self.prev_agent_positions = agent_positions
+
+        if self.points_gained > 0:
+            b = True
+
+        if step > 80:
+            a = True
         
         return actions
