@@ -183,16 +183,17 @@ def create_representations(
         transformed_previous_positions,
     )
     updated_points_map = update_points_map(
-        points_map,
-        jnp.concatenate(
+        jnp.squeeze(points_map, axis=0),
+        jnp.squeeze(jnp.concatenate(
             [
                 prev_agent_positions,
                 transformed_previous_positions,
             ],
             axis=1
-        ),
+        ), axis=0),
         points_gained,
     )
+    updated_points_map = jnp.expand_dims(updated_points_map, axis=0)
 
     # SCALE
     maps = [
