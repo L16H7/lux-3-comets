@@ -192,6 +192,7 @@ def make_train(config: Config):
                         p0_episode_info,
                         p0_points_map,
                         p0_team_positions,
+                        p0_agent_ids,
                         p0_units_mask,
                     ) = p0_representations
 
@@ -215,7 +216,7 @@ def make_train(config: Config):
                             "unit_sap_cost": unit_sap_cost,
                             "unit_sap_range": unit_sap_range,
                             "unit_sensor_range": unit_sensor_range,
- 
+                            "agent_ids": jnp.expand_dims(p0_agent_ids, axis=0),
                         }
                     )
 
@@ -247,6 +248,7 @@ def make_train(config: Config):
                         p1_episode_info,
                         p1_points_map,
                         p1_team_positions,
+                        p1_agent_ids,
                         p1_units_mask,
                     ) = p1_representations
 
@@ -274,6 +276,7 @@ def make_train(config: Config):
                             "unit_sap_cost": unit_sap_cost,
                             "unit_sap_range": unit_sap_range,
                             "unit_sensor_range": unit_sensor_range,
+                            "agent_ids": jnp.expand_dims(p1_agent_ids, axis=0),
                         }
                     )
 
@@ -357,6 +360,7 @@ def make_train(config: Config):
                         logits2_mask=jnp.squeeze(jnp.concat([p0_logits_mask[1], p1_logits_mask[1]], axis=1), axis=0),
                         logits3_mask=jnp.squeeze(jnp.concat([p0_logits_mask[2], p1_logits_mask[2]], axis=1), axis=0),
                         env_information=env_information,
+                        agent_ids=jnp.concat([p0_agent_ids, p1_agent_ids], axis=0),
                     )
 
                     # FIXED OPPONENT
@@ -429,12 +433,14 @@ def make_train(config: Config):
                     _,
                     _,
                     _,
+                    _,
                 ) = p0_representations
 
                 (
                     p1_states,
                     _,
                     p1_episode_info,
+                    _,
                     _,
                     _,
                     _,

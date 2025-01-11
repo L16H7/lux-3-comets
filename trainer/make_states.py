@@ -26,6 +26,7 @@ def make_states(config: Config):
         "unit_sap_cost": jnp.zeros((SEQ, BATCH, 1)),
         "unit_sap_range": jnp.zeros((SEQ, BATCH, 1)),
         "unit_sensor_range": jnp.zeros((SEQ, BATCH, 1)),
+        "agent_ids": jnp.zeros((SEQ, BATCH, 1)),
     })
 
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(actor_network_params))

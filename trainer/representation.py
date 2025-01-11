@@ -246,12 +246,16 @@ def create_representations(
         unit_positions_team=unit_positions_team,
     )
 
+    agent_ids = (jnp.arange(16) + 1) / 16
+    agent_ids = jnp.broadcast_to(agent_ids, (agent_positions.shape[0], 16))
+
     return (
         state_representation,
         agent_observations,
         episode_info,
         updated_points_map,
         agent_positions,
+        agent_ids.reshape(-1, 1),
         unit_masks_team,
     )
         

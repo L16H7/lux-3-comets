@@ -46,6 +46,7 @@ def evaluate(
             p0_episode_info,
             p0_points_map,
             p0_team_positions,
+            p0_agent_ids,
             p0_units_mask,
         ) = p0_representations
 
@@ -69,6 +70,7 @@ def evaluate(
                 "unit_sap_cost": unit_sap_cost,
                 "unit_sap_range": unit_sap_range,
                 "unit_sensor_range": unit_sensor_range,
+                "agent_ids": jnp.expand_dims(p0_agent_ids, axis=0),
             }
         )
 
@@ -88,6 +90,7 @@ def evaluate(
             p1_episode_info,
             p1_points_map,
             p1_team_positions,
+            p1_agent_ids,
             p1_units_mask,
         ) = p1_representations
 
@@ -112,6 +115,7 @@ def evaluate(
                 "unit_sap_cost": unit_sap_cost,
                 "unit_sap_range": unit_sap_range,
                 "unit_sensor_range": unit_sensor_range,
+                "agent_ids": jnp.expand_dims(p1_agent_ids, axis=0),
             }
         )
 

@@ -22,6 +22,7 @@ class Transition(NamedTuple):
     logits2_mask: jnp.ndarray
     logits3_mask: jnp.ndarray
     env_information: jnp.ndarray
+    agent_ids: jnp.ndarray
 
 
 def calculate_gae(
@@ -84,6 +85,7 @@ def ppo_update(
                 "unit_sap_cost": jnp.expand_dims(transitions.env_information[:, :, 1], axis=2),
                 "unit_sap_range": jnp.expand_dims(transitions.env_information[:, :, 2], axis=2),
                 "unit_sensor_range": jnp.expand_dims(transitions.env_information[:, :, 3], axis=2),
+                "agent_ids": transitions.agent_ids,
             }
         )
         logits1, logits2, logits3 = logits

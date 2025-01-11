@@ -107,6 +107,7 @@ class ActorInput(TypedDict):
     unit_sap_cost: jax.Array
     unit_sap_range: jax.Array
     unit_sensor_range: jax.Array
+    agent_ids: jax.Array
  
 class Actor(nn.Module):
     n_actions: int = 6
@@ -177,6 +178,11 @@ class Actor(nn.Module):
             nn.leaky_relu,
         ])(env_info_input)
 
+        agent_id_embeddings = nn.Sequential([
+            nn.Dense(16, kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+        ])(actor_input['agent_ids'])
+
         actor = nn.Sequential(
             [
                 nn.Dense(
@@ -206,9 +212,19 @@ class Actor(nn.Module):
         ], axis=-1)
 
         x = actor(embeddings)
-        action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
-        coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
-    
+
+        action_head = nn.Sequential([
+            nn.Dense(self.n_actions, kernel_init=orthogonal(0.01)),
+            nn.leaky_relu,
+        ])
+
+        coordinate_head = nn.Sequential([
+            nn.Dense(17, kernel_init=orthogonal(0.01)),
+            nn.leaky_relu,
+        ])
+
+        x = jnp.concatenate([x, agent_id_embeddings], axis=-1)
+
         logits1 = action_head(x)
         logits2 = coordinate_head(x)
         logits3 = coordinate_head(x)
