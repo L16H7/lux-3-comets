@@ -18,17 +18,18 @@ def mock_constants(monkeypatch):
 def test_create_relic_nodes_maps(mock_constants):
     relic_nodes = jnp.array([
         [[1, 2],
+         [-1, -1],
          [2, 3]],  # For environment 0
         [[0, 1],
-         [4, 3]]   # For environment 1
+         [4, 3],
+         [-1, -1]]   # For environment 1
     ])
 
-    relic_nodes_mask = jnp.array([
-        [1, 1],
-        [1, 1]
-    ])
 
-    relic_nodes_maps = create_relic_nodes_maps(relic_nodes, relic_nodes_mask)
+    relic_nodes_maps = create_relic_nodes_maps(
+        relic_nodes,
+        relic_nodes_mask=relic_nodes[..., 0] != -1
+    )
 
     expected_relic_nodes_maps = jnp.array([
         [

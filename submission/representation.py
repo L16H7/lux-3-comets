@@ -225,13 +225,6 @@ def create_representations(
 
     unit_positions_team = unit_positions_team if team_idx == 0 else transformed_unit_positions
  
-    unit_positions_opponent = unit_positions_opponent if team_idx == 0 else transform_coordinates(unit_positions_opponent)
-    unit_positions_opponent = jnp.where(
-        unit_positions_opponent == 24,
-        -1,
-        unit_positions_opponent,
-    )
-    
     agent_positions = unit_positions_team
 
     # n_envs, n_agents = agent_positions.shape[:2]
@@ -255,8 +248,6 @@ def create_representations(
         state_representation=state_representation,
         unit_positions_team=unit_positions_team,
     )
-    # opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
-    # relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
 
     return (
         state_representation,

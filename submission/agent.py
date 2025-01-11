@@ -150,14 +150,14 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3 = logits3.at[..., -sap_range_clip:].set(-100)
     '''
 
-    rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
-    action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
-    action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
-    action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
+    # rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
+    # action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
+    # action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
+    # action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
 
-    # action1 = np.argmax(masked_logits1, axis=-1)
-    # action2 = np.argmax(masked_logits2, axis=-1)
-    # action3 = np.argmax(masked_logits3, axis=-1)
+    action1 = np.argmax(masked_logits1, axis=-1)
+    action2 = np.argmax(masked_logits2, axis=-1)
+    action3 = np.argmax(masked_logits3, axis=-1)
 
     return [action1, action2, action3]
 
@@ -237,8 +237,8 @@ class Agent():
             {
                 "states": agent_states,
                 "observations": agent_observations,
-                "match_steps": jnp.expand_dims(agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
-                "matches": jnp.expand_dims(agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
+                "match_steps": jnp.expand_dims(agent_episode_info[:, 0], axis=[0, -1]),
+                "matches": jnp.expand_dims(agent_episode_info[:, 1], axis=[0, -1]),
                 "positions": agent_positions,
                 "team_points": jnp.expand_dims(agent_episode_info[:, 2], axis=[0, -1]),
                 "opponent_points": jnp.expand_dims(agent_episode_info[:, 3], axis=[0, -1]),
