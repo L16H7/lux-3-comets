@@ -187,7 +187,7 @@ def create_representations(
         jnp.concatenate(
             [
                 prev_agent_positions,
-                transformed_unit_positions,
+                transformed_previous_positions,
             ],
             axis=1
         ),
