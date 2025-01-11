@@ -6,6 +6,7 @@ from collections import OrderedDict
 from agent import get_actions, vectorized_transform_actions, transform_coordinates
 from constants import Constants
 from opponent import get_actions as get_opponent_actions
+from representation import get_env_info
 from rnn import ScannedRNN
 
 
@@ -24,6 +25,8 @@ def evaluate(
 
     p0_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
     p1_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
+
+    unit_move_cost, unit_sap_cost, unit_sap_range, unit_sensor_range = get_env_info(meta_env_params)
 
     def _env_step(runner_state, _):
         (
@@ -50,11 +53,6 @@ def evaluate(
         p0_agent_states = jnp.expand_dims(p0_states, axis=0).repeat(16, axis=1)
         p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
         p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
-
-        unit_move_cost = jnp.expand_dims(meta_env_params.unit_move_cost, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
-        unit_sap_cost = jnp.expand_dims(meta_env_params.unit_sap_cost, axis=[0, -1]).repeat(n_agents, axis=1) / 50.0
-        unit_sap_range = jnp.expand_dims(meta_env_params.unit_sap_range, axis=[0, -1]).repeat(n_agents, axis=1) / 8.0
-        unit_sensor_range = jnp.expand_dims(meta_env_params.unit_sensor_range, axis=[0, -1]).repeat(n_agents, axis=1) / 6.0
 
         p0_logits, p0_new_actor_hstates = actor_train_state.apply_fn(
             actor_train_state.params,

@@ -30,7 +30,7 @@ from luxai_s3.params import EnvParams, env_params_ranges
 from make_states import make_states
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
-from representation import create_agent_representations, transform_coordinates
+from representation import create_agent_representations, transform_coordinates, get_env_info
 from rnn import ScannedRNN
 
 
@@ -159,6 +159,15 @@ def make_train(config: Config):
             p0_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2)) * -1
             p1_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2)) * -1
 
+            unit_move_cost, unit_sap_cost, unit_sap_range, unit_sensor_range = get_env_info(meta_env_params)
+            env_information = jnp.squeeze(jnp.concatenate([
+                unit_move_cost,
+                unit_sap_cost,
+                unit_sap_range,
+                unit_sensor_range,
+            ], axis=-1).repeat(2, axis=1), axis=0) # SELF PLAY
+            # ], axis=-1), axis=0) # FIXED OPPONENT
+
             def _update_step(runner_state: RunnerState, _):
                 def _env_step(runner_state: RunnerState, _):
                     (
@@ -191,19 +200,6 @@ def make_train(config: Config):
                     p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
                     p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-                    unit_move_cost = jnp.expand_dims(meta_env_params.unit_move_cost, axis=[0, -1]).repeat(config.n_agents, axis=1) / 6.0
-                    unit_sap_cost = jnp.expand_dims(meta_env_params.unit_sap_cost, axis=[0, -1]).repeat(config.n_agents, axis=1) / 50.0
-                    unit_sap_range = jnp.expand_dims(meta_env_params.unit_sap_range, axis=[0, -1]).repeat(config.n_agents, axis=1) / 8.0
-                    unit_sensor_range = jnp.expand_dims(meta_env_params.unit_sensor_range, axis=[0, -1]).repeat(config.n_agents, axis=1) / 6.0
-
-                    env_information = jnp.squeeze(jnp.concatenate([
-                        unit_move_cost,
-                        unit_sap_cost,
-                        unit_sap_range,
-                        unit_sensor_range,
-                    ], axis=-1).repeat(2, axis=1), axis=0) # SELF PLAY
-                    # ], axis=-1), axis=0) # FIXED OPPONENT
- 
                     p0_logits, p0_new_actor_hstates = actor_train_state.apply_fn(
                         actor_train_state.params,
                         p0_prev_actor_hstates,
