@@ -278,10 +278,7 @@ class Agent():
         self.prev_team_points = team_points
         self.prev_agent_positions = agent_positions
 
-        if self.points_gained > 0:
-            b = True
-
-        if step > 80:
+        if step == 212:
             a = True
         
         return actions

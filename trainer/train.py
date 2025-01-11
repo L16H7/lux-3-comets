@@ -270,8 +270,8 @@ def make_train(config: Config):
                             "states": p1_agent_states,
                             "observations": p1_agent_observations,
                             "positions": p1_agent_positions,
-                            "match_steps": jnp.expand_dims(p1_agent_episode_info[:, 0].astype(jnp.int32), axis=[0, -1]),
-                            "matches": jnp.expand_dims(p1_agent_episode_info[:, 1].astype(jnp.int32), axis=[0, -1]),
+                            "match_steps": jnp.expand_dims(p1_agent_episode_info[:, 0], axis=[0, -1]),
+                            "matches": jnp.expand_dims(p1_agent_episode_info[:, 1], axis=[0, -1]),
                             "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
                             "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
                             "unit_move_cost": unit_move_cost,
@@ -464,8 +464,8 @@ def make_train(config: Config):
                         "states": jnp.expand_dims(p1_states, axis=0),
                         "match_steps": jnp.expand_dims(p1_episode_info[:, 0], axis=[0, -1]),
                         "matches": jnp.expand_dims(p1_episode_info[:, 1], axis=[0, -1]),
-                        "team_points": jnp.expand_dims(p1_episode_info[:, 2].astype(jnp.int32), axis=[0, -1]),
-                        "opponent_points": jnp.expand_dims(p1_episode_info[:, 3].astype(jnp.int32), axis=[0, -1]),
+                        "team_points": jnp.expand_dims(p1_episode_info[:, 2], axis=[0, -1]),
+                        "opponent_points": jnp.expand_dims(p1_episode_info[:, 3], axis=[0, -1]),
                     }
                 )
 
