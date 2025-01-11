@@ -49,18 +49,19 @@ def reconcile_positions(positions):
     
     return reconciled_positions
 
-def create_relic_nodes_maps(relic_nodes):
+def create_relic_nodes_maps(relic_nodes, relic_nodes_mask):
     n_envs, n_relic_nodes, _ = relic_nodes.shape
     relic_nodes_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.int32)
     env_indices = jnp.repeat(jnp.arange(n_envs), n_relic_nodes)      # Shape: [n_envs * n_relic_nodes]
 
     relic_nodes_flat = relic_nodes.reshape(-1, 2)
+    relic_nodes_mask_flat = relic_nodes_mask.reshape(-1)
 
     # Calculate possible positions directly
     relic_x_positions = relic_nodes_flat[:, 0].astype(jnp.int32)
     relic_y_positions = relic_nodes_flat[:, 1].astype(jnp.int32)
 
-    relic_nodes_maps = relic_nodes_maps.at[env_indices, relic_y_positions, relic_x_positions].set(1)
+    relic_nodes_maps = relic_nodes_maps.at[env_indices, relic_y_positions, relic_x_positions].add(relic_nodes_mask_flat.astype(jnp.int32))
 
     return relic_nodes_maps
 
@@ -164,7 +165,10 @@ def create_representations(
         unit_masks=unit_masks_opponent,
     )
 
-    relic_node_maps = create_relic_nodes_maps(relic_nodes=relic_nodes)
+    relic_node_maps = create_relic_nodes_maps(
+        relic_nodes=relic_nodes,
+        relic_nodes_mask=relic_nodes[..., 0] != -1,
+    )
 
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
