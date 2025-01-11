@@ -206,6 +206,7 @@ class Agent():
         relic_mask = observation.relic_nodes != -1
         self.discovered_relic_nodes[relic_mask] = observation.relic_nodes[relic_mask]
 
+        prev_agent_positions = self.prev_agent_positions
         representations = create_representations(
             obs=observation,
             discovered_relic_nodes=self.discovered_relic_nodes,

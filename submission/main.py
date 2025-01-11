@@ -20,7 +20,10 @@ def agent_fn(observation, configurations):
     player = observation.player
     remainingOverageTime = observation.remainingOverageTime
 
-    agent_dict[player] = Agent(player, configurations["env_cfg"])
+    # Only create a new Agent instance if one doesn't exist for this player
+    if player not in agent_dict:
+        agent_dict[player] = Agent(player, configurations["env_cfg"])
+
     agent = agent_dict[player]
 
     actions = agent.act(step, from_json(obs), remainingOverageTime)
