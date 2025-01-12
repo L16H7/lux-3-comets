@@ -22,4 +22,9 @@ Action masking improves the learning. https://arxiv.org/abs/2006.14171
 - Agents must not move into the asteroids.
 
 ### Sap action masking
-- Agent must not sap if there is no other agent, either friendly or foe, inside 9x9 grid with the target in the middle.
+- Agent must not sap if target coordinates are out of sap range or out of the map.
+
+## Point cells calulation
+- By default, all cells will be marked as 0.
+- If agents do not score any points, all prev positions will be marked as -1 permanently.
+- If agents score points, all prev positions will be marked as 1 except for -1 cells.

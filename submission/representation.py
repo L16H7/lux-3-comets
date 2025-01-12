@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
+from points import update_points_map_batch, update_points_map
 
 
 NEBULA_TILE = 1
@@ -48,18 +49,19 @@ def reconcile_positions(positions):
     
     return reconciled_positions
 
-def create_relic_nodes_maps(relic_nodes):
+def create_relic_nodes_maps(relic_nodes, relic_nodes_mask):
     n_envs, n_relic_nodes, _ = relic_nodes.shape
     relic_nodes_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.int32)
     env_indices = jnp.repeat(jnp.arange(n_envs), n_relic_nodes)      # Shape: [n_envs * n_relic_nodes]
 
     relic_nodes_flat = relic_nodes.reshape(-1, 2)
+    relic_nodes_mask_flat = relic_nodes_mask.reshape(-1)
 
     # Calculate possible positions directly
     relic_x_positions = relic_nodes_flat[:, 0].astype(jnp.int32)
     relic_y_positions = relic_nodes_flat[:, 1].astype(jnp.int32)
 
-    relic_nodes_maps = relic_nodes_maps.at[env_indices, relic_y_positions, relic_x_positions].set(1)
+    relic_nodes_maps = relic_nodes_maps.at[env_indices, relic_y_positions, relic_x_positions].add(relic_nodes_mask_flat.astype(jnp.int32))
 
     return relic_nodes_maps
 
@@ -134,6 +136,7 @@ def create_agent_patches(state_representation, unit_positions_team):
 def create_representations(
     obs,
     discovered_relic_nodes,
+    prev_agent_positions,
     points_map,
     points_gained,
     max_steps_in_match=100,
@@ -162,7 +165,10 @@ def create_representations(
         unit_masks=unit_masks_opponent,
     )
 
-    relic_node_maps = create_relic_nodes_maps(relic_nodes=relic_nodes)
+    relic_node_maps = create_relic_nodes_maps(
+        relic_nodes=relic_nodes,
+        relic_nodes_mask=relic_nodes[..., 0] != -1,
+    )
 
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
@@ -174,14 +180,25 @@ def create_representations(
         transformed_unit_positions,
     )
 
-    # updated_points_map = update_points_map_batch(
-    #     points_map,
-    #     jnp.concatenate(
-    #         (unit_positions_team, transformed_unit_positions),
-    #         axis=1
-    #     ),
-    #     points_gained,
-    # )
+    transformed_previous_positions = transform_coordinates(prev_agent_positions)
+    transformed_previous_positions = jnp.where(
+        transformed_previous_positions == 24,
+        -1,
+        transformed_previous_positions,
+    )
+    updated_points_map = update_points_map(
+        jnp.squeeze(points_map, axis=0),
+        jnp.squeeze(jnp.concatenate(
+            [
+                prev_agent_positions,
+                transformed_previous_positions,
+            ],
+            axis=1
+        ), axis=0),
+        points_gained,
+    )
+    updated_points_map = jnp.expand_dims(updated_points_map, axis=0)
+
     # SCALE
     maps = [
         team_unit_maps / 8.0,
@@ -193,9 +210,8 @@ def create_representations(
         asteroid_maps.transpose((0, 2, 1)),
         nebula_maps.transpose((0, 2, 1)),
         obs.sensor_mask.transpose((0, 2, 1)),
-        points_map.transpose((0, 2, 1)),
+        updated_points_map.transpose((0, 2, 1)),
     ]
-
     state_representation = jnp.stack(maps, axis=1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
@@ -209,13 +225,6 @@ def create_representations(
 
     unit_positions_team = unit_positions_team if team_idx == 0 else transformed_unit_positions
  
-    unit_positions_opponent = unit_positions_opponent if team_idx == 0 else transform_coordinates(unit_positions_opponent)
-    unit_positions_opponent = jnp.where(
-        unit_positions_opponent == 24,
-        -1,
-        unit_positions_opponent,
-    )
-    
     agent_positions = unit_positions_team
 
     # n_envs, n_agents = agent_positions.shape[:2]
@@ -239,32 +248,13 @@ def create_representations(
         state_representation=state_representation,
         unit_positions_team=unit_positions_team,
     )
-    # opponent_positions = (unit_positions_opponent + 1) / Constants.MAP_HEIGHT
-    # relic_nodes_positions = (relic_nodes + 1) / Constants.MAP_HEIGHT
 
     return (
         state_representation,
         agent_observations,
         episode_info,
-        points_map,
+        updated_points_map,
         agent_positions,
         unit_masks_team,
     )
         
-def update_points_map(points_map, positions, points_gained):
-    # pos is shape (16, 2)
-    rows = positions[:, 1]
-    cols = positions[:, 0]
-
-    # If gain == 0, set to -1
-    # Else increment by 0.01
-    updated_map = jax.lax.cond(
-        points_gained == 0,
-        lambda m: m.at[rows, cols].set(-1.0),
-        lambda m: m.at[rows, cols].add(0.01 * points_gained),
-        points_map,
-    )
-
-    return updated_map
-
-update_points_map_batch = jax.vmap(update_points_map, in_axes=(0, 0, 0))

@@ -36,6 +36,29 @@ def vectorized_transform_actions(actions):
     transformed_actions = action_map[actions]
     return transformed_actions
 
+def mask_sap_range(logits_slice, cutoff_range):
+    cols = logits_slice.shape[1]
+    mask = jnp.arange(cols) < cutoff_range
+    logits_slice = jnp.where(mask[None, :], 0, logits_slice)
+    
+    mask2 = jnp.arange(cols) > (16 - cutoff_range)
+    logits_slice = jnp.where(mask2[None, :], 0, logits_slice)
+    return logits_slice
+
+mask_sap_range_vmap = jax.vmap(
+    mask_sap_range,
+    in_axes=(0, 0)
+)
+
+def mask_out_of_bounds(agent_positions):
+    target_coods = jnp.arange(-8, 9)
+    target_x = agent_positions.reshape(-1, 2)[:, 0][:, None] + target_coods[None, :]
+    target_x = (target_x >= 0) & (target_x < Constants.MAP_WIDTH)
+
+    target_y = agent_positions.reshape(-1, 2)[:, 1][:, None] + target_coods[None, :]
+    target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
+    return target_x, target_y
+
 # @jax.jit
 def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges):
     n_envs = observations.units.position.shape[0]
@@ -60,32 +83,14 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     ]
     valid_movements = in_bounds & (~is_asteroid)
 
-    def mask_sap_range(logits_slice, cutoff_range):
-        cols = logits_slice.shape[1]
-        mask = jnp.arange(cols) < cutoff_range
-        logits_slice = jnp.where(mask[None, :], 0, logits_slice)
-        
-        mask2 = jnp.arange(cols) > (16 - cutoff_range)
-        logits_slice = jnp.where(mask2[None, :], 0, logits_slice)
-        return logits_slice
-
     sap_range_mask = jnp.ones((n_envs, 16, 17))
-    sap_range_mask = jax.vmap(
-        mask_sap_range,
-        in_axes=(0, 0)
-    )(sap_range_mask, Constants.MAX_SAP_RANGE - sap_ranges)
+    sap_range_mask = mask_sap_range_vmap(sap_range_mask, Constants.MAX_SAP_RANGE - sap_ranges)
 
     sap_range_mask = sap_range_mask.reshape(-1, 17)
 
-    target_coods = jnp.arange(-8, 9)
-    target_x = agent_positions.reshape(-1, 2)[:, 0][:, None] + target_coods[None, :]
-    target_x = (target_x >= 0) & (target_x < Constants.MAP_WIDTH)
-
-    target_y = agent_positions.reshape(-1, 2)[:, 1][:, None] + target_coods[None, :]
-    target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
-
-    logits2_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_x, axis=0))
-    logits3_mask = (sap_range_mask > 0) & (jnp.expand_dims(target_y, axis=0))
+    target_x, target_y = mask_out_of_bounds(agent_positions)
+    logits2_mask = (sap_range_mask > 0) & target_x
+    logits3_mask = (sap_range_mask > 0) & target_y
 
     logits1_mask = jnp.concat(
         [ 
