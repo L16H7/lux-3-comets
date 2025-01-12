@@ -213,17 +213,9 @@ class Actor(nn.Module):
 
         x = actor(embeddings)
 
-        action_head = nn.Sequential([
-            nn.Dense(self.n_actions, kernel_init=orthogonal(0.01)),
-            nn.leaky_relu,
-        ])
+        action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01)),
 
-        coordinate_head = nn.Sequential([
-            nn.Dense(17, kernel_init=orthogonal(0.01)),
-            nn.leaky_relu,
-        ])
-
-        x = jnp.concatenate([x, agent_id_embeddings], axis=-1)
+        coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
 
         logits1 = action_head(x)
         logits2 = coordinate_head(x)
