@@ -178,11 +178,6 @@ class Actor(nn.Module):
             nn.leaky_relu,
         ])(env_info_input)
 
-        agent_id_embeddings = nn.Sequential([
-            nn.Dense(16, kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-        ])(actor_input['agent_ids'])
-
         actor = nn.Sequential(
             [
                 nn.Dense(
