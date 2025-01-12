@@ -208,7 +208,7 @@ class Actor(nn.Module):
 
         x = actor(embeddings)
 
-        action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01)),
+        action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
 
         coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
 
