@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
-from points import update_points_map_batch, update_points_map
+from points import update_points_map
 
 
 NEBULA_TILE = 1
@@ -133,6 +133,22 @@ def create_agent_patches(state_representation, unit_positions_team):
     return agent_patches
 
 
+def get_env_info(env_params):
+    unit_move_cost = jnp.expand_dims(
+        env_params.unit_move_cost, axis=[0, -1]
+    ).repeat(16, axis=1) / 8.0
+    unit_sap_cost = (jnp.expand_dims(
+        env_params.unit_sap_cost, axis=[0, -1]
+    ).repeat(16, axis=1) - 30.0) / 20.0
+    unit_sap_range = jnp.expand_dims(
+        env_params.unit_sap_range, axis=[0, -1]
+    ).repeat(16, axis=1) / 8.0
+    unit_sensor_range = jnp.expand_dims(
+        env_params.unit_sensor_range, axis=[0, -1]
+    ).repeat(16, axis=1) / 8.0
+    return unit_move_cost, unit_sap_cost, unit_sap_range, unit_sensor_range
+
+
 def create_representations(
     obs,
     discovered_relic_nodes,
@@ -173,13 +189,7 @@ def create_representations(
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
-    transformed_unit_positions = transform_coordinates(unit_positions_team)
-    transformed_unit_positions = jnp.where(
-        transformed_unit_positions == 24,
-        -1,
-        transformed_unit_positions,
-    )
-
+    # Update points map
     transformed_previous_positions = transform_coordinates(prev_agent_positions)
     transformed_previous_positions = jnp.where(
         transformed_previous_positions == 24,
@@ -201,10 +211,10 @@ def create_representations(
 
     # SCALE
     maps = [
-        team_unit_maps / 8.0,
-        team_energy_maps / 400.0,
-        opponent_unit_maps / 8.0,
-        opponent_energy_maps / 400.0,
+        team_unit_maps / 4.0,
+        team_energy_maps / 800.0,
+        opponent_unit_maps / 4.0,
+        opponent_energy_maps / 800.0,
         relic_node_maps,
         obs.map_features.energy.transpose((0, 2, 1)) / 20.0,
         asteroid_maps.transpose((0, 2, 1)),
@@ -215,34 +225,22 @@ def create_representations(
     state_representation = jnp.stack(maps, axis=1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
-    # match_steps = jnp.minimum(obs.match_steps[:, None] // 25, 3) # 4 phases
     match_steps = obs.match_steps[:, None] / 100.0
-    matches = jnp.minimum(obs.steps[:, None] // max_steps_in_match, 4) # 5 matches
+    matches = jnp.minimum(obs.steps[:, None] // max_steps_in_match, 4) / 4.0
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
-    team_points = team_points / 400.0
+    team_points = team_points / 800.0
 
     episode_info = jnp.concatenate((match_steps, matches, team_points), axis=1)
 
+    transformed_unit_positions = transform_coordinates(unit_positions_team)
+    transformed_unit_positions = jnp.where(
+        transformed_unit_positions == 24,
+        -1,
+        transformed_unit_positions,
+    )
     unit_positions_team = unit_positions_team if team_idx == 0 else transformed_unit_positions
  
     agent_positions = unit_positions_team
-
-    # n_envs, n_agents = agent_positions.shape[:2]
-    # agent_position_channel = jnp.zeros((n_envs, n_agents, 24, 24))
-
-    # env_indices = jnp.arange(n_envs).reshape(-1, 1)
-    # agent_indices = jnp.arange(n_agents)
-    # x_indices, y_indices = agent_positions[..., 0], agent_positions[..., 1]  # Split x and y coordinates
-
-    # agent_position_channel = agent_position_channel.at[env_indices, agent_indices, x_indices, y_indices].set(1)
-
-    # agent_observations = jnp.concatenate(
-    #     [
-    #         jnp.expand_dims(state_representation, axis=1).repeat(n_agents, axis=1),
-    #         jnp.expand_dims(agent_position_channel, axis=2),
-    #     ],
-    #     axis=2
-    # )
 
     agent_observations = create_agent_patches(
         state_representation=state_representation,

@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 
 
+@jax.jit
 def update_points_map(points_map, positions, points_gained):
     """
     Updates a points map based on agent positions and points gained.
