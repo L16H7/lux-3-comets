@@ -195,7 +195,7 @@ class Agent():
 
         self.discovered_relic_nodes = np.ones((1, 6, 2)) * -1
         self.prev_team_points = 0
-        self.points_map = jnp.zeros((1, 24, 24), dtype=jnp.int32)
+        self.points_map = jnp.ones((1, 24, 24), dtype=jnp.float32) * -1
         self.points_gained = 0
         self.prev_agent_positions = jnp.ones((1, 16, 2), dtype=jnp.int32) * -1
 
@@ -278,7 +278,7 @@ class Agent():
         self.prev_team_points = team_points
         self.prev_agent_positions = agent_positions
 
-        if step == 212:
+        if step == 30:
             a = True
         
         return actions
