@@ -80,7 +80,7 @@ def transform_observation(obs):
     
     return rotated
 
-def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=8):
+def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=8, choose_y=False, chosen_x=None,):
     """
     Generate attack masks for agents based on both x and y distances to targets.
     Targets outside the range are filtered out before mask generation.
@@ -132,6 +132,29 @@ def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=
     # Check valid positions for x and y separately
     valid_x = (x_distances == x_offsets)
     valid_x = jnp.any(valid_x, axis=-1)
+
+    if choose_y:
+        x_distances = x_distances[:, None, :]
+        y_distances = y_distances[:, None, :]
+        x_offsets = x_offsets[None, :, None]
+        y_offsets = y_offsets[None, :, None]
+        
+        # Filter targets based on chosen x
+        chosen_x = chosen_x[:, None, None]  # Shape: (num_agents, 1, 1)
+        valid_targets_for_x = (x_distances == chosen_x)
+        
+        # Apply the x-based filter to y distances
+        y_distances = jnp.where(valid_targets_for_x, y_distances, -100)
+        
+        # Generate y masks only for valid targets based on chosen x
+        valid_y = (y_distances == y_offsets)
+        valid_y = jnp.any(valid_y, axis=-1)
+
+        indices = jnp.arange(valid_y.shape[1])
+
+        # Use advanced indexing to extract the desired slices
+        final_filter = valid_y[0, indices, indices, :]
+        return final_filter
 
     valid_y = (y_distances == y_offsets)
     valid_y = jnp.any(valid_y, axis=-1)
@@ -190,7 +213,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     )
 
     target_positions = opponent_positions + adjacent_offsets
-    target_x, target_y = generate_attack_masks(
+    target_x, _ = generate_attack_masks(
         agent_positions=agent_positions.reshape(-1, 2),
         target_positions=target_positions.reshape(-1, 2),
         x_range=sap_ranges,
@@ -218,6 +241,15 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
     action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
     action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
+
+    target_y = generate_attack_masks(
+        agent_positions=agent_positions.reshape(-1, 2),
+        target_positions=target_positions.reshape(-1, 2),
+        x_range=sap_ranges,
+        y_range=sap_ranges,
+        choose_y=True,
+        chosen_x=action2.reshape(-1) - Constants.MAX_SAP_RANGE
+    )
 
     logits3_mask = target_y
     logits3_mask = logits3_mask.reshape(logits3.shape)
