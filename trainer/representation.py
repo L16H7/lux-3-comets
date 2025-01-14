@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
-from points import update_points_map_batch, mark_duplicates_batched
+from points import update_points_map_batch, mark_duplicates_batched, filter_by_proximity_batch
 
 
 NEBULA_TILE = 1
@@ -190,12 +190,22 @@ def create_representations(
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
     # Update points map
+    proximity_positions = filter_by_proximity_batch(
+        prev_agent_positions,
+        relic_nodes
+    )
+
     prev_agent_positions = jnp.where(
         unit_energies_team[..., None].repeat(2, axis=-1) > 0,
         prev_agent_positions,
         -1
     )
-    jax.debug.breakpoint()
+
+    prev_agent_positions = jnp.where(
+        points_gained > 0,
+        proximity_positions,
+        prev_agent_positions,
+    )
     transformed_previous_positions = transform_coordinates(prev_agent_positions)
     transformed_previous_positions = jnp.where(
         transformed_previous_positions == 24,
@@ -213,9 +223,11 @@ def create_representations(
                 axis=1
             )
         ),
-        points_gained,
+        points_gained * 2,
     )
 
+    # if points_gained[0] > 0:
+    #     a = True
     # SCALE
     maps = [
         team_unit_maps / 4.0,
