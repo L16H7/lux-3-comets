@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
-from points import update_points_map
+from points import update_points_map, mark_duplicates_single
 
 
 NEBULA_TILE = 1
@@ -198,13 +198,13 @@ def create_representations(
     )
     updated_points_map = update_points_map(
         jnp.squeeze(points_map, axis=0),
-        jnp.squeeze(jnp.concatenate(
+        mark_duplicates_single(jnp.squeeze(jnp.concatenate(
             [
                 prev_agent_positions,
                 transformed_previous_positions,
             ],
             axis=1
-        ), axis=0),
+        ), axis=0)),
         points_gained,
     )
     updated_points_map = jnp.expand_dims(updated_points_map, axis=0)

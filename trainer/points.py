@@ -2,6 +2,35 @@ import jax
 import jax.numpy as jnp
 
 
+def mark_duplicates_single(positions):
+    """
+    Replace duplicate positions with [-1, -1] for a single batch.
+    
+    Args:
+        positions: jnp array of shape (N, 2) containing (row, col) positions
+    
+    Returns:
+        jnp array of same shape with duplicates replaced by [-1, -1]
+    """
+    position_keys = positions[:, 0] * 100 + positions[:, 1]
+    sorted_indices = jnp.argsort(position_keys)
+    sorted_keys = position_keys[sorted_indices]
+    is_duplicate = jnp.roll(sorted_keys, -1) == sorted_keys
+    
+    duplicate_mask = jnp.zeros_like(position_keys, dtype=bool)
+    duplicate_mask = duplicate_mask.at[sorted_indices].set(is_duplicate)
+    
+    result = jnp.where(
+        duplicate_mask[:, None],
+        jnp.array([-1, -1]),
+        positions
+    )
+    
+    return result
+
+# Vectorized version for batch processing
+mark_duplicates_batched = jax.vmap(mark_duplicates_single)
+
 @jax.jit
 def update_points_map(points_map, positions, points_gained):
     """
