@@ -164,12 +164,16 @@ def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=
     targets_in_range = targets_in_range & valid_targets[None, :]
 
     target_positions = jnp.where(target_positions == -1, 1000, target_positions)
-    x_distances = target_positions[None, :, 0] - agent_positions[:, None, 0] 
 
     x_distances = jnp.where(
         targets_in_range,
         x_distances,
         -100, 
+    )
+    y_distances = jnp.where(
+        targets_in_range,
+        y_distances,
+        -100,
     )
     
     x_offsets = jnp.arange(-8, 9)
@@ -182,7 +186,13 @@ def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=
     
     # Check valid positions for x and y separately
     valid_x = (x_distances == x_offsets)
-    return jnp.any(valid_x, axis=-1)
+    valid_x = jnp.any(valid_x, axis=-1)
+
+    valid_y = (y_distances == y_offsets)
+    valid_y = jnp.any(valid_y, axis=-1)
+
+    return valid_x, valid_y
+
 
 generate_attack_masks_batch = jax.vmap(
     generate_attack_masks,

@@ -103,7 +103,7 @@ def test_generate_attack_masks():
         [20,  6], [ 2,  8], [10, 16], [23, 14]
     ])
 
-    expected_attack_mask = jnp.array([
+    expected_attack_mask_x = jnp.array([
         [False, False, False, False, False, False, False, False,  True,
             False, False,  False, False, False, False, False, False],
         [False, False, False, False,  True, False, False, False, False,
@@ -121,11 +121,31 @@ def test_generate_attack_masks():
         [False, False, False, False, False,  True, False, False, False,
             False, False, False, False, False, False,  False, False]
     ])
-    attack_mask = generate_attack_masks(
+    expected_attack_mask_y = jnp.array([
+        [False, False, False, False, False, False, False, False,  False,
+            True, False,  False, False, False, False, False, False],
+        [False, False, False, False,  False, False, False, False, False,
+            False, False, False,  False, True, False, False, False],
+        [False, False, False, False, False, False, False,  False, False,
+            False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False,  False,
+            False, False, False, False, False, True, False,  False],
+        [False, False, False, False, False, False, True, False,  False,
+            False, False,  False, False, False, False, False, False],
+        [False, True, False, False, False, False,  False, False, False,
+            False, False, False, False, False, False, False,  False],
+        [False,  False, False, False, False, False, False, False, False,
+            False, False,  True, False, False,  False, False, False],
+        [False, False, False, False, True,  False, False, False, False,
+            False, False, False, False, False, False,  False, False]
+    ])
+    attack_mask_x, attack_mask_y = generate_attack_masks(
         agent_positions=agent_positions,
         target_positions=target_positions
     )
-    assert jnp.array_equal(attack_mask, expected_attack_mask)
+    print(attack_mask_y)
+    assert jnp.array_equal(attack_mask_x, expected_attack_mask_x)
+    assert jnp.array_equal(attack_mask_y, expected_attack_mask_y)
 
 def test_generate_attack_masks2():
     agent_positions = jnp.array([
@@ -134,7 +154,7 @@ def test_generate_attack_masks2():
     target_positions = jnp.array([
         [-1,  -1], [ 18,  20], [21, 9],
     ])
-    expected_attack_mask = jnp.array([
+    expected_attack_mask_x = jnp.array([
         [False, False, False, False, False, False, False, False,  False,
             True, False,  False, False, False, False, False, False],
         [False, False, False, False,  False, False, False, False, False,
@@ -144,14 +164,25 @@ def test_generate_attack_masks2():
         [False, False, False, False, False, False, False,  False, False,
             False, False, False, False, False, False, False, False],
     ])
+    expected_attack_mask_y = jnp.array([
+        [False, False, False, False, False, False, False, False,  False,
+            False, False,  False, True, False, False, False, False],
+        [False, False, False, False,  False, False, False, False, False,
+            False, False, False,  False, False, False, False, False],
+        [False, False, False, False, False, False, False,  False, False,
+            False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False,  False, False,
+            False, False, False, False, False, False, False, False],
+    ])
 
-    attack_mask = generate_attack_masks(
+    attack_mask_x, attack_mask_y = generate_attack_masks(
         agent_positions=agent_positions,
         target_positions=target_positions,
         x_range=4,
         y_range=4
     )
-    assert jnp.array_equal(attack_mask, expected_attack_mask)
+    assert jnp.array_equal(attack_mask_x, expected_attack_mask_x)
+    assert jnp.array_equal(attack_mask_y, expected_attack_mask_y)
 
 def test_generate_attack_masks_batch():
     agent_positions = jnp.array([
@@ -193,12 +224,12 @@ def test_generate_attack_masks_batch():
         ],
     ])
 
-    attack_masks = generate_attack_masks_batch(
+    attack_masks_x, _ = generate_attack_masks_batch(
         agent_positions,
         target_positions,
         jnp.array([4, 2]),
         jnp.array([4, 2])
     )
 
-    assert jnp.array_equal(attack_masks, expected_attack_masks)
+    assert jnp.array_equal(attack_masks_x, expected_attack_masks)
     

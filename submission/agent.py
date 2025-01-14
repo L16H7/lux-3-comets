@@ -188,13 +188,11 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         y_range=sap_ranges
     )
     logits2_mask = target_x
-    logits3_mask = jnp.ones_like(target_x)
 
     logits1_mask = jnp.concat(
         [ 
             jnp.ones((1, 16, 1)),
             valid_movements.reshape(1, -1, 4),
-            # jnp.ones((1, 16, 1)),
             target_x.sum(axis=-1).reshape(1, 16, 1)
         ],
         axis=-1
@@ -204,25 +202,18 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     logits1_mask = logits1_mask.reshape(logits1.shape)
     logits2_mask = logits2_mask.reshape(logits2.shape)
-    logits3_mask = logits3_mask.reshape(logits3.shape)
-
     large_negative = -1e9
     masked_logits1 = jnp.where(logits1_mask.reshape(logits1.shape), logits1, large_negative)
     masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
-    masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
-
-    '''
-    sap_range_clip = Constants.MAX_SAP_RANGE - 1
-    logits2 = logits2.at[..., : sap_range_clip].set(-100)
-    logits2 = logits2.at[..., -sap_range_clip:].set(-100)
-
-    logits3 = logits3.at[..., : sap_range_clip].set(-100)
-    logits3 = logits3.at[..., -sap_range_clip:].set(-100)
-    '''
 
     rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
     action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
     action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
+
+    logits3_mask = jnp.ones_like(target_x)
+    logits3_mask = logits3_mask.reshape(logits3.shape)
+    masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
+
     action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
 
     # action1 = np.argmax(masked_logits1, axis=-1)
