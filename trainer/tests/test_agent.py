@@ -233,3 +233,37 @@ def test_generate_attack_masks_batch():
 
     assert jnp.array_equal(attack_masks_x, expected_attack_masks)
     
+
+def test_generate_attack_masks_chosen_x():
+    agent_positions = jnp.array([
+        [0,  0], [ 1,  2], [1,  3], [0, 2]
+    ])
+    target_positions = jnp.array([
+        [-1,  -1], [ 0,  3], [2, 4],
+    ])
+
+    expected_attack_mask_y_after_chosen_0 = jnp.array([
+        [False, False, False, False, False, False, False, False,  False,
+            False, False,  False, True, False, False, False, False],
+        [False, False, False, False,  False, False, False, False, False,
+            False, True, False,  False, False, False, False, False],
+        [False, False, False, False, False, False, False,  False, False,
+            True, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False,  False, False,
+            False, True, False, False, False, False, False, False],
+    ])
+
+    attack_mask_y = generate_attack_masks(
+        agent_positions=agent_positions,
+        target_positions=target_positions,
+        x_range=4,
+        y_range=4,
+        chosen_x=jnp.array([2, 1, 1, 2]),
+        choose_y=True,
+    )
+    indices = jnp.arange(attack_mask_y.shape[1])
+
+    # Use advanced indexing to extract the desired slices
+    result = attack_mask_y[0, indices, indices, :]
+    print(result)
+    assert jnp.array_equal(result, expected_attack_mask_y_after_chosen_0)
