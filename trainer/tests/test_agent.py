@@ -4,7 +4,7 @@ sys.path.append('./trainer')
 import pytest
 import jax.numpy as jnp
 
-from agent import vectorized_transform_actions, mask_sap_range_vmap, mask_out_of_bounds
+from agent import vectorized_transform_actions, mask_sap_range_vmap, mask_out_of_bounds, generate_attack_masks
 
 def test_vectorized_transform_actions():
     actions = jnp.array([[1, 0, 2, 4, 3, 5, 3, 2, 0, 1]])
@@ -94,3 +94,35 @@ def test_mask_out_of_bounds():
     assert jnp.array_equal(target_x, expected_target_x)
     assert jnp.array_equal(target_y, expected_target_y)
     
+
+def test_generate_attack_masks():
+    agent_positions = jnp.array([
+        [20,  5], [ 6,  3], [11,  2], [ 2,  2], [20, 16], [12, 23], [17,  3], [13, 20]
+    ])
+    target_positions = jnp.array([
+        [20,  6], [ 2,  8], [10, 16], [23, 14]
+    ])
+
+    expected_attack_mask = jnp.array([
+        [False, False, False, False, False, False, False, False,  True,
+            False, False,  True, False, False, False, False, False],
+        [False, False, False, False,  True, False, False, False, False,
+            False, False, False,  True, False, False, False, False],
+        [False, False, False, False, False, False, False,  True, False,
+        False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False,  True,
+            False, False, False, False, False, False, False,  True],
+        [False, False, False, False, False, False, False, False,  True,
+            False, False,  True, False, False, False, False, False],
+        [False, False, False, False, False, False,  True, False, False,
+            False, False, False, False, False, False, False,  True],
+        [False,  True, False, False, False, False, False, False, False,
+            False, False,  True, False, False,  True, False, False],
+        [False, False, False, False, False,  True, False, False, False,
+            False, False, False, False, False, False,  True, False]
+    ])
+    attack_mask = generate_attack_masks(
+        agent_positions=agent_positions,
+        target_positions=target_positions
+    )
+    assert jnp.array_equal(attack_mask, expected_attack_mask)
