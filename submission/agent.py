@@ -150,14 +150,14 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3 = logits3.at[..., -sap_range_clip:].set(-100)
     '''
 
-    # rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
-    # action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
-    # action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
-    # action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
+    rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
+    action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
+    action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
+    action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
 
-    action1 = np.argmax(masked_logits1, axis=-1)
-    action2 = np.argmax(masked_logits2, axis=-1)
-    action3 = np.argmax(masked_logits3, axis=-1)
+    # action1 = np.argmax(masked_logits1, axis=-1)
+    # action2 = np.argmax(masked_logits2, axis=-1)
+    # action3 = np.argmax(masked_logits3, axis=-1)
 
     return [action1, action2, action3]
 
@@ -169,10 +169,10 @@ class Agent():
         self.team_id = 0 if self.player == "player_0" else 1
         self.opponent_team_id = 1 if self.team_id == 0 else 0
         self.env_cfg = env_cfg
+        self.unit_move_cost = jnp.array([[[env_cfg["unit_move_cost"]]]]).repeat(16, 1) / 8.0
+        self.unit_sap_cost = (jnp.array([[[env_cfg["unit_sap_cost"]]]]).repeat(16, 1) - 30.0) / 20.0
         self.unit_sap_range = jnp.array([[[env_cfg["unit_sap_range"]]]]).repeat(16, 1) / 8.0
-        self.unit_move_cost = jnp.array([[[env_cfg["unit_move_cost"]]]]).repeat(16, 1) / 6.0
-        self.unit_sap_cost = jnp.array([[[env_cfg["unit_sap_cost"]]]]).repeat(16, 1) / 50.0
-        self.unit_sensor_range = jnp.array([[[env_cfg["unit_sensor_range"]]]]).repeat(16, 1) / 6.0
+        self.unit_sensor_range = jnp.array([[[env_cfg["unit_sensor_range"]]]]).repeat(16, 1) / 8.0
 
         checkpoint_path = os.path.join(script_dir, 'checkpoint')
         orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
@@ -195,7 +195,7 @@ class Agent():
 
         self.discovered_relic_nodes = np.ones((1, 6, 2)) * -1
         self.prev_team_points = 0
-        self.points_map = jnp.zeros((1, 24, 24), dtype=jnp.int32)
+        self.points_map = jnp.zeros((1, 24, 24), dtype=jnp.float32)
         self.points_gained = 0
         self.prev_agent_positions = jnp.ones((1, 16, 2), dtype=jnp.int32) * -1
 
@@ -212,7 +212,7 @@ class Agent():
             max_steps_in_match=100,
             prev_agent_positions=self.prev_agent_positions,
             points_map=self.points_map,
-            points_gained=self.points_gained,
+            points_gained=jnp.array([self.points_gained]),
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
         )
@@ -223,6 +223,7 @@ class Agent():
             episode_info,
             points_map,
             agent_positions,
+            _,
             _,
         ) = representations
         self.points_map = points_map
@@ -278,7 +279,7 @@ class Agent():
         self.prev_team_points = team_points
         self.prev_agent_positions = agent_positions
 
-        if step == 212:
+        if step == 90:
             a = True
         
         return actions

@@ -206,12 +206,16 @@ class Actor(nn.Module):
         ], axis=-1)
 
         x = actor(embeddings)
+
         action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
-        coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
-    
+
+        x_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
+        y_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
+
         logits1 = action_head(x)
-        logits2 = coordinate_head(x)
-        logits3 = coordinate_head(x)
+        logits2 = x_coordinate_head(x)
+        logits3 = y_coordinate_head(x)
+
         logits1 = logits1.reshape((seq_len, batch_size, self.n_actions))
         logits2 = logits2.reshape((seq_len, batch_size, 17))
         logits3 = logits3.reshape((seq_len, batch_size, 17))
