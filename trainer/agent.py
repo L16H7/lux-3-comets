@@ -135,7 +135,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     return actions, log_probs, logits_mask
 
-def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=8, chosen_x=None, choose_y=False):
+def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=8, choose_y=False, chosen_x=None,):
     """
     Generate attack masks for agents based on both x and y distances to targets.
     Targets outside the range are filtered out before mask generation.
@@ -204,24 +204,12 @@ def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=
         # Generate y masks only for valid targets based on chosen x
         valid_y = (y_distances == y_offsets)
         valid_y = jnp.any(valid_y, axis=-1)
-        return valid_y
-        # x_distances = x_distances[:, None, :]  # (num_agents, 1, num_targets)
-        # y_distances = y_distances[:, None, :]  # (num_agents, 1, num_targets)
-        # y_offsets = y_offsets[None, :, None]  # (1, 17, 1)
-        
-        # # Filter targets based on each agent's chosen x
-        # # Reshape chosen_x to (num_agents, 1, 1) for broadcasting
-        # chosen_x = chosen_x[:, None, None]
-        # valid_targets_for_x = (x_distances == chosen_x)  # Per-agent x filtering
-        # print(valid_targets_for_x)
-        
-        # # Apply the per-agent x-based filter to y distances
-        # y_distances = jnp.where(valid_targets_for_x, y_distances, -100)
-        
-        # # Generate y masks only for valid targets based on each agent's chosen x
-        # valid_y = (y_distances == y_offsets)
-        # valid_y = jnp.any(valid_y, axis=-1)
-        # return valid_y
+
+        indices = jnp.arange(valid_y.shape[1])
+
+        # Use advanced indexing to extract the desired slices
+        final_filter = valid_y[0, indices, indices, :]
+        return final_filter
 
     valid_y = (y_distances == y_offsets)
     valid_y = jnp.any(valid_y, axis=-1)

@@ -258,12 +258,8 @@ def test_generate_attack_masks_chosen_x():
         target_positions=target_positions,
         x_range=4,
         y_range=4,
-        chosen_x=jnp.array([2, 1, 1, 2]),
         choose_y=True,
+        chosen_x=jnp.array([2, 1, 1, 2]),
     )
-    indices = jnp.arange(attack_mask_y.shape[1])
 
-    # Use advanced indexing to extract the desired slices
-    result = attack_mask_y[0, indices, indices, :]
-    print(result)
-    assert jnp.array_equal(result, expected_attack_mask_y_after_chosen_0)
+    assert jnp.array_equal(attack_mask_y, expected_attack_mask_y_after_chosen_0)
