@@ -190,6 +190,11 @@ def create_representations(
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
     # Update points map
+    prev_agent_positions = jnp.where(
+        unit_energies_team[..., None].repeat(2, axis=-1) > 0,
+        prev_agent_positions,
+        -1
+    )
     transformed_previous_positions = transform_coordinates(prev_agent_positions)
     transformed_previous_positions = jnp.where(
         transformed_previous_positions == 24,

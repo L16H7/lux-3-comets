@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-from points import update_points_map_batch, update_points_map, mark_duplicates_batched
+from points import update_points_map_batch, update_points_map, mark_duplicates_batched, filter_by_proximity_batch
 
 
 def test_update_points_map_batch():
@@ -350,3 +350,41 @@ def test_update_points_map_batch4():
     print(updated_points_map2)
 
     assert jnp.allclose(updated_points_map2, expected_points_map2)
+
+
+def test_filter_by_proximity():
+    positions = jnp.array([
+        [[1, 2], [3, 4], [10, 20], [5, 6], [3, 4]],
+        [[7, 8], [9, 10], [15, 25], [11, 12], [13, 14]],
+        [[1, 2], [3, 4], [10, 20], [5, 6], [3, 4]],
+        [[-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1]],
+        [[6, 9], [-1, -1], [-1, -1], [-1, -1], [-1, -1]],
+    ])
+    relic_nodes = jnp.array([
+        [[1, 2], [3, 4], [5, 6]],
+        [[7, 8], [9, 10], [11, 12]],
+        [[12, 22], [13, 23], [13, 12]],
+        [[-1, -1], [-1, -1], [-1, -1]],
+        [[-1, -1], [-1, -1], [4, 7]],
+    ])
+    filtered_positions = filter_by_proximity_batch(positions, relic_nodes)
+    print(filtered_positions)
+    expected_positions = jnp.array([
+        [
+            [ 1,  2], [ 3,  4], [-1, -1], [ 5,  6], [ 3,  4]
+        ],
+        [
+            [ 7,  8], [ 9, 10], [-1, -1], [11, 12], [13, 14]
+        ],
+        [
+            [ -1,  -1], [ -1,  -1], [10, 20], [ -1,  -1], [ -1,  -1]
+        ],
+        [
+            [-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1]
+        ],
+        [
+            [6, 9], [-1, -1], [-1, -1], [-1, -1], [-1, -1]
+        ],
+    ])
+    
+    assert jnp.array_equal(filtered_positions, expected_positions)
