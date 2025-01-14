@@ -212,7 +212,7 @@ class Agent():
             max_steps_in_match=100,
             prev_agent_positions=self.prev_agent_positions,
             points_map=self.points_map,
-            points_gained=self.points_gained,
+            points_gained=jnp.array([self.points_gained]),
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
         )
@@ -223,6 +223,7 @@ class Agent():
             episode_info,
             points_map,
             agent_positions,
+            _,
             _,
         ) = representations
         self.points_map = points_map

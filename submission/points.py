@@ -2,6 +2,28 @@ import jax
 import jax.numpy as jnp
 
 
+def filter_by_proximity(positions, relic_nodes, max_distance=4):
+    """
+    Filter positions by proximity to relic nodes.
+
+    Args:
+    positions (jnp.ndarray): Shape (num, 2)
+    relic_nodes (jnp.ndarray): Shape (num_relics, 2)
+    max_distance (int): Maximum Manhattan distance
+
+    Returns:
+    filtered_positions (jnp.ndarray): Shape (num, 2)
+    """
+    relic_nodes = jnp.where(relic_nodes == -1, 100, relic_nodes)
+    distances = jnp.abs(positions[:, None] - relic_nodes[None, :]).sum(axis=-1)
+    is_close = jnp.any(distances <= max_distance, axis=-1)
+    filtered_positions = jnp.where(is_close[:, None], positions, jnp.array([-1, -1]))
+    return filtered_positions
+
+# Vectorize the function to operate on batches
+filter_by_proximity_batch = jax.vmap(filter_by_proximity, in_axes=(0, 0), out_axes=0)
+
+
 def mark_duplicates_single(positions):
     """
     Replace duplicate positions with [-1, -1] for a single batch.

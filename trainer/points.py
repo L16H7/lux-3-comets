@@ -14,6 +14,7 @@ def filter_by_proximity(positions, relic_nodes, max_distance=4):
     Returns:
     filtered_positions (jnp.ndarray): Shape (num, 2)
     """
+    relic_nodes = jnp.where(relic_nodes == -1, 100, relic_nodes)
     distances = jnp.abs(positions[:, None] - relic_nodes[None, :]).sum(axis=-1)
     is_close = jnp.any(distances <= max_distance, axis=-1)
     filtered_positions = jnp.where(is_close[:, None], positions, jnp.array([-1, -1]))

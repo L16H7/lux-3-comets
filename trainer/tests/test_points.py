@@ -251,6 +251,13 @@ def test_update_points_map_batch4():
             [  0.0,  0.0,  1.0,  0.6667,  0.0],
             [  0.0,  0.0,  0.0,  0.6667, -1.0]
         ],
+        [
+            [  0.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.6667],
+            [  1.0,  0.0,  0.0, -1.0,  0.0],
+            [  0.0,  0.0,  1.0,  0.6667,  0.0],
+            [  0.0,  0.0,  0.0,  0.6667, -1.0]
+        ],
     ])
 
     positions = jnp.array([
@@ -269,8 +276,13 @@ def test_update_points_map_batch4():
             # should update -1.0 for [4, 1] and [3, 3]
             [2, 0], [2, 3], [3, 2], [0, 2], [4, 1], [3, 2], [3, 3]
         ],
+        [
+            # 3 at confirmed positive, 2 at confirmed negative, 2 unconfirmed, points gained = 3
+            # should update -1.0 for [4, 1] and [3, 3]
+            [2, 0], [2, 3], [3, 2], [0, 2], [4, 1], [3, 2], [3, 3]
+        ],
     ])
-    points_gained = jnp.array([4, 5, 3])
+    points_gained = jnp.array([4, 5, 3, 3])
 
     updated_points_map = update_points_map_batch(
         points_map,
@@ -301,6 +313,13 @@ def test_update_points_map_batch4():
             [  0.0,  0.0,  1.0, -1.0,  0.0],
             [  0.0,  0.0,  0.0,  0.6667, -1.0]
         ],
+        [
+            [  0.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0, -1.0],
+            [  1.0,  0.0,  0.0, -1.0,  0.0],
+            [  0.0,  0.0,  1.0, -1.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.6667, -1.0]
+        ],
     ])
     assert jnp.allclose(updated_points_map, expected_points_map)
 
@@ -318,9 +337,11 @@ def test_update_points_map_batch4():
         [
             [2, 0], [2, 0], [2, 0], [0, 2], [0, 2], [-1, -1], [3, 4]
         ],
+        [
+            [-1, -1], [-1, -1], [-1, -1], [-1, -1], [1, 0], [-1, -1], [1, 1]
+        ],
     ])
-    # points_gained2 = jnp.array([3, 1, 3])
-    points_gained2 = jnp.array([2, 1, 2])
+    points_gained2 = jnp.array([2, 1, 2, 2])
 
     expected_points_map2 = jnp.array([
         [
@@ -344,6 +365,13 @@ def test_update_points_map_batch4():
             [  0.0,  0.0,  1.0, -1.0,  0.0],
             [  0.0,  0.0,  0.0, -1.0, -1.0]
         ],
+        [
+            [  0.0,  1.0,  1.0,  0.0,  0.0],
+            [  0.0,  1.0,  0.0,  0.0, -1.0],
+            [  1.0,  0.0,  0.0, -1.0,  0.0],
+            [  0.0,  0.0,  1.0, -1.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.6667, -1.0]
+        ],
     ])
 
     updated_points_map2 = update_points_map_batch(expected_points_map, mark_duplicates_batched(positions2), points_gained2)
@@ -359,6 +387,7 @@ def test_filter_by_proximity():
         [[1, 2], [3, 4], [10, 20], [5, 6], [3, 4]],
         [[-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1]],
         [[6, 9], [-1, -1], [-1, -1], [-1, -1], [-1, -1]],
+        [[0, 0], [1, 1], [1, 2], [0, 1], [2, 3]],
     ])
     relic_nodes = jnp.array([
         [[1, 2], [3, 4], [5, 6]],
@@ -366,6 +395,7 @@ def test_filter_by_proximity():
         [[12, 22], [13, 23], [13, 12]],
         [[-1, -1], [-1, -1], [-1, -1]],
         [[-1, -1], [-1, -1], [4, 7]],
+        [[-1, -1], [-1, -1], [-1, -1]],
     ])
     filtered_positions = filter_by_proximity_batch(positions, relic_nodes)
     print(filtered_positions)
@@ -384,6 +414,9 @@ def test_filter_by_proximity():
         ],
         [
             [6, 9], [-1, -1], [-1, -1], [-1, -1], [-1, -1]
+        ],
+        [
+            [-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1]
         ],
     ])
     

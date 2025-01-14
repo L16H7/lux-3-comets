@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
-from points import update_points_map, mark_duplicates_single
+from points import update_points_map_batch, mark_duplicates_batched, filter_by_proximity_batch
 
 
 NEBULA_TILE = 1
@@ -190,10 +190,21 @@ def create_representations(
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
     # Update points map
+    proximity_positions = filter_by_proximity_batch(
+        prev_agent_positions,
+        relic_nodes
+    )
+
     prev_agent_positions = jnp.where(
         unit_energies_team[..., None].repeat(2, axis=-1) > 0,
         prev_agent_positions,
         -1
+    )
+
+    prev_agent_positions = jnp.where(
+        points_gained > 0,
+        proximity_positions,
+        prev_agent_positions,
     )
     transformed_previous_positions = transform_coordinates(prev_agent_positions)
     transformed_previous_positions = jnp.where(
@@ -201,19 +212,22 @@ def create_representations(
         -1,
         transformed_previous_positions,
     )
-    updated_points_map = update_points_map(
-        jnp.squeeze(points_map, axis=0),
-        mark_duplicates_single(jnp.squeeze(jnp.concatenate(
-            [
-                prev_agent_positions,
-                transformed_previous_positions,
-            ],
-            axis=1
-        ), axis=0)),
-        points_gained,
+    updated_points_map = update_points_map_batch(
+        points_map,
+        mark_duplicates_batched(
+            jnp.concatenate(
+                [
+                    prev_agent_positions,
+                    transformed_previous_positions,
+                ],
+                axis=1
+            )
+        ),
+        points_gained * 2,
     )
-    updated_points_map = jnp.expand_dims(updated_points_map, axis=0)
 
+    # if points_gained[0] > 0:
+    #     a = True
     # SCALE
     maps = [
         team_unit_maps / 4.0,
@@ -252,12 +266,49 @@ def create_representations(
         unit_positions_team=unit_positions_team,
     )
 
+    agent_ids = (jnp.arange(16) + 1) / 16
+    agent_ids = jnp.broadcast_to(agent_ids, (agent_positions.shape[0], 16))
+
     return (
         state_representation,
         agent_observations,
         episode_info,
         updated_points_map,
         agent_positions,
+        agent_ids.reshape(-1, 1),
         unit_masks_team,
     )
         
+def create_agent_representations(
+    observations,
+    p0_discovered_relic_nodes,
+    p1_discovered_relic_nodes,
+    p0_points_map,
+    p1_points_map,
+    p0_points_gained,
+    p1_points_gained,
+    p0_prev_agent_positions,
+    p1_prev_agent_positions,
+):
+    p0_observations = observations["player_0"]
+    p0_representations = create_representations(
+        obs=p0_observations,
+        discovered_relic_nodes=p0_discovered_relic_nodes,
+        prev_agent_positions=p0_prev_agent_positions,
+        points_map=p0_points_map,
+        points_gained=p0_points_gained,
+        team_idx=0,
+        opponent_idx=1,
+    )
+
+    p1_observations = observations["player_1"]
+    p1_representations = create_representations(
+        obs=p1_observations,
+        discovered_relic_nodes=p1_discovered_relic_nodes,
+        prev_agent_positions=p1_prev_agent_positions,
+        points_map=p1_points_map,
+        points_gained=p1_points_gained,
+        team_idx=1,
+        opponent_idx=0,
+    )
+    return p0_representations, p1_representations
