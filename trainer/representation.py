@@ -202,7 +202,7 @@ def create_representations(
     )
 
     prev_agent_positions = jnp.where(
-        points_gained > 0,
+        points_gained[:, None, None] > 0,
         proximity_positions,
         prev_agent_positions,
     )
