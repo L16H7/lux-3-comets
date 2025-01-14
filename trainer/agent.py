@@ -135,46 +135,56 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     return actions, log_probs, logits_mask
 
-
-def generate_attack_masks(agent_positions, target_positions, x_range=8):
+def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=8):
     """
-    Generate attack masks for agents based on x-axis distances to targets.
-    The offset direction follows: target_x = agent_x + offset
+    Generate attack masks for agents based on both x and y distances to targets.
+    Targets outside the range are filtered out before mask generation.
     
     Args:
         agent_positions (jnp.ndarray): Shape (num_agents, 2) array of agent positions
         target_positions (jnp.ndarray): Shape (num_targets, 2) array of target positions
-        x_range (int): Maximum x-distance range (default 8 for -8 to 8 range)
+        x_range (int): Maximum x-distance range (default 8)
+        y_range (int): Maximum y-distance range (default 8)
     
     Returns:
-        attack_masks (jnp.ndarray): Shape (num_agents, 17) boolean array
+        attack_masks (jnp.ndarray): Shape (num_agents, 17, 17) boolean array
                                    True indicates valid attack position at that offset
-                                   Index 0 -> offset -8 (left)
-                                   Index 8 -> offset 0 (same position)
-                                   Index 16 -> offset +8 (right)
     """
-    num_agents = agent_positions.shape[0]
-    mask_size = 2 * x_range + 1  # 17 for range -8 to 8
+    # Pre-filter invalid targets (marked as -1)
+    valid_targets = target_positions != -1
+    valid_targets = jnp.all(valid_targets, axis=-1)
+    target_positions = jnp.where(valid_targets[:, None], target_positions, 1000)
     
-    # Handle invalid target positions (those marked as -1)
+    # Calculate x and y distances from agent to each target
+    x_distances = target_positions[None, :, 0] - agent_positions[:, None, 0]
+    y_distances = target_positions[None, :, 1] - agent_positions[:, None, 1]
+    
+    # Create range mask for targets
+    targets_in_range = (jnp.abs(x_distances) <= x_range) & (jnp.abs(y_distances) <= y_range)
+    targets_in_range = targets_in_range & valid_targets[None, :]
+
     target_positions = jnp.where(target_positions == -1, 1000, target_positions)
+    x_distances = target_positions[None, :, 0] - agent_positions[:, None, 0] 
+
+    x_distances = jnp.where(
+        targets_in_range,
+        x_distances,
+        -100, 
+    )
     
-    # Calculate x distances from agent to target (target_x - agent_x)
-    # This gives us the correct offset needed to reach the target
-    x_distances = target_positions[None, :, 0] - agent_positions[:, None, 0]  # Shape: (num_agents, num_targets)
+    x_offsets = jnp.arange(-8, 9)
+    y_offsets = jnp.arange(-8, 9)
     
-    # Create an array of all possible offsets (-8 to 8)
-    offsets = jnp.arange(-x_range, x_range + 1)  # Shape: (17,)
+    x_distances = x_distances[:, None, :]
+    y_distances = y_distances[:, None, :]
+    x_offsets = x_offsets[None, :, None]
+    y_offsets = y_offsets[None, :, None]
     
-    # For each agent and offset, check if any target is at that relative position
-    # Broadcast to shape (num_agents, num_offsets, num_targets)
-    distances_expanded = x_distances[:, None, :]  # Shape: (num_agents, 1, num_targets)
-    offsets_expanded = offsets[None, :, None]    # Shape: (1, 17, 1)
-    
-    # A position is valid if the offset matches the distance to any target
-    valid_positions = (distances_expanded == offsets_expanded)
-    
-    # Reduce across targets dimension - True if any target makes this offset valid
-    attack_masks = jnp.any(valid_positions, axis=-1)  # Shape: (num_agents, 17)
-    
-    return attack_masks
+    # Check valid positions for x and y separately
+    valid_x = (x_distances == x_offsets)
+    return jnp.any(valid_x, axis=-1)
+
+generate_attack_masks_batch = jax.vmap(
+    generate_attack_masks,
+    in_axes=(0, 0, 0, 0)
+)
