@@ -182,6 +182,16 @@ def ppo_update(
     )
     (loss, update_info) = jax.lax.pmean((loss, update_info), axis_name="devices")
     actor_grads, critic_grads = grads
+
+    def mean_leaf(x):
+        return jnp.mean(x)
+    
+    def std_leaf(x):
+        return jnp.std(x)
+
+    grads_mean = jax.tree_util.tree_map(mean_leaf, grads)
+    grads_std = jax.tree_util.tree_map(std_leaf, grads)
+
     updated_actor_train_state = actor_train_state.apply_gradients(grads=actor_grads)
     updated_critic_train_state = critic_train_state.apply_gradients(grads=critic_grads)
 
@@ -190,5 +200,11 @@ def ppo_update(
         "adv_mean": adv_mean,
         "adv_std": adv_std,
         "loss": loss,
+        "actor_gru_hn_mean": grads_mean[0]['params']['ScannedRNN_0']['GRUCell_0']['hn']['kernel'],
+        "actor_gru_hn_std":  grads_std[0]['params']['ScannedRNN_0']['GRUCell_0']['hn']['kernel'],
+        "actor_resblock_mean": grads_mean[0]['params']['ResidualBlock_0']['Conv_0']['kernel'],
+        "actor_resblock_std": grads_std[0]['params']['ResidualBlock_0']['Conv_0']['kernel'],
+        "actor_dense6_mean": grads_mean[0]['params']['Dense_6']['kernel'],
+        "actor_dense6_std": grads_std[0]['params']['Dense_6']['kernel'],
     }
     return updated_actor_train_state, updated_critic_train_state, update_step_info 
