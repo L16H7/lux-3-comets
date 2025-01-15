@@ -198,10 +198,12 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         ], dtype=jnp.int16
     )
 
+    sensor_mask = observations.sensor_mask
+    sensor_mask = sensor_mask if team_idx == 0 else transform_observation(sensor_mask)
     transformed_agent_positions = transform_coordinates(agent_positions)
     transformed_agent_positions = filter_targets_with_sensor(
         transformed_agent_positions,
-        observations.sensor_mask
+        sensor_mask
     )
     opponent_positions = observations.units.position[:, opponent_idx, ..., None, :] 
     opponent_positions = opponent_positions if team_idx == 0 else transform_coordinates(opponent_positions)
