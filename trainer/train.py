@@ -595,6 +595,12 @@ def make_train(config: Config):
                     "adv_std": loss_info["adv_std"],
                     "value_mean": loss_info["value_mean"],
                     "value_std": loss_info["value_std"],
+                    "actor_gru_hn_mean": loss_info["actor_gru_hn_mean"],
+                    "actor_gru_hn_std": loss_info["actor_gru_hn_std"],
+                    "actor_resblock_mean": loss_info["actor_resblock_mean"],
+                    "actor_resblock_std": loss_info["actor_resblock_std"],
+                    "actor_dense6_mean": loss_info["actor_dense6_mean"],
+                    "actor_dense6_std": loss_info["actor_dense6_std"],
                     "reward_mean": transitions.rewards.mean(),
                     "reward_std": transitions.rewards.std(),
                 }
