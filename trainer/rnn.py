@@ -200,7 +200,9 @@ class Actor(nn.Module):
         )
 
         embeddings = jnp.concat([
-            temporal_embeddings.reshape((seq_len, batch_size, -1)),
+            # temporal_embeddings.reshape((seq_len, batch_size, -1)),
+            state_embeddings.reshape((seq_len, batch_size, -1)),
+            info_embeddings,
             env_info_embeddings,
             position_embeddings,
             observation_embeddings.reshape((seq_len, batch_size, -1)),
@@ -310,5 +312,6 @@ class Critic(nn.Module):
         )
 
         hstate, out = ScannedRNN()(hstate, embeddings)
-        values = critic(out)
+        # values = critic(out)
+        values = critic(embeddings)
         return values, hstate
