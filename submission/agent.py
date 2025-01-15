@@ -198,8 +198,19 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         ], dtype=jnp.int16
     )
 
+    transformed_agent_positions = transform_coordinates(agent_positions)
+    transformed_agent_positions = filter_targets_with_sensor(
+        transformed_agent_positions,
+        observations.sensor_mask
+    )
     opponent_positions = observations.units.position[:, opponent_idx, ..., None, :] 
     opponent_positions = opponent_positions if team_idx == 0 else transform_coordinates(opponent_positions)
+
+    opponent_positions = jnp.concat([
+        opponent_positions,
+        transformed_agent_positions, # to attack mirror positions
+    ], axis=1)
+    
     opponent_positions = jnp.where(
         opponent_positions == -1,
         -100,
@@ -385,3 +396,36 @@ class Agent():
             a = True
         
         return actions
+
+
+def filter_targets_with_sensor(target_positions, sensor_map):
+    """
+    Filter target positions, replacing with (-1, -1) if sensor is True at that position.
+    
+    Args:
+        target_positions (jnp.ndarray): Shape (n_envs, 16, 2) array of target positions
+        sensor_map (jnp.ndarray): Shape (n_envs, 24, 24) boolean array where True means sensor
+        
+    Returns:
+        jnp.ndarray: Shape (n_envs, 16, 2) filtered target positions
+    """
+    def process_single_env(targets, sensors):
+        def filter_single_target(pos):
+            # Check if position is already invalid
+            is_valid = jnp.all(pos != -1)
+            
+            # Get sensor value at target position
+            sensor_value = jnp.where(
+                is_valid,
+                sensors[pos[0], pos[1]],  # Only check sensor if position is valid
+                True  # If position was already invalid, keep it invalid
+            )
+            
+            # Replace with -1,-1 if sensor is True
+            return jnp.where(sensor_value, jnp.array([-1, -1]), pos)
+        
+        # Apply to each target position
+        return jax.vmap(filter_single_target)(targets)
+    
+    # Apply to each environment
+    return jax.vmap(process_single_env)(target_positions, sensor_map)
