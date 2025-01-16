@@ -17,7 +17,6 @@ from flax.jax_utils import replicate, unreplicate
 from flax.training import orbax_utils
 from flax.training.train_state import TrainState
 from functools import partial
-from rnn import Actor
 from time import time
 from typing import NamedTuple
 
@@ -31,7 +30,7 @@ from make_states import make_states
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
 from representation import create_agent_representations, transform_coordinates, get_env_info
-from rnn import ScannedRNN
+from rnn import Actor
 
 
 class RunnerState(NamedTuple):
@@ -44,10 +43,6 @@ class RunnerState(NamedTuple):
     states: jnp.ndarray
     p0_discovered_relic_nodes: jnp.ndarray
     p1_discovered_relic_nodes: jnp.ndarray
-    p0_actor_hstate: jnp.ndarray
-    p0_critic_hstate: jnp.ndarray
-    p1_actor_hstate: jnp.ndarray
-    p1_critic_hstate: jnp.ndarray
 
 
 def make_train(config: Config):
@@ -180,10 +175,6 @@ def make_train(config: Config):
                         states,
                         p0_discovered_relic_nodes,
                         p1_discovered_relic_nodes,
-                        p0_prev_actor_hstates,
-                        p0_prev_critic_hstates,
-                        p1_prev_actor_hstates,
-                        p1_prev_critic_hstates,
                     ) = runner_state
 
                     (
@@ -201,9 +192,8 @@ def make_train(config: Config):
                     p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
                     p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-                    p0_logits, p0_new_actor_hstates = actor_train_state.apply_fn(
+                    p0_logits = actor_train_state.apply_fn(
                         actor_train_state.params,
-                        p0_prev_actor_hstates,
                         {
                             "states": p0_agent_states,
                             "observations": p0_agent_observations,
@@ -230,9 +220,8 @@ def make_train(config: Config):
                         sap_ranges=meta_env_params.unit_sap_range,
                     )
 
-                    p0_values, p0_new_critic_hstates = critic_train_state.apply_fn(
+                    p0_values = critic_train_state.apply_fn(
                         critic_train_state.params,
-                        p0_prev_critic_hstates,
                         {
                             "states": jnp.expand_dims(p0_states, axis=0),
                             "match_steps": jnp.expand_dims(p0_episode_info[:, 0], axis=[0, -1]),
@@ -258,12 +247,11 @@ def make_train(config: Config):
                     p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
                     # FIXED OPPONENT
-                    # p1_logits, p1_new_actor_hstates = opponent_state.apply_fn(
+                    # p1_logits = opponent_state.apply_fn(
                     #     opponent_state.params,
 
-                    p1_logits, p1_new_actor_hstates = actor_train_state.apply_fn(
+                    p1_logits = actor_train_state.apply_fn(
                         actor_train_state.params,
-                        p1_prev_actor_hstates,
                         {
                             "states": p1_agent_states,
                             "observations": p1_agent_observations,
@@ -290,9 +278,8 @@ def make_train(config: Config):
                     )
 
                     # COMMENT FOR FIXED OPPONENT
-                    p1_values, p1_new_critic_hstates = critic_train_state.apply_fn(
+                    p1_values = critic_train_state.apply_fn(
                         critic_train_state.params,
-                        p1_prev_critic_hstates,
                         {
                             "states": jnp.expand_dims(p1_states, axis=0),
                             "match_steps": jnp.expand_dims(p1_episode_info[:, 0], axis=[0, -1]),
@@ -393,22 +380,16 @@ def make_train(config: Config):
                         next_states,
                         p0_new_discovered_relic_nodes,
                         p1_new_discovered_relic_nodes,
-                        p0_new_actor_hstates,
-                        p0_new_critic_hstates,
-                        p1_new_actor_hstates,
-                        # p0_critic_hstates, # FIXED OPPONENT
-                        p1_new_critic_hstates
                     )
 
                     return runner_state, transition
 
-                # KEEPING hstates to be used in update step
-                p0_actor_init_hstates = runner_state.p0_actor_hstate
-                p0_critic_init_hstates = runner_state.p0_critic_hstate
-                p1_actor_init_hstates = runner_state.p1_actor_hstate
-                p1_critic_init_hstates = runner_state.p1_critic_hstate
-                
-                runner_state, transitions = jax.lax.scan(_env_step, runner_state, None, config.n_actor_steps)
+                runner_state, transitions = jax.lax.scan(
+                    _env_step,
+                    runner_state,
+                    None,
+                    config.n_actor_steps
+                )
 
                 (
                     rng,
@@ -420,10 +401,6 @@ def make_train(config: Config):
                     states,
                     p0_discovered_relic_nodes,
                     p1_discovered_relic_nodes,
-                    p0_prev_actor_hstates,
-                    p0_prev_critic_hstates,
-                    p1_prev_actor_hstates,
-                    p1_prev_critic_hstates,
                 ) = runner_state
 
                 (
@@ -446,9 +423,8 @@ def make_train(config: Config):
                     _,
                 ) = p1_representations
 
-                p0_last_values, _ = critic_train_state.apply_fn(
+                p0_last_values = critic_train_state.apply_fn(
                     critic_train_state.params,
-                    p0_prev_critic_hstates,
                     {
                         "states": jnp.expand_dims(p0_states, axis=0),
                         "match_steps": jnp.expand_dims(p0_episode_info[:, 0], axis=[0, -1]),
@@ -459,9 +435,8 @@ def make_train(config: Config):
                 )
 
                 # COMMENT FOR FIXED OPPONENT
-                p1_last_values, _ = critic_train_state.apply_fn(
+                p1_last_values = critic_train_state.apply_fn(
                     critic_train_state.params,
-                    p1_prev_critic_hstates,
                     {
                         "states": jnp.expand_dims(p1_states, axis=0),
                         "match_steps": jnp.expand_dims(p1_episode_info[:, 0], axis=[0, -1]),
@@ -490,12 +465,10 @@ def make_train(config: Config):
                 def _update_epoch(update_state, _):
                     def _update_minibatch(train_state, batch_info):
                         actor_train_state, critic_train_state = train_state
-                        actor_hstates, critic_hstates, transitions, advantages, targets = batch_info
+                        transitions, advantages, targets = batch_info
                         updated_actor_train_state, updated_critic_train_state, minibatch_info = ppo_update(
                             actor_train_state=actor_train_state,
                             critic_train_state=critic_train_state,
-                            actor_hstates=actor_hstates,
-                            critic_hstates=critic_hstates,
                             transitions=transitions,
                             advantages=advantages,
                             targets=targets,
@@ -508,8 +481,6 @@ def make_train(config: Config):
                     (
                         rng,
                         (actor_train_states, critic_train_states),
-                        (p0_actor_init_hstates, p0_critic_init_hstates),
-                        (p1_actor_init_hstates, p1_critic_init_hstates),
                         transitions,
                         advantages,
                         targets
@@ -518,19 +489,7 @@ def make_train(config: Config):
                     rng, _rng = jax.random.split(rng)
                     permutation = jax.random.permutation(_rng, config.n_minibatches)
 
-                    # FIXED OPPONENT
-                    # batch = (
-                    #     jnp.expand_dims(p0_actor_init_hstates, axis=0),
-                    #     jnp.expand_dims(p0_critic_init_hstates, axis=0),
-                    #     transitions,
-                    #     advantages,
-                    #     targets,
-                    # )
-
-                    # SELF PLAY
                     batch = (
-                        jnp.expand_dims(jnp.concat([p0_actor_init_hstates, p1_actor_init_hstates], axis=0), axis=0),
-                        jnp.expand_dims(jnp.concat([p0_critic_init_hstates, p1_critic_init_hstates], axis=0), axis=0),
                         transitions,
                         advantages,
                         targets,
@@ -561,8 +520,6 @@ def make_train(config: Config):
                     updated_state = (
                         rng,
                         (updated_actor_train_state, updated_critic_train_state),
-                        (p0_actor_init_hstates, p0_critic_init_hstates),
-                        (p1_actor_init_hstates, p1_critic_init_hstates),
                         transitions,
                         advantages,
                         targets
@@ -573,8 +530,6 @@ def make_train(config: Config):
                 update_state = (
                     rng,
                     (actor_train_state, critic_train_state),
-                    (p0_actor_init_hstates, p0_critic_init_hstates),
-                    (p1_actor_init_hstates, p1_critic_init_hstates),
                     transitions,
                     advantages,
                     targets
@@ -595,8 +550,6 @@ def make_train(config: Config):
                     "adv_std": loss_info["adv_std"],
                     "value_mean": loss_info["value_mean"],
                     "value_std": loss_info["value_std"],
-                    "actor_gru_hn_mean": loss_info["actor_gru_hn_mean"],
-                    "actor_gru_hn_std": loss_info["actor_gru_hn_std"],
                     "actor_resblock_mean": loss_info["actor_resblock_mean"],
                     "actor_resblock_std": loss_info["actor_resblock_std"],
                     "actor_dense6_mean": loss_info["actor_dense6_mean"],
@@ -605,7 +558,7 @@ def make_train(config: Config):
                     "reward_std": transitions.rewards.std(),
                 }
 
-                _, (updated_actor_train_states, updated_critic_train_states), _, _, _, _, _ = updated_state
+                _, (updated_actor_train_states, updated_critic_train_states), _, _, _  = updated_state
 
                 updated_runner_state = RunnerState(
                     rng,
@@ -617,20 +570,10 @@ def make_train(config: Config):
                     states,
                     p0_discovered_relic_nodes,
                     p1_discovered_relic_nodes,
-                    p0_prev_actor_hstates,
-                    p0_prev_critic_hstates,
-                    p1_prev_actor_hstates,
-                    p1_prev_critic_hstates,
                 )
                 return updated_runner_state, update_step_info
 
             p0_representations, p1_representations, observations, states = v_reset(meta_keys, meta_env_params)
-
-            p0_actor_init_hstates = ScannedRNN.initialize_carry(config.n_envs * config.n_agents, 128)
-            p0_critic_init_hstates = ScannedRNN.initialize_carry(config.n_envs, 256)
-
-            p1_actor_init_hstates = ScannedRNN.initialize_carry(config.n_envs * config.n_agents, 128)
-            p1_critic_init_hstates = ScannedRNN.initialize_carry(config.n_envs, 256)
 
             runner_state = RunnerState(
                 rng=rng,
@@ -642,10 +585,6 @@ def make_train(config: Config):
                 states=states,
                 p0_discovered_relic_nodes=p0_discovered_relic_nodes,
                 p1_discovered_relic_nodes=p1_discovered_relic_nodes,
-                p0_actor_hstate=p0_actor_init_hstates,
-                p0_critic_hstate=p0_critic_init_hstates,
-                p1_actor_hstate=p1_actor_init_hstates,
-                p1_critic_hstate=p1_critic_init_hstates,
             )
 
             updated_runner_state, update_step_info = jax.lax.scan(_update_step, runner_state, None, config.n_update_steps)
@@ -693,10 +632,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
@@ -796,10 +735,10 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=512,
-        n_envs_per_device=512,
-        n_eval_envs=256,
-        n_minibatches=32,
+        n_envs=4,
+        n_envs_per_device=4,
+        n_eval_envs=4,
+        n_minibatches=2,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,

@@ -52,8 +52,6 @@ def ppo_update(
     actor_train_state: TrainState,
     critic_train_state: TrainState,
     transitions: Transition,
-    actor_hstates: jax.Array,
-    critic_hstates: jax.Array,
     advantages: jax.Array,
     targets: jax.Array,
     clip_eps: float,
@@ -70,9 +68,8 @@ def ppo_update(
     advantages = advantages * units_mask
 
     def _loss_fn(actor_params, critic_params):
-        logits, _ = actor_train_state.apply_fn(
+        logits = actor_train_state.apply_fn(
             actor_params,
-            actor_hstates,
             {
                 "states": transitions.agent_states,
                 "observations": transitions.observations,
@@ -135,9 +132,8 @@ def ppo_update(
         entropy = dist.entropy().reshape(-1) * units_mask
         entropy_loss = entropy.sum() / active_units
 
-        values, _ = critic_train_state.apply_fn(
+        values = critic_train_state.apply_fn(
             critic_params,
-            critic_hstates,
             {
                 "states": transitions.states,
                 "match_steps": jnp.expand_dims(transitions.episode_info[:, :, 0], axis=2),
@@ -200,8 +196,6 @@ def ppo_update(
         "adv_mean": adv_mean,
         "adv_std": adv_std,
         "loss": loss,
-        "actor_gru_hn_mean": grads_mean[0]['params']['ScannedRNN_0']['GRUCell_0']['hn']['kernel'],
-        "actor_gru_hn_std":  grads_std[0]['params']['ScannedRNN_0']['GRUCell_0']['hn']['kernel'],
         "actor_resblock_mean": grads_mean[0]['params']['ResidualBlock_0']['Conv_0']['kernel'],
         "actor_resblock_std": grads_std[0]['params']['ResidualBlock_0']['Conv_0']['kernel'],
         "actor_dense6_mean": grads_mean[0]['params']['Dense_6']['kernel'],

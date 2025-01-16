@@ -36,8 +36,6 @@ def evaluate(
             observations,
             states,
             (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
-            p0_prev_actor_hstates,
-            p1_prev_actor_hstates,
         ) = runner_state
 
         (
@@ -55,9 +53,8 @@ def evaluate(
         p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
         p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-        p0_logits, p0_new_actor_hstates = actor_train_state.apply_fn(
+        p0_logits = actor_train_state.apply_fn(
             actor_train_state.params,
-            p0_prev_actor_hstates,
             {
                 "states": p0_agent_states,
                 "observations": p0_agent_observations,
@@ -100,9 +97,8 @@ def evaluate(
         p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
         p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
 
-        p1_logits, p1_new_actor_hstates = opponent_state.apply_fn(
+        p1_logits = opponent_state.apply_fn(
             opponent_state.params,
-            p1_prev_actor_hstates,
             {
                 "states": p1_agent_states,
                 "observations": p1_agent_observations,
@@ -172,17 +168,11 @@ def evaluate(
             next_observations,
             next_states,
             (p0_new_discovered_relic_nodes, p1_new_discovered_relic_nodes),
-            p0_new_actor_hstates,
-            p1_new_actor_hstates,
         )
     
         return runner_state, info
 
     p0_representations, p1_representations, observations, states = v_reset(meta_keys, meta_env_params)
-
-    p0_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 128)
-
-    p1_actor_init_hstates = ScannedRNN.initialize_carry(n_envs * n_agents, 128)
 
     runner_state = (
         rng,
@@ -191,8 +181,6 @@ def evaluate(
         observations,
         states,
         (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
-        p0_actor_init_hstates,
-        p1_actor_init_hstates,
     )
 
     runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
