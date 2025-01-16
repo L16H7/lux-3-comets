@@ -9,6 +9,8 @@ from typing import TypedDict
 
 
 class ScannedRNN(nn.Module):
+    hidden_size: int
+
     @functools.partial(
         nn.scan,
         variable_broadcast="params",
@@ -18,16 +20,35 @@ class ScannedRNN(nn.Module):
     )
     @nn.compact
     def __call__(self, carry, x):
-        """Applies the module."""
         rnn_state = carry
-        new_rnn_state, y = nn.GRUCell(features=x.shape[1])(rnn_state, x)
+        
+        # Input normalization
+        x = nn.Dense(features=self.hidden_size)(x)
+        x = nn.LayerNorm()(x)
+        
+        # Process input
+        gru_cell = nn.GRUCell(
+            features=self.hidden_size,
+            kernel_init=nn.initializers.orthogonal(1.0),
+            recurrent_kernel_init=nn.initializers.orthogonal(1.0),
+            bias_init=nn.initializers.zeros
+        )
+        
+        # Add skip connection within GRU
+        new_rnn_state, y = gru_cell(rnn_state, x)
+        
+        # Output processing
+        y = nn.LayerNorm()(y)
+        
+        # Controlled residual connection
+        alpha = self.param('alpha', nn.initializers.ones, ())
+        y = y + alpha * x
+        
         return new_rnn_state, y
 
     @staticmethod
     def initialize_carry(batch_size, hidden_size):
-        # Use a dummy key since the default state init fn is just zeros.
-        cell = nn.GRUCell(features=hidden_size)
-        return cell.initialize_carry(jax.random.PRNGKey(0), (batch_size, hidden_size))
+        return jnp.ones((batch_size, hidden_size)) * 0.1
 
 
 def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
@@ -191,7 +212,7 @@ class Actor(nn.Module):
             ]
         )
 
-        hstate, temporal_embeddings = ScannedRNN()(
+        hstate, temporal_embeddings = ScannedRNN(hidden_size=128)(
             hstate,
             jnp.concat([
                 state_embeddings.reshape((seq_len, batch_size, -1)),
@@ -200,9 +221,9 @@ class Actor(nn.Module):
         )
 
         embeddings = jnp.concat([
-            # temporal_embeddings.reshape((seq_len, batch_size, -1)),
-            state_embeddings.reshape((seq_len, batch_size, -1)),
-            info_embeddings,
+            temporal_embeddings.reshape((seq_len, batch_size, -1)),
+            # state_embeddings.reshape((seq_len, batch_size, -1)),
+            # info_embeddings,
             env_info_embeddings,
             position_embeddings,
             observation_embeddings.reshape((seq_len, batch_size, -1)),
@@ -311,7 +332,7 @@ class Critic(nn.Module):
             ]
         )
 
-        hstate, out = ScannedRNN()(hstate, embeddings)
-        # values = critic(out)
-        values = critic(embeddings)
+        hstate, out = ScannedRNN(hidden_size=256)(hstate, embeddings)
+        values = critic(out)
+        # values = critic(embeddings)
         return values, hstate
