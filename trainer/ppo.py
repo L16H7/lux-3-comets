@@ -22,7 +22,6 @@ class Transition(NamedTuple):
     logits2_mask: jnp.ndarray
     logits3_mask: jnp.ndarray
     env_information: jnp.ndarray
-    agent_ids: jnp.ndarray
 
 
 def calculate_gae(
@@ -33,7 +32,7 @@ def calculate_gae(
 ) -> tuple[jax.Array, jax.Array]:
     # single iteration for the loop
     def _get_advantages(gae_and_next_value, transition: Transition):
-        values = transition.values.repeat(16)
+        values = transition.values
         gae, next_value = gae_and_next_value
         delta = transition.rewards + gamma * next_value * (1 - transition.dones) - values
         gae = delta + gamma * gae_lambda * (1 - transition.dones) * gae
@@ -46,7 +45,7 @@ def calculate_gae(
         reverse=True,
     )
     # advantages and values (Q)
-    return advantages, advantages + transitions.values.repeat(16, axis=1)
+    return advantages, advantages + transitions.values
 
 def ppo_update(
     actor_train_state: TrainState,
@@ -58,10 +57,9 @@ def ppo_update(
     vf_coef: float,
     ent_coef: float,
 ):
-    units_mask = transitions.units_mask.reshape(-1)
+    units_mask = transitions.units_mask
     active_units = units_mask.sum() + 1e-8
 
-    advantages = advantages.reshape(-1)
     adv_mean = advantages.mean()
     adv_std = advantages.std()
     advantages = (advantages - adv_mean) / (adv_std + 1e-8)
@@ -74,15 +72,14 @@ def ppo_update(
                 "states": transitions.agent_states,
                 "observations": transitions.observations,
                 "positions": transitions.agent_positions,
-                "match_steps": jnp.expand_dims(transitions.agent_episode_info[:, :, 0], axis=2),
-                "matches": jnp.expand_dims(transitions.agent_episode_info[:, :, 1], axis=2),
-                "team_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 2], axis=2),
-                "opponent_points": jnp.expand_dims(transitions.agent_episode_info[:, :, 3], axis=2),
-                "unit_move_cost": jnp.expand_dims(transitions.env_information[:, :, 0], axis=2),
-                "unit_sap_cost": jnp.expand_dims(transitions.env_information[:, :, 1], axis=2),
-                "unit_sap_range": jnp.expand_dims(transitions.env_information[:, :, 2], axis=2),
-                "unit_sensor_range": jnp.expand_dims(transitions.env_information[:, :, 3], axis=2),
-                "agent_ids": transitions.agent_ids,
+                "match_steps": transitions.agent_episode_info[:, 0],
+                "matches": transitions.agent_episode_info[:, 1],
+                "team_points": transitions.agent_episode_info[:, 2],
+                "opponent_points": transitions.agent_episode_info[:, 3],
+                "unit_move_cost": transitions.env_information[:, 0],
+                "unit_sap_cost": transitions.env_information[:, 1],
+                "unit_sap_range": transitions.env_information[:, 2],
+                "unit_sensor_range": transitions.env_information[:, 3],
             }
         )
         logits1, logits2, logits3 = logits
@@ -111,15 +108,15 @@ def ppo_update(
         dist3 = distrax.Categorical(logits=masked_logits3)
         dist = distrax.Joint([dist1, dist2, dist3])
 
-        n_steps, n_agents = transitions.observations.shape[:2]
         log_probs = dist.log_prob(
             [
-                transitions.actions[..., 0].reshape(n_steps, n_agents),
-                transitions.actions[..., 1].reshape(n_steps, n_agents),
-                transitions.actions[..., 2].reshape(n_steps, n_agents)
+                transitions.actions[..., 0],
+                transitions.actions[..., 1],
+                transitions.actions[..., 2],
             ]
         )
-        log_ratio = log_probs.reshape(-1) - transitions.log_probs.reshape(-1)
+
+        log_ratio = log_probs - transitions.log_probs
         log_ratio = log_ratio * units_mask
         
         ratio = jnp.exp(log_ratio)
@@ -135,27 +132,24 @@ def ppo_update(
         values = critic_train_state.apply_fn(
             critic_params,
             {
-                "states": transitions.states,
-                "match_steps": jnp.expand_dims(transitions.episode_info[:, :, 0], axis=2),
-                "matches": jnp.expand_dims(transitions.episode_info[:, :, 1], axis=2),
-                "team_points": jnp.expand_dims(transitions.episode_info[:, :, 2], axis=2),
-                "opponent_points": jnp.expand_dims(transitions.episode_info[:, :, 3], axis=2),
+                "states": transitions.agent_states,
+                "match_steps": transitions.agent_episode_info[:, 0],
+                "matches": transitions.agent_episode_info[:, 1],
+                "team_points": transitions.agent_episode_info[:, 2],
+                "opponent_points": transitions.agent_episode_info[:, 3],
             }
         )
         values = values.reshape(-1)
 
-        value_pred_clipped = transitions.values.reshape(-1) + (values - transitions.values.reshape(-1)).clip(-clip_eps, clip_eps)
+        value_pred_clipped = transitions.values + (values - transitions.values).clip(-clip_eps, clip_eps)
 
-        # this is needed because we calculate targets for each agent in a state
-        value_targets = targets.reshape(targets.shape[0], -1, 16).mean(axis=2).reshape(-1)
-        value_loss = jnp.square(values - value_targets)
-        value_loss_clipped = jnp.square(value_pred_clipped - value_targets)
+        value_loss = jnp.square(values - targets)
+        value_loss_clipped = jnp.square(value_pred_clipped - targets)
         value_loss = 0.5 * jnp.maximum(value_loss, value_loss_clipped).mean()
 
         loss = actor_loss + vf_coef * value_loss - ent_coef * entropy_loss
 
-        explained_var = 1 - jnp.var(values - value_targets) / (jnp.var(value_targets) + 1e-8)
-
+        explained_var = 1 - jnp.var(values - targets) / (jnp.var(targets) + 1e-8)
         approx_kl = ((ratio - 1.0) - log_ratio).sum() / active_units # http://joschu.net/blog/kl-approx.html
         clip_frac = (abs((ratio - 1.0)) > clip_eps).sum() / active_units
 
