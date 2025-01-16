@@ -622,10 +622,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
@@ -725,14 +725,14 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=4,
-        n_envs_per_device=4,
-        n_eval_envs=4,
-        n_minibatches=2,
+        n_envs=512,
+        n_envs_per_device=512,
+        n_eval_envs=256,
+        n_minibatches=32,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
-        wandb_project="point-map",
+        wandb_project="no-rnn",
         train_seed=42,
         entropy_coeff=0.005
     )
