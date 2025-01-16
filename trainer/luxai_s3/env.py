@@ -788,18 +788,18 @@ class LuxAIS3Env(environment.Environment):
 
         collision_destroyed_rewards = jnp.concat([p0_collision_destroyed_rewards, p1_collision_destroyed_rewards], axis=0)
 
-        rewards = point_rewards + sap_destroyed_rewards + collision_destroyed_rewards
+        # rewards = point_rewards + sap_destroyed_rewards + collision_destroyed_rewards
         
         energy = jnp.squeeze(state.units.energy, axis=-1)
-        rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
+        # rewards = jnp.where(energy == 0, jnp.minimum(rewards, -0.01), rewards) * initial_units_mask
 
         terminated = self.is_terminal(state, params)
 
         win_rewards = jnp.zeros((2, 16))
-        win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 3.0, 0.0))
+        win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 1.0, 0.0))
         lose_rewards = jnp.zeros((2, 16))
-        lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -3.0, 0.0))
-        rewards = rewards + win_rewards + lose_rewards
+        lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -1.0, 0.0))
+        rewards = win_rewards + lose_rewards
 
         return (
             lax.stop_gradient(self.get_obs(state, params, key=key)),
