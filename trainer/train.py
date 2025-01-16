@@ -154,14 +154,7 @@ def make_train(config: Config):
             p0_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2)) * -1
             p1_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2)) * -1
 
-            unit_move_cost, unit_sap_cost, unit_sap_range, unit_sensor_range = get_env_info(meta_env_params)
-            env_information = jnp.squeeze(jnp.concatenate([
-                unit_move_cost,
-                unit_sap_cost,
-                unit_sap_range,
-                unit_sensor_range,
-            ], axis=-1).repeat(2, axis=1), axis=0) # SELF PLAY
-            # ], axis=-1), axis=0) # FIXED OPPONENT
+            env_info = get_env_info(meta_env_params)
 
             def _update_step(runner_state: RunnerState, _):
                 def _env_step(runner_state: RunnerState, _):
@@ -179,34 +172,31 @@ def make_train(config: Config):
 
                     (
                         p0_states,
-                        p0_observations,
+                        p0_agent_observations,
                         p0_episode_info,
                         p0_points_map,
-                        p0_team_positions,
+                        p0_agent_positions,
                         p0_agent_ids,
                         p0_units_mask,
                     ) = p0_representations
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
-                    p0_agent_states = jnp.expand_dims(p0_states, axis=0).repeat(config.n_agents, axis=1) # 1, N_TOTAL_AGENTS, 11, 24, 24
-                    p0_agent_observations = p0_observations.reshape(1, -1, 10, 17, 17)
-                    p0_agent_positions = jnp.reshape(p0_team_positions, (1, N_TOTAL_AGENTS, 2))
+                    p0_agent_states = p0_states.repeat(config.n_agents, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
 
                     p0_logits = actor_train_state.apply_fn(
                         actor_train_state.params,
                         {
                             "states": p0_agent_states,
-                            "observations": p0_agent_observations,
-                            "positions": p0_agent_positions,
-                            "match_steps": jnp.expand_dims(p0_agent_episode_info[:, 0], axis=[0, -1]),
-                            "matches": jnp.expand_dims(p0_agent_episode_info[:, 1], axis=[0, -1]),
-                            "team_points": jnp.expand_dims(p0_agent_episode_info[:, 2], axis=[0, -1]),
-                            "opponent_points": jnp.expand_dims(p0_agent_episode_info[:, 3], axis=[0, -1]),
-                            "unit_move_cost": unit_move_cost,
-                            "unit_sap_cost": unit_sap_cost,
-                            "unit_sap_range": unit_sap_range,
-                            "unit_sensor_range": unit_sensor_range,
-                            "agent_ids": jnp.expand_dims(p0_agent_ids, axis=0),
+                            "observations": p0_agent_observations.reshape(-1, 10, 17, 17),
+                            "positions": p0_agent_positions.reshape(-1, 2),
+                            "match_steps": p0_agent_episode_info[:, 0],
+                            "matches": p0_agent_episode_info[:, 1],
+                            "team_points": p0_agent_episode_info[:, 2],
+                            "opponent_points": p0_agent_episode_info[:, 3],
+                            "unit_move_cost": env_info[:, 0],
+                            "unit_sap_cost": env_info[:, 1],
+                            "unit_sap_range": env_info[:, 2],
+                            "unit_sensor_range": env_info[:, 3],
                         }
                     )
 
@@ -223,28 +213,26 @@ def make_train(config: Config):
                     p0_values = critic_train_state.apply_fn(
                         critic_train_state.params,
                         {
-                            "states": jnp.expand_dims(p0_states, axis=0),
-                            "match_steps": jnp.expand_dims(p0_episode_info[:, 0], axis=[0, -1]),
-                            "matches": jnp.expand_dims(p0_episode_info[:, 1], axis=[0, -1]),
-                            "team_points": jnp.expand_dims(p0_episode_info[:, 2], axis=[0, -1]),
-                            "opponent_points": jnp.expand_dims(p0_episode_info[:, 3], axis=[0, -1]),
+                            "states": p0_states,
+                            "match_steps": p0_episode_info[:, 0],
+                            "matches": p0_episode_info[:, 1],
+                            "team_points": p0_episode_info[:, 2],
+                            "opponent_points": p0_episode_info[:, 3],
                         }
                     )
 
                     (
                         p1_states,
-                        p1_observations,
+                        p1_agent_observations,
                         p1_episode_info,
                         p1_points_map,
-                        p1_team_positions,
+                        p1_agent_positions,
                         p1_agent_ids,
                         p1_units_mask,
                     ) = p1_representations
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
-                    p1_agent_states = jnp.expand_dims(p1_states, axis=0).repeat(16, axis=1) # 1, N_TOTAL_AGENTS, 10, 24, 24
-                    p1_agent_observations = p1_observations.reshape(1, -1, 10, 17, 17)
-                    p1_agent_positions = jnp.reshape(p1_team_positions, (1, N_TOTAL_AGENTS, 2))
+                    p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
 
                     # FIXED OPPONENT
                     # p1_logits = opponent_state.apply_fn(
@@ -254,17 +242,16 @@ def make_train(config: Config):
                         actor_train_state.params,
                         {
                             "states": p1_agent_states,
-                            "observations": p1_agent_observations,
-                            "positions": p1_agent_positions,
-                            "match_steps": jnp.expand_dims(p1_agent_episode_info[:, 0], axis=[0, -1]),
-                            "matches": jnp.expand_dims(p1_agent_episode_info[:, 1], axis=[0, -1]),
-                            "team_points": jnp.expand_dims(p1_agent_episode_info[:, 2], axis=[0, -1]),
-                            "opponent_points": jnp.expand_dims(p1_agent_episode_info[:, 3], axis=[0, -1]),
-                            "unit_move_cost": unit_move_cost,
-                            "unit_sap_cost": unit_sap_cost,
-                            "unit_sap_range": unit_sap_range,
-                            "unit_sensor_range": unit_sensor_range,
-                            "agent_ids": jnp.expand_dims(p1_agent_ids, axis=0),
+                            "observations": p1_agent_observations.reshape(-1, 10, 17, 17),
+                            "positions": p1_agent_positions.reshape(-1, 2),
+                            "match_steps": p1_agent_episode_info[:, 0],
+                            "matches": p1_agent_episode_info[:, 1],
+                            "team_points": p1_agent_episode_info[:, 2],
+                            "opponent_points": p1_agent_episode_info[:, 3],
+                            "unit_move_cost": env_info[:, 0],
+                            "unit_sap_cost": env_info[:, 1],
+                            "unit_sap_range": env_info[:, 2],
+                            "unit_sensor_range": env_info[:, 3],
                         }
                     )
 
@@ -281,11 +268,11 @@ def make_train(config: Config):
                     p1_values = critic_train_state.apply_fn(
                         critic_train_state.params,
                         {
-                            "states": jnp.expand_dims(p1_states, axis=0),
-                            "match_steps": jnp.expand_dims(p1_episode_info[:, 0], axis=[0, -1]),
-                            "matches": jnp.expand_dims(p1_episode_info[:, 1], axis=[0, -1]),
-                            "team_points": jnp.expand_dims(p1_episode_info[:, 2], axis=[0, -1]),
-                            "opponent_points": jnp.expand_dims(p1_episode_info[:, 3], axis=[0, -1]),
+                            "states": p1_states,
+                            "match_steps": p1_episode_info[:, 0],
+                            "matches": p1_episode_info[:, 1],
+                            "team_points": p1_episode_info[:, 2],
+                            "opponent_points": p1_episode_info[:, 3],
                         }
                     )
 
@@ -318,8 +305,8 @@ def make_train(config: Config):
                         }),
                         p0_new_discovered_relic_nodes,
                         p1_new_discovered_relic_nodes,
-                        p0_team_positions,
-                        p1_team_positions,
+                        p0_agent_positions,
+                        p1_agent_positions,
                         p0_points_map,
                         p1_points_map,
                         meta_keys,
@@ -330,8 +317,9 @@ def make_train(config: Config):
                     p1_rewards = rewards[:, 1, :].reshape(1, -1, 1)
 
                     # COMMENT FOR FIXED OPPONENT
+                    import pdb; pdb.set_trace()
                     transition = Transition(
-                        agent_states=jnp.squeeze(jnp.concat([p0_agent_states, p1_agent_states], axis=1), axis=0),
+                        agent_states=jnp.concat([p0_agent_states, p1_agent_states], axis=0),
                         observations=jnp.squeeze(jnp.concat([p0_agent_observations, p1_agent_observations], axis=1), axis=0),
                         states=jnp.concat([p0_states, p1_states], axis=0),
                         episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),

@@ -7,7 +7,6 @@ from agent import get_actions, vectorized_transform_actions, transform_coordinat
 from constants import Constants
 from opponent import get_actions as get_opponent_actions
 from representation import get_env_info
-from rnn import ScannedRNN
 
 
 def evaluate(

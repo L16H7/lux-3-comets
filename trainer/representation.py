@@ -135,18 +135,25 @@ def create_agent_patches(state_representation, unit_positions_team):
 
 def get_env_info(env_params):
     unit_move_cost = jnp.expand_dims(
-        env_params.unit_move_cost, axis=[0, -1]
+        env_params.unit_move_cost, axis=-1
     ).repeat(16, axis=1) / 8.0
     unit_sap_cost = (jnp.expand_dims(
-        env_params.unit_sap_cost, axis=[0, -1]
+        env_params.unit_sap_cost, axis=-1
     ).repeat(16, axis=1) - 30.0) / 20.0
     unit_sap_range = jnp.expand_dims(
-        env_params.unit_sap_range, axis=[0, -1]
+        env_params.unit_sap_range, axis=-1
     ).repeat(16, axis=1) / 8.0
     unit_sensor_range = jnp.expand_dims(
-        env_params.unit_sensor_range, axis=[0, -1]
+        env_params.unit_sensor_range, axis=-1
     ).repeat(16, axis=1) / 8.0
-    return unit_move_cost, unit_sap_cost, unit_sap_range, unit_sensor_range
+
+    env_info = jnp.concatenate([
+        unit_move_cost[..., None],
+        unit_sap_cost[..., None],
+        unit_sap_range[..., None],
+        unit_sensor_range[..., None]
+    ], axis=-1)
+    return env_info.reshape(-1, 4)
 
 
 def create_representations(

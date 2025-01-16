@@ -5,41 +5,38 @@ from flax.training.train_state import TrainState
 import jax.numpy as jnp
 
 from config import Config
-from rnn import Actor, Critic, ScannedRNN
+from rnn import Actor, Critic
 
 
 def make_states(config: Config):
     rng = jax.random.PRNGKey(config.train_seed)
     actor = Actor(n_actions=6)
     BATCH = 16
-    SEQ = 2
-    actor_init_hstate = ScannedRNN.initialize_carry(BATCH, 128)
-    actor_network_params = actor.init(rng, actor_init_hstate, {
-        "states": jnp.zeros((SEQ, BATCH, 10, 24, 24)),
-        "observations": jnp.zeros((SEQ, BATCH, 10, 17, 17)),
-        "match_steps": jnp.zeros((SEQ, BATCH, 1), dtype=jnp.float32),
-        "matches": jnp.zeros((SEQ, BATCH, 1), dtype=jnp.float32),
-        "positions": jnp.zeros((SEQ, BATCH, 2), dtype=jnp.int32),
-        "team_points": jnp.zeros((SEQ, BATCH, 1)),
-        "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
-        "unit_move_cost": jnp.zeros((SEQ, BATCH, 1)),
-        "unit_sap_cost": jnp.zeros((SEQ, BATCH, 1)),
-        "unit_sap_range": jnp.zeros((SEQ, BATCH, 1)),
-        "unit_sensor_range": jnp.zeros((SEQ, BATCH, 1)),
-        "agent_ids": jnp.zeros((SEQ, BATCH, 1)),
+    actor_network_params = actor.init(rng, {
+        "states": jnp.zeros((BATCH, 10, 24, 24)),
+        "observations": jnp.zeros((BATCH, 10, 17, 17)),
+        "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
+        "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
+        "positions": jnp.zeros((BATCH, 2), dtype=jnp.int32),
+        "team_points": jnp.zeros((BATCH,)),
+        "opponent_points": jnp.zeros((BATCH,)),
+        "unit_move_cost": jnp.zeros((BATCH,)),
+        "unit_sap_cost": jnp.zeros((BATCH,)),
+        "unit_sap_range": jnp.zeros((BATCH,)),
+        "unit_sensor_range": jnp.zeros((BATCH,)),
+        "agent_ids": jnp.zeros((BATCH,)),
     })
 
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(actor_network_params))
     print(f"Number of actor parameters: {num_params:,}")
 
     critic = Critic()
-    critic_init_hstate = ScannedRNN.initialize_carry(BATCH, 256)
-    critic_network_params = critic.init(rng, critic_init_hstate, {
-        "states": jnp.zeros((SEQ, BATCH, 10, 24, 24)),
-        "match_steps": jnp.zeros((SEQ, BATCH, 1)),
-        "matches": jnp.zeros((SEQ, BATCH, 1)),
-        "team_points": jnp.zeros((SEQ, BATCH, 1)),
-        "opponent_points": jnp.zeros((SEQ, BATCH, 1)),
+    critic_network_params = critic.init(rng, {
+        "states": jnp.zeros((BATCH, 10, 24, 24)),
+        "match_steps": jnp.zeros((BATCH,)),
+        "matches": jnp.zeros((BATCH,)),
+        "team_points": jnp.zeros((BATCH,)),
+        "opponent_points": jnp.zeros((BATCH,)),
     })
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(critic_network_params))
     print(f"Number of critic parameters: {num_params:,}")
