@@ -132,14 +132,14 @@ def ppo_update(
         values = critic_train_state.apply_fn(
             critic_params,
             {
-                "states": transitions.agent_states,
-                "match_steps": transitions.agent_episode_info[:, 0],
-                "matches": transitions.agent_episode_info[:, 1],
-                "team_points": transitions.agent_episode_info[:, 2],
-                "opponent_points": transitions.agent_episode_info[:, 3],
+                "states": transitions.states,
+                "match_steps": transitions.episode_info[:, 0],
+                "matches": transitions.episode_info[:, 1],
+                "team_points": transitions.episode_info[:, 2],
+                "opponent_points": transitions.episode_info[:, 3],
             }
         )
-        values = values.reshape(-1)
+        values = values.repeat(16, axis=0).reshape(-1)
 
         value_pred_clipped = transitions.values + (values - transitions.values).clip(-clip_eps, clip_eps)
 
