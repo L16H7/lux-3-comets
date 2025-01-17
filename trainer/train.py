@@ -327,8 +327,6 @@ def make_train(config: Config):
                     transition = Transition(
                         agent_states=jnp.concat([p0_agent_states, p1_agent_states], axis=0),
                         observations=jnp.concat([p0_agent_observations, p1_agent_observations], axis=0),
-                        states=jnp.concat([p0_states, p1_states], axis=0),
-                        episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),
                         agent_episode_info=jnp.concat([p0_agent_episode_info, p1_agent_episode_info], axis=0),
                         actions=jnp.concat([p0_actions.reshape(-1, 3), p1_actions.reshape(-1, 3)], axis=0),
                         log_probs=jnp.concat([p0_log_probs, p1_log_probs], axis=0),
@@ -480,7 +478,27 @@ def make_train(config: Config):
                     ) = update_state
 
                     rng, _rng = jax.random.split(rng)
-                    permutation = jax.random.permutation(_rng, config.n_minibatches)
+                    
+                    n_steps, n_agents = transitions.observations.shape[:2]
+                    total_samples = n_steps * n_agents
+                    
+                    # Create a flat index array and shuffle it
+                    rng, shuffle_rng = jax.random.split(_rng)
+                    flat_indices = jax.random.permutation(shuffle_rng, total_samples)
+                    
+                    # Helper function to reshape and shuffle an array
+                    def reshape_and_shuffle(x):
+                        # Flatten the first two dimensions (time steps and agents)
+                        flat_shape = [total_samples] + list(x.shape[2:])
+                        flattened = jnp.reshape(x, flat_shape)
+                        
+                        # Apply the shuffled indices
+                        shuffled = jnp.take(flattened, flat_indices, axis=0)
+                        
+                        # Reshape into minibatches
+                        minibatch_size = total_samples // config.n_minibatches
+                        minibatch_shape = [config.n_minibatches, minibatch_size] + list(x.shape[2:])
+                        return jnp.reshape(shuffled, minibatch_shape)
 
                     batch = (
                         transitions,
@@ -488,19 +506,11 @@ def make_train(config: Config):
                         targets,
                     )
 
-                    minibatches = jax.tree_util.tree_map(
-                        lambda x: jnp.reshape(
-                            x,
-                            [config.n_minibatches, -1]
-                            + list(x.shape[2:]),
-                        ),
+                    shuffled_minibatches = jax.tree_util.tree_map(
+                        reshape_and_shuffle,
                         batch,
                     )
-
-                    shuffled_minibatches = jax.tree_util.tree_map(
-                        lambda x: jnp.take(x, permutation, axis=0), minibatches
-                    )
-
+    
                     (updated_actor_train_state, updated_critic_train_state), loss_info = jax.lax.scan(
                         _update_minibatch,
                         (actor_train_states, critic_train_states),

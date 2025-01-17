@@ -8,9 +8,7 @@ from typing import NamedTuple
 class Transition(NamedTuple):
     agent_states: jnp.ndarray
     observations: jnp.ndarray
-    episode_info: jnp.ndarray
     agent_episode_info: jnp.ndarray
-    states: jnp.ndarray
     actions: jnp.ndarray
     log_probs: jnp.ndarray
     values: jnp.ndarray
