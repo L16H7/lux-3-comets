@@ -89,28 +89,33 @@ class ActorInput(TypedDict):
 class Actor(nn.Module):
     n_actions: int = 6
     info_emb_dim: int = 32
-    action_emb_dim: int = 16
-    hidden_dim: int = 128
+    hidden_dim: int = 256
     position_emb_dim: int = 32
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
         state_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(32, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.gelu,
             ResidualBlock(32),
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(64, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.gelu,
-            nn.Dense(256, kernel_init=orthogonal(math.sqrt(2))),
+            ResidualBlock(64),
+            nn.Conv(128, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.Dense(128, kernel_init=orthogonal(math.sqrt(2))),
             nn.gelu
         ])
 
         observation_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(32, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.gelu,
             ResidualBlock(32),
-            nn.Conv(64, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(64, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.gelu,
+            ResidualBlock(64),
+            nn.Conv(128, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu,
+            ResidualBlock(128),
             nn.Dense(256, kernel_init=orthogonal(math.sqrt(2))),
             nn.gelu
         ])
@@ -120,12 +125,10 @@ class Actor(nn.Module):
         observation_embeddings = observation_encoder(
             actor_input['observations'].transpose((0, 2, 3, 1))
         )
-        observation_embeddings = jnp.mean(observation_embeddings, axis=(1, 2))
 
         state_embeddings = state_encoder(
             actor_input['states'].transpose((0, 2, 3, 1))
         )
-        state_embeddings = jnp.mean(state_embeddings, axis=(1, 2))
 
         position_embeddings = get_2d_positional_embeddings(
             actor_input['positions'],
@@ -171,11 +174,11 @@ class Actor(nn.Module):
         )
 
         embeddings = jnp.concat([
-            state_embeddings,
+            state_embeddings.reshape(batch_size, -1),
             info_embeddings,
             env_info_embeddings,
             position_embeddings,
-            observation_embeddings,
+            observation_embeddings.reshape(batch_size, -1),
         ], axis=-1)
 
         x = actor(embeddings)
@@ -206,20 +209,22 @@ class Critic(nn.Module):
     @nn.compact
     def __call__(self, critic_input):
         state_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(32, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.gelu,
             ResidualBlock(32),
-            nn.Conv(64, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(64, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.gelu,
             ResidualBlock(64),
+            nn.Conv(128, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
             nn.Dense(256, kernel_init=orthogonal(math.sqrt(2))),
             nn.gelu
         ])
         
+        batch_size = critic_input['states'].shape[0]
+
         state_embeddings = state_encoder(
             critic_input['states'].transpose((0, 2, 3, 1))
         )
-        state_embeddings = jnp.mean(state_embeddings, axis=(1, 2))
 
         info_input = jnp.stack([
             critic_input['team_points'],
@@ -235,7 +240,7 @@ class Critic(nn.Module):
         ])(info_input)
 
         embeddings = jnp.concat([
-            state_embeddings,
+            state_embeddings.reshape(batch_size, -1),
             info_embeddings,
         ], axis=-1)
 
