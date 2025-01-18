@@ -111,7 +111,7 @@ def ppo_update(
         log_probs2 = dist2.log_prob(transitions.actions[..., 1])
         log_probs3 = dist3.log_prob(transitions.actions[..., 2])
 
-        target_log_probs_mask = (transitions.actions[..., 0] == 6)
+        target_log_probs_mask = (transitions.actions[..., 0] == 5)
         log_probs = log_probs1 + (log_probs2 * target_log_probs_mask) + (log_probs3 * target_log_probs_mask)
 
         log_ratio = log_probs - transitions.log_probs
