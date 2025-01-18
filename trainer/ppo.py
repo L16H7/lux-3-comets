@@ -106,15 +106,13 @@ def ppo_update(
         dist1 = distrax.Categorical(logits=masked_logits1)
         dist2 = distrax.Categorical(logits=masked_logits2)
         dist3 = distrax.Categorical(logits=masked_logits3)
-        dist = distrax.Joint([dist1, dist2, dist3])
 
-        log_probs = dist.log_prob(
-            [
-                transitions.actions[..., 0],
-                transitions.actions[..., 1],
-                transitions.actions[..., 2],
-            ]
-        )
+        log_probs1 = dist1.log_prob(transitions.actions[..., 0])
+        log_probs2 = dist2.log_prob(transitions.actions[..., 1])
+        log_probs3 = dist3.log_prob(transitions.actions[..., 2])
+
+        target_log_probs_mask = (transitions.actions[..., 0] == 6)
+        log_probs = log_probs1 + (log_probs2 * target_log_probs_mask) + (log_probs3 * target_log_probs_mask)
 
         log_ratio = log_probs - transitions.log_probs
         log_ratio = log_ratio * units_mask
@@ -126,7 +124,12 @@ def ppo_update(
 
         actor_loss = -jnp.minimum(actor_loss1, actor_loss2).sum() / active_units
         
-        entropy = dist.entropy().reshape(-1) * units_mask
+        entropy1 = dist1.entropy().reshape(-1) * units_mask
+        entropy2 = dist2.entropy().reshape(-1) * units_mask * target_log_probs_mask
+        entropy3 = dist3.entropy().reshape(-1) * units_mask * target_log_probs_mask
+
+        entropy = entropy1 + entropy2 + entropy3
+
         entropy_loss = entropy.sum() / active_units
 
         values = critic_train_state.apply_fn(

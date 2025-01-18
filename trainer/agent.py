@@ -210,7 +210,8 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     actions3, log_probs3 = dist3.sample_and_log_prob(seed=action_rng3)
     actions = [actions1, actions2, actions3]
 
-    log_probs = log_probs1 + log_probs2 + log_probs3
+    target_log_probs_mask = (actions1 == 6)
+    log_probs = log_probs1 + (log_probs2 * target_log_probs_mask) + (log_probs3 * target_log_probs_mask)
 
     actions = jnp.stack([actions1.reshape(-1), actions2.reshape(-1), actions3.reshape(-1)])
     actions = actions.T.reshape(n_envs, 16, -1)
