@@ -183,9 +183,12 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits1 = jnp.where(logits1_mask.reshape(logits1.shape), logits1, large_negative)
     masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
 
-    rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
-    action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
-    action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
+    dist1 = distrax.Categorical(logits=masked_logits1)
+    dist2 = distrax.Categorical(logits=masked_logits2)
+
+    rng, action_rng1, action_rng2, action_rng3 = jax.random.split(rng, num=4)
+    actions1, log_probs1 = dist1.sample_and_log_prob(seed=action_rng1)
+    actions2, log_probs2 = dist2.sample_and_log_prob(seed=action_rng2)
 
     target_y = jax.vmap(
         generate_attack_masks_y,
@@ -195,20 +198,15 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         target_positions.reshape(n_envs, -1, 2),
         sap_ranges,
         sap_ranges,
-        action2.reshape(n_envs, -1) - Constants.MAX_SAP_RANGE
+        actions2.reshape(n_envs, -1) - Constants.MAX_SAP_RANGE
     )
 
     logits3_mask = target_y
     logits3_mask = logits3_mask.reshape(logits3.shape)
     masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
 
-    dist1 = distrax.Categorical(logits=masked_logits1)
-    dist2 = distrax.Categorical(logits=masked_logits2)
     dist3 = distrax.Categorical(logits=masked_logits3)
 
-    rng, action_rng1, action_rng2, action_rng3 = jax.random.split(rng, num=4)
-    actions1, log_probs1 = dist1.sample_and_log_prob(seed=action_rng1)
-    actions2, log_probs2 = dist2.sample_and_log_prob(seed=action_rng2)
     actions3, log_probs3 = dist3.sample_and_log_prob(seed=action_rng3)
     actions = [actions1, actions2, actions3]
 
