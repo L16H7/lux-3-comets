@@ -246,12 +246,12 @@ def create_representations(
         team_energy_maps / 800.0,
         opponent_unit_maps / 4.0,
         opponent_energy_maps / 800.0,
-        relic_node_maps,
         energy_map.transpose((0, 2, 1)) / 20.0,
         asteroid_maps.transpose((0, 2, 1)),
         nebula_maps.transpose((0, 2, 1)),
         obs.sensor_mask.transpose((0, 2, 1)),
-        updated_points_map.transpose((0, 2, 1)),
+        relic_node_maps,
+        updated_points_map,
     ]
     state_representation = jnp.stack(maps, axis=1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
