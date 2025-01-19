@@ -236,13 +236,18 @@ def create_representations(
     # if points_gained[0] > 0:
     #     a = True
     # SCALE
+    energy_map = jnp.where(
+        obs.sensor_mask,
+        obs.map_features.energy,
+        0
+    )
     maps = [
         team_unit_maps / 4.0,
         team_energy_maps / 800.0,
         opponent_unit_maps / 4.0,
         opponent_energy_maps / 800.0,
         relic_node_maps,
-        obs.map_features.energy.transpose((0, 2, 1)) / 20.0,
+        energy_map.transpose((0, 2, 1)) / 20.0,
         asteroid_maps.transpose((0, 2, 1)),
         nebula_maps.transpose((0, 2, 1)),
         obs.sensor_mask.transpose((0, 2, 1)),
@@ -283,7 +288,7 @@ def create_representations(
         updated_points_map,
         agent_positions,
         agent_ids.reshape(-1, 1),
-        unit_masks_team,
+        unit_energies_team > 0, # mask energy depleted agents in ppo update
     )
         
 def create_agent_representations(
