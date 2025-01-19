@@ -63,7 +63,7 @@ def ppo_update(
     adv_mean = advantages.mean()
     adv_std = advantages.std()
     advantages = (advantages - adv_mean) / (adv_std + 1e-8)
-    advantages = advantages * units_mask
+    advantages = jnp.where(units_mask, advantages, 0)
 
     def _loss_fn(actor_params, critic_params):
         logits = actor_train_state.apply_fn(
@@ -112,10 +112,10 @@ def ppo_update(
         log_probs3 = dist3.log_prob(transitions.actions[..., 2])
 
         target_log_probs_mask = (transitions.actions[..., 0] == 5)
-        log_probs = log_probs1 + (log_probs2 * target_log_probs_mask) + (log_probs3 * target_log_probs_mask)
+        log_probs = log_probs1 + jnp.where(target_log_probs_mask, log_probs2, 0) + jnp.where(target_log_probs_mask, log_probs3, 0)
 
         log_ratio = log_probs - transitions.log_probs
-        log_ratio = log_ratio * units_mask
+        log_ratio = jnp.where(units_mask, log_ratio, 0)
         
         ratio = jnp.exp(log_ratio)
 
@@ -124,9 +124,10 @@ def ppo_update(
 
         actor_loss = -jnp.minimum(actor_loss1, actor_loss2).sum() / active_units
         
-        entropy1 = dist1.entropy().reshape(-1) * units_mask
-        entropy2 = dist2.entropy().reshape(-1) * units_mask * target_log_probs_mask
-        entropy3 = dist3.entropy().reshape(-1) * units_mask * target_log_probs_mask
+        entropy1 = jnp.where(units_mask, dist1.entropy(), 0)
+        target_log_probs_mask = jnp.where(units_mask, target_log_probs_mask, 0)
+        entropy2 = jnp.where(target_log_probs_mask, dist2.entropy(), 0)
+        entropy3 = jnp.where(target_log_probs_mask, dist3.entropy(), 0)
 
         entropy = entropy1 + entropy2 + entropy3
 
@@ -142,7 +143,7 @@ def ppo_update(
                 "opponent_points": transitions.episode_info[:, 3],
             }
         )
-        values = values.repeat(16, axis=0).reshape(-1)
+        values = jnp.squeeze(values.repeat(16, axis=0), axis=-1)
 
         value_pred_clipped = transitions.values + (values - transitions.values).clip(-clip_eps, clip_eps)
 
