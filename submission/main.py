@@ -1,7 +1,7 @@
 import json
 from argparse import Namespace
 
-from agent import Agent
+from rl_agent import Agent
 from lux.kit import from_json
 
 ### DO NOT REMOVE THE FOLLOWING CODE ###
