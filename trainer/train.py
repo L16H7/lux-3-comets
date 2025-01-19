@@ -30,7 +30,7 @@ from make_states import make_states
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
 from representation import create_agent_representations, transform_coordinates, get_env_info
-from rnn import Actor
+from model import Actor
 
 
 class RunnerState(NamedTuple):
@@ -622,10 +622,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
@@ -725,10 +725,10 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=512,
-        n_envs_per_device=512,
-        n_eval_envs=256,
-        n_minibatches=32,
+        n_envs=4,
+        n_envs_per_device=4,
+        n_eval_envs=4,
+        n_minibatches=2,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,

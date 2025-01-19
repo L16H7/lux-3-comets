@@ -5,7 +5,7 @@ from flax.training.train_state import TrainState
 import jax.numpy as jnp
 
 from config import Config
-from rnn import Actor, Critic
+from model import Actor, Critic
 
 
 def make_states(config: Config):
