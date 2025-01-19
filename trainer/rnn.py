@@ -8,28 +8,6 @@ from flax.linen.initializers import orthogonal
 from typing import TypedDict
 
 
-class ScannedRNN(nn.Module):
-    @functools.partial(
-        nn.scan,
-        variable_broadcast="params",
-        in_axes=0,
-        out_axes=0,
-        split_rngs={"params": False},
-    )
-    @nn.compact
-    def __call__(self, carry, x):
-        """Applies the module."""
-        rnn_state = carry
-        new_rnn_state, y = nn.GRUCell(features=x.shape[1])(rnn_state, x)
-        return new_rnn_state, y
-
-    @staticmethod
-    def initialize_carry(batch_size, hidden_size):
-        # Use a dummy key since the default state init fn is just zeros.
-        cell = nn.GRUCell(features=hidden_size)
-        return cell.initialize_carry(jax.random.PRNGKey(0), (batch_size, hidden_size))
-
-
 def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
     """
     Generate positional embeddings for 2D coordinates.
@@ -45,8 +23,6 @@ def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
     if embedding_dim % 4 != 0:
         raise ValueError("embedding_dim must be divisible by 4")
         
-    n_envs, n_units, _ = positions.shape
-    
     # Normalize positions to [-1, 1]
     positions = positions / (max_size / 2) - 1
     
@@ -55,9 +31,9 @@ def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
     freqs = 1.0 / (10000 ** (freq_bands / (embedding_dim // 4)))
     
     # Reshape for broadcasting
-    x = positions[..., 0:1]  # (n_envs, n_units, 1)
-    y = positions[..., 1:2]  # (n_envs, n_units, 1)
-    freqs = freqs.reshape(1, 1, -1)  # (1, 1, embedding_dim//4)
+    x = positions[..., 0:1]  # (n_units, 1)
+    y = positions[..., 1:2]  # (n_units, 1)
+    freqs = freqs.reshape(1, -1)  # (1, embedding_dim//4)
     
     # Calculate embeddings for x and y separately
     x_sines = jnp.sin(x * freqs * jnp.pi)
@@ -89,10 +65,11 @@ class ResidualBlock(nn.Module):
     def __call__(self, x):
         residual = x
         y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(x)
-        y = nn.leaky_relu(y)
+        y = nn.gelu(y)
+        y = nn.LayerNorm()(y)
         y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(y)
         y += residual  # Adding the input x to the output of the convolution block
-        return nn.leaky_relu(y)  # Apply activation after adding the residual
+        return nn.gelu(y)  # Apply activation after adding the residual
 
 
 class ActorInput(TypedDict):
@@ -112,40 +89,45 @@ class ActorInput(TypedDict):
 class Actor(nn.Module):
     n_actions: int = 6
     info_emb_dim: int = 32
-    action_emb_dim: int = 16
-    hidden_dim: int = 128
+    hidden_dim: int = 256
     position_emb_dim: int = 32
  
     @nn.compact
-    def __call__(self, hstate: jax.Array, actor_input: ActorInput):
+    def __call__(self, actor_input: ActorInput):
         state_encoder = nn.Sequential([
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
+            nn.Conv(32, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu,
             ResidualBlock(32),
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-            lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(128),
-            nn.leaky_relu
+            nn.Conv(64, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu,
+            ResidualBlock(64),
+            nn.Conv(128, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.Dense(128, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu
         ])
 
         observation_encoder = nn.Sequential([
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
+            nn.Conv(32, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu,
             ResidualBlock(32),
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-            lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(256),
-            nn.leaky_relu
+            nn.Conv(64, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu,
+            ResidualBlock(64),
+            nn.Conv(128, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu,
+            ResidualBlock(128),
+            nn.Dense(256, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu
         ])
 
-        seq_len, batch_size = actor_input['states'].shape[:2]
+        batch_size = actor_input['states'].shape[0]
+
         observation_embeddings = observation_encoder(
-            actor_input['observations'].reshape((-1, 10, 17, 17)).transpose((0, 2, 3, 1))
+            actor_input['observations'].transpose((0, 2, 3, 1))
         )
+
         state_embeddings = state_encoder(
-            actor_input['states'].reshape((-1, 10, 24, 24)).transpose((0, 2, 3, 1))
+            actor_input['states'].transpose((0, 2, 3, 1))
         )
 
         position_embeddings = get_2d_positional_embeddings(
@@ -154,14 +136,14 @@ class Actor(nn.Module):
             max_size=24
         )
 
-        info_input = jnp.concat([
+        info_input = jnp.stack([
             actor_input['team_points'],
             actor_input['opponent_points'],
             actor_input['match_steps'],
             actor_input['matches'],
         ], axis=-1)
 
-        env_info_input = jnp.concat([
+        env_info_input = jnp.stack([
             actor_input['unit_move_cost'],
             actor_input['unit_sap_cost'],
             actor_input['unit_sap_range'],
@@ -170,58 +152,47 @@ class Actor(nn.Module):
 
         info_embeddings = nn.Sequential([
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
+            nn.gelu,
         ])(info_input)
 
         env_info_embeddings = nn.Sequential([
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
+            nn.gelu,
         ])(env_info_input)
 
         actor = nn.Sequential(
             [
                 nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
+                    self.hidden_dim, kernel_init=orthogonal(math.sqrt(2)),
                 ),
-                nn.leaky_relu,
+                nn.gelu,
                 nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
+                    self.hidden_dim, kernel_init=orthogonal(math.sqrt(2)),
                 ),
-                nn.leaky_relu,
+                nn.gelu,
             ]
         )
 
-        hstate, temporal_embeddings = ScannedRNN()(
-            hstate,
-            jnp.concat([
-                state_embeddings.reshape((seq_len, batch_size, -1)),
-                info_embeddings,
-            ], axis=-1)
-        )
-
         embeddings = jnp.concat([
-            temporal_embeddings.reshape((seq_len, batch_size, -1)),
+            state_embeddings.reshape(batch_size, -1),
+            info_embeddings,
             env_info_embeddings,
             position_embeddings,
-            observation_embeddings.reshape((seq_len, batch_size, -1)),
+            observation_embeddings.reshape(batch_size, -1),
         ], axis=-1)
 
         x = actor(embeddings)
 
         action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
 
-        x_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
-        y_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
-
         logits1 = action_head(x)
-        logits2 = x_coordinate_head(x)
-        logits3 = y_coordinate_head(x)
 
-        logits1 = logits1.reshape((seq_len, batch_size, self.n_actions))
-        logits2 = logits2.reshape((seq_len, batch_size, 17))
-        logits3 = logits3.reshape((seq_len, batch_size, 17))
-       
-        return [logits1, logits2, logits3], hstate
+        coordinate_hidden = nn.Dense(self.hidden_dim // 2, kernel_init=orthogonal(math.sqrt(2)))(x)
+        coordinate_hidden = nn.gelu(coordinate_hidden)
+        logits2 = nn.Dense(17, kernel_init=orthogonal(0.01))(coordinate_hidden)
+        logits3 = nn.Dense(17, kernel_init=orthogonal(0.01))(coordinate_hidden)
+
+        return logits1, logits2, logits3
 
 
 class CriticInput(TypedDict):
@@ -236,52 +207,26 @@ class Critic(nn.Module):
     hidden_dim: int = 256
  
     @nn.compact
-    def __call__(self, hstate: jax.Array, critic_input):
-        seq_len, batch_size = critic_input['states'].shape[:2]
+    def __call__(self, critic_input):
+        state_encoder = nn.Sequential([
+            nn.Conv(32, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu,
+            ResidualBlock(32),
+            nn.Conv(64, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu,
+            ResidualBlock(64),
+            nn.Conv(128, (3, 3), padding=0, kernel_init=orthogonal(math.sqrt(2))),
+            nn.Dense(256, kernel_init=orthogonal(math.sqrt(2))),
+            nn.gelu
+        ])
+        
+        batch_size = critic_input['states'].shape[0]
 
-        state_encoder = nn.Sequential(
-            [
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                lambda x: x.reshape((x.shape[0], -1)),
-                nn.Dense(256),
-                nn.leaky_relu,
-            ]
-        )
         state_embeddings = state_encoder(
-            critic_input['states'].reshape((-1, 10, 24, 24)).transpose((0, 2, 3, 1))
+            critic_input['states'].transpose((0, 2, 3, 1))
         )
-        info_input = jnp.concat([
+
+        info_input = jnp.stack([
             critic_input['team_points'],
             critic_input['opponent_points'],
             critic_input['match_steps'],
@@ -291,11 +236,11 @@ class Critic(nn.Module):
 
         info_embeddings = nn.Sequential([
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
+            nn.gelu,
         ])(info_input)
 
         embeddings = jnp.concat([
-            state_embeddings.reshape((seq_len, batch_size, -1)),
+            state_embeddings.reshape(batch_size, -1),
             info_embeddings,
         ], axis=-1)
 
@@ -304,11 +249,10 @@ class Critic(nn.Module):
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
-                nn.leaky_relu,
+                nn.gelu,
                 nn.Dense(1, kernel_init=orthogonal(1.0)),
             ]
         )
 
-        hstate, out = ScannedRNN()(hstate, embeddings)
-        values = critic(out)
-        return values, hstate
+        values = critic(embeddings)
+        return values

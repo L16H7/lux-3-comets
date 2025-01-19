@@ -2,22 +2,39 @@ import jax
 import jax.numpy as jnp
 
 
-def filter_by_proximity(positions, relic_nodes, max_distance=4):
+def filter_by_proximity(positions, relic_nodes, x_threshold=2, y_threshold=2):
     """
-    Filter positions by proximity to relic nodes.
-
+    Filter positions by proximity to relic nodes considering a rectangular 5x5 aura.
+    
     Args:
-    positions (jnp.ndarray): Shape (num, 2)
-    relic_nodes (jnp.ndarray): Shape (num_relics, 2)
-    max_distance (int): Maximum Manhattan distance
-
+        positions (jnp.ndarray): Shape (num, 2) array of positions to filter
+        relic_nodes (jnp.ndarray): Shape (num_relics, 2) array of relic node positions
+        x_threshold (int): Maximum allowed x-distance (default 2 for 5x5 aura)
+        y_threshold (int): Maximum allowed y-distance (default 2 for 5x5 aura)
+    
     Returns:
-    filtered_positions (jnp.ndarray): Shape (num, 2)
+        filtered_positions (jnp.ndarray): Shape (num, 2) with positions outside aura replaced by [-1, -1]
     """
+    # Handle invalid relic nodes (those marked as -1)
     relic_nodes = jnp.where(relic_nodes == -1, 100, relic_nodes)
-    distances = jnp.abs(positions[:, None] - relic_nodes[None, :]).sum(axis=-1)
-    is_close = jnp.any(distances <= max_distance, axis=-1)
-    filtered_positions = jnp.where(is_close[:, None], positions, jnp.array([-1, -1]))
+    
+    # Calculate x and y distances separately
+    # positions[:, None] - relic_nodes[None, :] creates a (num_positions, num_relics, 2) array
+    # where axis 2 contains [x_diff, y_diff]
+    distances = positions[:, None] - relic_nodes[None, :]
+    
+    # Get absolute distances for x and y separately
+    x_distances = jnp.abs(distances[..., 0])  # Shape: (num_positions, num_relics)
+    y_distances = jnp.abs(distances[..., 1])  # Shape: (num_positions, num_relics)
+    
+    # Check if positions are within both x and y thresholds for any relic
+    within_x = x_distances <= x_threshold
+    within_y = y_distances <= y_threshold
+    is_within_aura = jnp.any(within_x & within_y, axis=-1)
+    
+    # Replace positions outside the aura with [-1, -1]
+    filtered_positions = jnp.where(is_within_aura[:, None], positions, jnp.array([-1, -1]))
+    
     return filtered_positions
 
 # Vectorize the function to operate on batches

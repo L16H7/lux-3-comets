@@ -80,6 +80,87 @@ def transform_observation(obs):
     
     return rotated
 
+def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=8, choose_y=False, chosen_x=None,):
+    """
+    Generate attack masks for agents based on both x and y distances to targets.
+    Targets outside the range are filtered out before mask generation.
+    
+    Args:
+        agent_positions (jnp.ndarray): Shape (num_agents, 2) array of agent positions
+        target_positions (jnp.ndarray): Shape (num_targets, 2) array of target positions
+        x_range (int): Maximum x-distance range (default 8)
+        y_range (int): Maximum y-distance range (default 8)
+    
+    Returns:
+        attack_masks (jnp.ndarray): Shape (num_agents, 17, 17) boolean array
+                                   True indicates valid attack position at that offset
+    """
+    # Pre-filter invalid targets (marked as -1)
+    valid_targets = target_positions != -1
+    valid_targets = jnp.all(valid_targets, axis=-1)
+    target_positions = jnp.where(valid_targets[:, None], target_positions, 1000)
+    
+    # Calculate x and y distances from agent to each target
+    x_distances = target_positions[None, :, 0] - agent_positions[:, None, 0]
+    y_distances = target_positions[None, :, 1] - agent_positions[:, None, 1]
+    
+    # Create range mask for targets
+    targets_in_range = (jnp.abs(x_distances) <= x_range) & (jnp.abs(y_distances) <= y_range)
+    targets_in_range = targets_in_range & valid_targets[None, :]
+
+    target_positions = jnp.where(target_positions == -1, 1000, target_positions)
+
+    x_distances = jnp.where(
+        targets_in_range,
+        x_distances,
+        -100, 
+    )
+    y_distances = jnp.where(
+        targets_in_range,
+        y_distances,
+        -100,
+    )
+    
+    x_offsets = jnp.arange(-8, 9)
+    y_offsets = jnp.arange(-8, 9)
+    
+    x_distances = x_distances[:, None, :]
+    y_distances = y_distances[:, None, :]
+    x_offsets = x_offsets[None, :, None]
+    y_offsets = y_offsets[None, :, None]
+    
+    # Check valid positions for x and y separately
+    valid_x = (x_distances == x_offsets)
+    valid_x = jnp.any(valid_x, axis=-1)
+
+    if choose_y:
+        x_distances = x_distances[:, None, :]
+        y_distances = y_distances[:, None, :]
+        x_offsets = x_offsets[None, :, None]
+        y_offsets = y_offsets[None, :, None]
+        
+        # Filter targets based on chosen x
+        chosen_x = chosen_x[:, None, None]  # Shape: (num_agents, 1, 1)
+        valid_targets_for_x = (x_distances == chosen_x)
+        
+        # Apply the x-based filter to y distances
+        y_distances = jnp.where(valid_targets_for_x, y_distances, -100)
+        
+        # Generate y masks only for valid targets based on chosen x
+        valid_y = (y_distances == y_offsets)
+        valid_y = jnp.any(valid_y, axis=-1)
+
+        indices = jnp.arange(valid_y.shape[1])
+
+        # Use advanced indexing to extract the desired slices
+        final_filter = valid_y[0, indices, indices, :]
+        return final_filter
+
+    valid_y = (y_distances == y_offsets)
+    valid_y = jnp.any(valid_y, axis=-1)
+
+    return valid_x, valid_y
+    
 def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges):
     n_envs = observations.units.position.shape[0]
     
@@ -103,29 +184,61 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     ]
     valid_movements = in_bounds & (~is_asteroid)
 
-    sap_range_mask = jnp.ones((16, 17))
+    adjacent_offsets = jnp.array(
+        [
+            [0, 0],
+            [-1, -1],
+            [-1, 0],
+            [-1, 1],
+            [0, -1],
+            [0, 1],
+            [1, -1],
+            [1, 0],
+            [1, 1],
+        ], dtype=jnp.int16
+    )
 
-    cut_off = Constants.MAX_SAP_RANGE - sap_ranges
-    sap_range_mask = sap_range_mask.at[..., : cut_off].set(False)
-    sap_range_mask = sap_range_mask.at[..., -cut_off:].set(False)
+    sensor_mask = observations.sensor_mask
+    sensor_mask = sensor_mask if team_idx == 0 else transform_observation(sensor_mask)
+    transformed_agent_positions = transform_coordinates(agent_positions)
+    transformed_agent_positions = filter_targets_with_sensor(
+        transformed_agent_positions,
+        sensor_mask
+    )
+    opponent_positions = observations.units.position[:, opponent_idx, ..., None, :] 
+    opponent_positions = opponent_positions if team_idx == 0 else transform_coordinates(opponent_positions)
 
-    target_coods = jnp.arange(-8, 9)
-    target_x = agent_positions.reshape(-1, 2)[:, 0][:, None] + target_coods[None, :]
-    target_x = (target_x >= 0) & (target_x < Constants.MAP_WIDTH)
+    opponent_positions = jnp.concat([
+        opponent_positions,
+        transformed_agent_positions, # to attack mirror positions
+    ], axis=1)
+    
+    opponent_positions = jnp.where(
+        opponent_positions == -1,
+        -100,
+        opponent_positions,
+    )
 
-    target_y = agent_positions.reshape(-1, 2)[:, 1][:, None] + target_coods[None, :]
-    target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
+    opponent_positions = jnp.where(
+        opponent_positions == 24,
+        -100,
+        opponent_positions,
+    )
 
-
-    logits2_mask = (sap_range_mask > 0) & target_x
-    logits3_mask = (sap_range_mask > 0) & target_y
-
+    target_positions = opponent_positions + adjacent_offsets
+    target_x, _ = generate_attack_masks(
+        agent_positions=agent_positions.reshape(-1, 2),
+        target_positions=target_positions.reshape(-1, 2),
+        x_range=sap_ranges,
+        y_range=sap_ranges
+    )
+    logits2_mask = target_x
 
     logits1_mask = jnp.concat(
         [ 
             jnp.ones((1, 16, 1)),
             valid_movements.reshape(1, -1, 4),
-            jnp.ones((1, 16, 1)),
+            target_x.sum(axis=-1).reshape(1, 16, 1)
         ],
         axis=-1
     )
@@ -134,25 +247,27 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     logits1_mask = logits1_mask.reshape(logits1.shape)
     logits2_mask = logits2_mask.reshape(logits2.shape)
-    logits3_mask = logits3_mask.reshape(logits3.shape)
-
     large_negative = -1e9
     masked_logits1 = jnp.where(logits1_mask.reshape(logits1.shape), logits1, large_negative)
     masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
-    masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
-
-    '''
-    sap_range_clip = Constants.MAX_SAP_RANGE - 1
-    logits2 = logits2.at[..., : sap_range_clip].set(-100)
-    logits2 = logits2.at[..., -sap_range_clip:].set(-100)
-
-    logits3 = logits3.at[..., : sap_range_clip].set(-100)
-    logits3 = logits3.at[..., -sap_range_clip:].set(-100)
-    '''
 
     rng, rng1, rng2, rng3 = jax.random.split(rng, num=4)
     action1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
     action2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
+
+    target_y = generate_attack_masks(
+        agent_positions=agent_positions.reshape(-1, 2),
+        target_positions=target_positions.reshape(-1, 2),
+        x_range=sap_ranges,
+        y_range=sap_ranges,
+        choose_y=True,
+        chosen_x=action2.reshape(-1) - Constants.MAX_SAP_RANGE
+    )
+
+    logits3_mask = target_y
+    logits3_mask = logits3_mask.reshape(logits3.shape)
+    masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
+
     action3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
 
     # action1 = np.argmax(masked_logits1, axis=-1)
@@ -283,3 +398,36 @@ class Agent():
             a = True
         
         return actions
+
+
+def filter_targets_with_sensor(target_positions, sensor_map):
+    """
+    Filter target positions, replacing with (-1, -1) if sensor is True at that position.
+    
+    Args:
+        target_positions (jnp.ndarray): Shape (n_envs, 16, 2) array of target positions
+        sensor_map (jnp.ndarray): Shape (n_envs, 24, 24) boolean array where True means sensor
+        
+    Returns:
+        jnp.ndarray: Shape (n_envs, 16, 2) filtered target positions
+    """
+    def process_single_env(targets, sensors):
+        def filter_single_target(pos):
+            # Check if position is already invalid
+            is_valid = jnp.all(pos != -1)
+            
+            # Get sensor value at target position
+            sensor_value = jnp.where(
+                is_valid,
+                sensors[pos[0], pos[1]],  # Only check sensor if position is valid
+                True  # If position was already invalid, keep it invalid
+            )
+            
+            # Replace with -1,-1 if sensor is True
+            return jnp.where(sensor_value, jnp.array([-1, -1]), pos)
+        
+        # Apply to each target position
+        return jax.vmap(filter_single_target)(targets)
+    
+    # Apply to each environment
+    return jax.vmap(process_single_env)(target_positions, sensor_map)
