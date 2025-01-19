@@ -29,7 +29,7 @@ from luxai_s3.params import EnvParams, env_params_ranges
 from make_states import make_states
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
-from representation import create_agent_representations, transform_coordinates, get_env_info
+from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info
 from model import Actor
 
 
@@ -151,8 +151,8 @@ def make_train(config: Config):
                 jax.random.split(meta_env_params_rng, config.n_envs)
             )
 
-            p0_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2)) * -1
-            p1_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2)) * -1
+            p0_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2), dtype=jnp.int32) * -1
+            p1_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2), dtype=jnp.int32) * -1
 
             env_info = get_env_info(meta_env_params)
 
@@ -179,6 +179,15 @@ def make_train(config: Config):
                         p0_agent_ids,
                         p0_units_mask,
                     ) = p0_representations
+                    (
+                        p1_states,
+                        p1_agent_observations,
+                        p1_episode_info,
+                        p1_points_map,
+                        p1_agent_positions,
+                        p1_agent_ids,
+                        p1_units_mask,
+                    ) = p1_representations
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
                     p0_agent_states = p0_states.repeat(config.n_agents, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
@@ -212,26 +221,21 @@ def make_train(config: Config):
                         sap_ranges=meta_env_params.unit_sap_range,
                     )
 
+                    p0_combined_states = combined_states_info(
+                        p0_states,
+                        p1_states
+                    )
+
                     p0_values = critic_train_state.apply_fn(
                         critic_train_state.params,
                         {
-                            "states": p0_states,
+                            "states": p0_combined_states,
                             "match_steps": p0_episode_info[:, 0],
                             "matches": p0_episode_info[:, 1],
                             "team_points": p0_episode_info[:, 2],
                             "opponent_points": p0_episode_info[:, 3],
                         }
                     )
-
-                    (
-                        p1_states,
-                        p1_agent_observations,
-                        p1_episode_info,
-                        p1_points_map,
-                        p1_agent_positions,
-                        p1_agent_ids,
-                        p1_units_mask,
-                    ) = p1_representations
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
                     p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
@@ -269,10 +273,14 @@ def make_train(config: Config):
                     )
 
                     # COMMENT FOR FIXED OPPONENT
+                    p1_combined_states = combined_states_info(
+                        p1_states,
+                        p0_states
+                    )
                     p1_values = critic_train_state.apply_fn(
                         critic_train_state.params,
                         {
-                            "states": p1_states,
+                            "states": p1_combined_states,
                             "match_steps": p1_episode_info[:, 0],
                             "matches": p1_episode_info[:, 1],
                             "team_points": p1_episode_info[:, 2],
@@ -327,7 +335,7 @@ def make_train(config: Config):
                     transition = Transition(
                         agent_states=jnp.concat([p0_agent_states, p1_agent_states], axis=0),
                         observations=jnp.concat([p0_agent_observations, p1_agent_observations], axis=0),
-                        states=jnp.concat([p0_states, p1_states], axis=0),
+                        states=jnp.concat([p0_combined_states, p1_combined_states], axis=0),
                         episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),
                         agent_episode_info=jnp.concat([p0_agent_episode_info, p1_agent_episode_info], axis=0),
                         actions=jnp.concat([p0_actions.reshape(-1, 3), p1_actions.reshape(-1, 3)], axis=0),
@@ -416,10 +424,15 @@ def make_train(config: Config):
                     _,
                 ) = p1_representations
 
+                p0_combined_states = combined_states_info(
+                    p0_states,
+                    p1_states,
+                )
+
                 p0_last_values = critic_train_state.apply_fn(
                     critic_train_state.params,
                     {
-                        "states": p0_states,
+                        "states": p0_combined_states,
                         "match_steps": p0_episode_info[:, 0],
                         "matches": p0_episode_info[:, 1],
                         "team_points": p0_episode_info[:, 2],
@@ -428,10 +441,15 @@ def make_train(config: Config):
                 )
 
                 # COMMENT FOR FIXED OPPONENT
+                p1_combined_states = combined_states_info(
+                    p1_states,
+                    p0_states,
+                )
+
                 p1_last_values = critic_train_state.apply_fn(
                     critic_train_state.params,
                     {
-                        "states": p1_states,
+                        "states": p1_combined_states,
                         "match_steps": p1_episode_info[:, 0],
                         "matches": p1_episode_info[:, 1],
                         "team_points": p1_episode_info[:, 2],

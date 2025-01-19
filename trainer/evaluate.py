@@ -22,8 +22,8 @@ def evaluate(
 ):
     N_TOTAL_AGENTS = n_envs * n_agents
 
-    p0_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
-    p1_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
+    p0_discovered_relic_nodes = jnp.ones((n_envs, 6, 2), dtype=jnp.int32) * -1
+    p1_discovered_relic_nodes = jnp.ones((n_envs, 6, 2), dtype=jnp.int32) * -1
 
     env_info = get_env_info(meta_env_params)
 

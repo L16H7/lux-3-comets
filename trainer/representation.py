@@ -324,3 +324,26 @@ def create_agent_representations(
         opponent_idx=0,
     )
     return p0_representations, p1_representations
+
+def combined_states_info(team_states, opponent_states):
+    opponent_states = transform_observation(opponent_states.copy())
+    combined_states = jnp.stack([
+        team_states[:, 0, ...], 
+        team_states[:, 1, ...], 
+        opponent_states[:, 0, ...],
+        opponent_states[:, 1, ...],
+        team_states[:, 4, ...], # team relics
+        opponent_states[:, 4, ...], # opponent relics
+        # energy
+        jnp.where(team_states[:, 5, ...] != 0, team_states[:, 5, ...], opponent_states[:, 5, ...]),
+        # asteroid
+        jnp.where(team_states[:, 6, ...] != 0, team_states[:, 6, ...], opponent_states[:, 6, ...]),
+        # nebula
+        jnp.where(team_states[:, 7, ...] != 0, team_states[:, 7, ...], opponent_states[:, 7, ...]),
+        team_states[:, 8, ...],
+        opponent_states[:, 8, ...], 
+        team_states[:, 9, ...],
+        opponent_states[:, 9, ...], 
+    ], axis=1)
+
+    return combined_states
