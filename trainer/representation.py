@@ -219,6 +219,7 @@ def create_representations(
         -1,
         transformed_previous_positions,
     )
+
     updated_points_map = update_points_map_batch(
         points_map,
         mark_duplicates_batched(
@@ -233,9 +234,17 @@ def create_representations(
         points_gained * 2,
     )
 
-    # if points_gained[0] > 0:
-    #     a = True
-    # SCALE
+    updated_points_map = jnp.where(
+        obs.steps[0] == 101,
+        jnp.maximum(updated_points_map, 0),
+        updated_points_map
+    )
+    updated_points_map = jnp.where(
+        obs.steps[0] == 202,
+        jnp.maximum(updated_points_map, 0),
+        updated_points_map
+    )
+
     energy_map = jnp.where(
         obs.sensor_mask,
         obs.map_features.energy,
@@ -277,6 +286,7 @@ def create_representations(
         state_representation=state_representation,
         unit_positions_team=unit_positions_team,
     )
+
 
     agent_ids = (jnp.arange(16) + 1) / 16
     agent_ids = jnp.broadcast_to(agent_ids, (agent_positions.shape[0], 16))
