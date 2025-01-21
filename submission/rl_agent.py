@@ -131,7 +131,7 @@ class Agent():
 
         self.rng, action_rng = jax.random.split(self.rng)
 
-        actions, _, _ = get_actions(
+        actions = get_actions(
             rng=action_rng,
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
@@ -142,7 +142,7 @@ class Agent():
 
         transformed_targets = transform_coordinates(actions[..., 1:], 17, 17)
         transformed_p1_actions = jnp.zeros_like(actions)
-        transformed_p1_actions = transformed_p1_actions.at[..., 0].set(vectorized_transform_actions(actions[:, :, 0]))
+        transformed_p1_actions = transformed_p1_actions.at[..., 0].set(vectorized_transform_actions(actions[..., 0]))
         transformed_p1_actions = transformed_p1_actions.at[..., 1].set(transformed_targets[..., 0])
         transformed_p1_actions = transformed_p1_actions.at[..., 2].set(transformed_targets[..., 1])
 
@@ -159,4 +159,4 @@ class Agent():
         # if step == 90:
         #     a = True
         
-        return jnp.squeeze(actions, axis=0)
+        return actions
