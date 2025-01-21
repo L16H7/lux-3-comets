@@ -141,6 +141,7 @@ class Agent():
             logits=logits,
             observations=observation,
             sap_ranges=jnp.array([self.env_cfg["unit_sap_range"]]),
+            relic_nodes=self.discovered_relic_nodes,
         )
 
         transformed_targets = transform_coordinates(actions[..., 1:], 17, 17)

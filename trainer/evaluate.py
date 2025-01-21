@@ -78,6 +78,7 @@ def evaluate(
             logits=p0_logits,
             observations=observations['player_0'],
             sap_ranges=meta_env_params.unit_sap_range,
+            relic_nodes=p0_discovered_relic_nodes,
         )
 
         (

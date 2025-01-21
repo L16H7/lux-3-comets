@@ -92,7 +92,7 @@ def filter_targets_with_sensor(target_positions, sensor_map):
     return jax.vmap(process_single_env)(target_positions, sensor_map)
 
 # @jax.jit
-def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges):
+def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges, relic_nodes):
     n_envs = observations.units.position.shape[0]
     
     agent_positions = observations.units.position[:, team_idx, ..., None, :] 
@@ -129,22 +129,16 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         ], dtype=jnp.int16
     )
 
-    sensor_mask = observations.sensor_mask
-    sensor_mask = sensor_mask if team_idx == 0 else transform_observation(sensor_mask)
-
-    transformed_agent_positions = transform_coordinates(agent_positions)
-    transformed_agent_positions = filter_targets_with_sensor(
-        transformed_agent_positions,
-        sensor_mask
-    )
+    # TARGET NON-ZERO ENERGY OPPONENTS
     opponent_positions = observations.units.position[:, opponent_idx, ..., None, :] 
+    opponent_energy = observations.units.energy[:, 0, :, None, None].repeat(2, axis=-1)
+    opponent_positions = jnp.where(
+        opponent_energy > 0,
+        opponent_positions,
+        -1
+    )
     opponent_positions = opponent_positions if team_idx == 0 else transform_coordinates(opponent_positions)
 
-    opponent_positions = jnp.concat([
-        opponent_positions,
-        transformed_agent_positions, # to attack mirror positions
-    ], axis=1)
-    
     opponent_positions = jnp.where(
         opponent_positions == -1,
         -100,
@@ -156,11 +150,43 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         -100,
         opponent_positions,
     )
+    opponent_targets = opponent_positions + adjacent_offsets
 
-    target_positions = opponent_positions + adjacent_offsets
+    # TARGET 5X5 RELIC NODES IN THE DARK
+    adjacent_offsets_5x5 = jnp.array(
+        [
+            [-2, -2], [-2, -1], [-2, 0], [-2, 1], [-2, 2],
+            [-1, -2], [-1, -1], [-1, 0], [-1, 1], [-1, 2],
+            [ 0, -2], [ 0, -1], [ 0, 0], [ 0, 1], [ 0, 2],
+            [ 1, -2], [ 1, -1], [ 1, 0], [ 1, 1], [ 1, 2],
+            [ 2, -2], [ 2, -1], [ 2, 0], [ 2, 1], [ 2, 2],
+        ], dtype=jnp.int16
+    )
+
+    relic_nodes_positions = relic_nodes.copy()
+    relic_nodes_positions = jnp.where(
+        relic_nodes_positions == -1,
+        -100,
+        relic_nodes_positions,
+    )
+    relic_targets = relic_nodes_positions[:, :, None, :] + adjacent_offsets_5x5
+
+    sensor_mask = observations.sensor_mask
+    sensor_mask = sensor_mask if team_idx == 0 else transform_observation(sensor_mask)
+
+    relic_targets = filter_targets_with_sensor(
+        relic_targets,
+        sensor_mask
+    )
+
+    target_positions = jnp.concatenate([
+        opponent_targets.reshape(n_envs, -1, 2),
+        relic_targets.reshape(n_envs, -1, 2),
+    ], axis=1)
+
     target_x, _ = generate_attack_masks_batch(
         agent_positions.reshape(n_envs, -1, 2),
-        target_positions.reshape(n_envs, -1, 2),
+        target_positions,
         sap_ranges,
         sap_ranges
     )
