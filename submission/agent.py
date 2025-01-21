@@ -161,6 +161,11 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         relic_targets,
         -1
     )
+    relic_targets = jnp.where(
+        relic_targets < 24,
+        relic_targets,
+        -1
+    )
 
     sensor_mask = observations.sensor_mask
     sensor_mask = sensor_mask if team_idx == 0 else transform_observation(sensor_mask)
