@@ -153,22 +153,10 @@ class Actor(nn.Module):
             actor_input['matches'],
         ], axis=-1)
 
-        env_info_input = jnp.stack([
-            actor_input['unit_move_cost'],
-            actor_input['unit_sap_cost'],
-            actor_input['unit_sap_range'],
-            actor_input['unit_sensor_range'],
-        ], axis=-1)
-
         info_embeddings = nn.Sequential([
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
         ])(info_input)
-
-        env_info_embeddings = nn.Sequential([
-            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-        ])(env_info_input)
 
         actor = nn.Sequential(
             [
@@ -186,12 +174,13 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             state_embeddings,
             info_embeddings,
-            env_info_embeddings,
             position_embeddings,
             observation_embeddings,
         ], axis=-1)
 
-        x = actor(embeddings)
+        attention = nn.SelfAttention(num_heads=8)
+        attended_embeddings = attention(embeddings)
+        x = actor(attended_embeddings)
 
         action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
 
