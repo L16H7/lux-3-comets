@@ -59,7 +59,7 @@ def mask_out_of_bounds(agent_positions):
     target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
     return target_x, target_y
 
-def filter_targets_with_sensor(target_positions, sensor_map):
+def filter_targets_with_sensor(targets, sensor_map):
     """
     Filter target positions, replacing with (-1, -1) if sensor is True at that position.
     
@@ -70,26 +70,12 @@ def filter_targets_with_sensor(target_positions, sensor_map):
     Returns:
         jnp.ndarray: Shape (n_envs, 16, 2) filtered target positions
     """
-    def process_single_env(targets, sensors):
-        def filter_single_target(pos):
-            # Check if position is already invalid
-            is_valid = jnp.all(pos != -1)
-            
-            # Get sensor value at target position
-            sensor_value = jnp.where(
-                is_valid,
-                sensors[pos[0], pos[1]],  # Only check sensor if position is valid
-                True  # If position was already invalid, keep it invalid
-            )
-            
-            # Replace with -1,-1 if sensor is True
-            return jnp.where(sensor_value, jnp.array([-1, -1]), pos)
-        
-        # Apply to each target position
-        return jax.vmap(filter_single_target)(targets)
+    x_indices, y_indices = targets[..., 0], targets[..., 1]
     
-    # Apply to each environment
-    return jax.vmap(process_single_env)(target_positions, sensor_map)
+    # Get the boolean values from maps using advanced indexing
+    result = sensor_map[jnp.arange(sensor_map.shape[0])[:, None], x_indices, y_indices]
+    return result
+
 
 # @jax.jit
 def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges, relic_nodes):
@@ -131,7 +117,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     # TARGET NON-ZERO ENERGY OPPONENTS
     opponent_positions = observations.units.position[:, opponent_idx, ..., None, :] 
-    opponent_energy = observations.units.energy[:, 0, :, None, None].repeat(2, axis=-1)
+    opponent_energy = observations.units.energy[:, opponent_idx, :, None, None].repeat(2, axis=-1)
     opponent_positions = jnp.where(
         opponent_energy > 0,
         opponent_positions,
@@ -170,13 +156,29 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         relic_nodes_positions,
     )
     relic_targets = relic_nodes_positions[:, :, None, :] + adjacent_offsets_5x5
+    relic_targets = jnp.where(
+        relic_targets > 0,
+        relic_targets,
+        -1
+    )
 
     sensor_mask = observations.sensor_mask
     sensor_mask = sensor_mask if team_idx == 0 else transform_observation(sensor_mask)
 
-    relic_targets = filter_targets_with_sensor(
+    relic_targets_mask = filter_targets_with_sensor(
         relic_targets,
-        sensor_mask
+        ~sensor_mask
+    )
+
+    relic_targets = jnp.where(
+        relic_targets_mask[..., None].repeat(2, axis=-1),
+        relic_targets,
+        -100,
+    )
+    relic_targets = jnp.where(
+        relic_targets < 0,
+        -100,
+        relic_targets,
     )
 
     target_positions = jnp.concatenate([

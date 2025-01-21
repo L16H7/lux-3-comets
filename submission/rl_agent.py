@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import orbax.checkpoint
 import numpy as np
 
-from agent import get_actions, vectorized_transform_actions
+from agent import get_actions, vectorized_transform_actions, transform_observation
 from representation import create_representations, transform_coordinates, get_env_info
 from model import Actor
 
@@ -107,9 +107,6 @@ class Agent():
         ) = representations
         self.points_map = points_map
 
-        if step > 44 and self.team_id == 0:
-            a = True
- 
         agent_states = states.repeat(16, axis=0)
         agent_observations = jnp.squeeze(agent_observations, axis=0)
         agent_episode_info = episode_info.repeat(16, axis=0)
@@ -143,6 +140,9 @@ class Agent():
             sap_ranges=jnp.array([self.env_cfg["unit_sap_range"]]),
             relic_nodes=self.discovered_relic_nodes,
         )
+        if step > 333 and self.team_id == 1:
+            sensor = transform_observation(observation.sensor_mask)
+            a = True
 
         transformed_targets = transform_coordinates(actions[..., 1:], 17, 17)
         transformed_p1_actions = jnp.zeros_like(actions)
@@ -160,7 +160,4 @@ class Agent():
         self.prev_team_points = team_points
         self.prev_agent_positions = jnp.expand_dims(agent_positions, axis=0)
 
-        # if step == 90:
-        #     a = True
-        
         return actions
