@@ -65,10 +65,20 @@ class ResidualBlock(nn.Module):
     def __call__(self, x):
         residual = x
         y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(x)
-        y = nn.leaky_relu(y)
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(y)
-        y += residual  # Adding the input x to the output of the convolution block
-        return nn.leaky_relu(y)  # Apply activation after adding the residual
+        y = nn.BatchNorm(use_running_average=True)(y)
+        y = nn.relu(y)
+        y = nn.Conv(self.features, self.kernel_size, padding="SAME")(y)
+        y = nn.BatchNorm(use_running_average=True)(y)
+
+        downsample = nn.Sequential([
+            nn.Conv(self.features, (1, 1), self.strides, padding='SAME'),
+            nn.BatchNorm(use_running_average=True)
+        ])
+
+        if residual.shape != y.shape:
+            residual = downsample(residual)
+        y = y + residual
+        return nn.leaky_relu(y)
 
 
 class ActorInput(TypedDict):
@@ -96,24 +106,28 @@ class Actor(nn.Module):
     def __call__(self, actor_input: ActorInput):
         state_encoder = nn.Sequential([
             nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-            # ResidualBlock(32),
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-            lambda x: x.reshape((x.shape[0], -1)),
+            nn.BatchNorm(use_running_average=True),
+            nn.relu,
+            ResidualBlock(features=32),
+            ResidualBlock(features=64, kernel_size=(3, 3), strides=(2, 2)),
+            ResidualBlock(features=128, kernel_size=(3, 3), strides=(2, 2)),
+            ResidualBlock(features=256, kernel_size=(3, 3), strides=(2, 2)),
+            lambda x: jnp.mean(x, axis=(1, 2)),
             nn.Dense(128),
-            # nn.leaky_relu
+            nn.relu,
         ])
 
         observation_encoder = nn.Sequential([
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-            ResidualBlock(32),
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.BatchNorm(use_running_average=True),
+            nn.relu,
+            ResidualBlock(features=32),
+            ResidualBlock(features=64, kernel_size=(3, 3), strides=(2, 2)),
+            ResidualBlock(features=128, kernel_size=(3, 3), strides=(2, 2)),
+            ResidualBlock(features=256, kernel_size=(3, 3), strides=(2, 2)),
+            lambda x: jnp.mean(x, axis=(1, 2)),
             nn.Dense(256),
-            nn.leaky_relu
+            nn.relu,
         ])
 
         batch_size = actor_input['states'].shape[0]
@@ -206,45 +220,20 @@ class Critic(nn.Module):
     def __call__(self, critic_input):
         seq_len, batch_size = critic_input['states'].shape[:2]
 
-        state_encoder = nn.Sequential(
-            [
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
-                    kernel_init=orthogonal(math.sqrt(2)),
-                ),
-                nn.leaky_relu,
-                lambda x: x.reshape((x.shape[0], -1)),
-                nn.Dense(256),
-                nn.leaky_relu,
-            ]
-        )
+        state_encoder = nn.Sequential([
+            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.BatchNorm(use_running_average=True),
+            nn.relu,
+            ResidualBlock(features=32),
+            ResidualBlock(features=64, kernel_size=(3, 3), strides=(2, 2)),
+            ResidualBlock(features=128, kernel_size=(3, 3), strides=(2, 2)),
+            ResidualBlock(features=256, kernel_size=(3, 3), strides=(2, 2)),
+            ResidualBlock(features=256, kernel_size=(3, 3), strides=(2, 2)),
+            lambda x: jnp.mean(x, axis=(1, 2)),
+            nn.Dense(256),
+            nn.relu,
+        ])
+
         state_embeddings = state_encoder(
             critic_input['states'].transpose((0, 2, 3, 1))
         )
