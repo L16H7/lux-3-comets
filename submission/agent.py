@@ -1,6 +1,7 @@
 import jax
 
 import jax.numpy as jnp
+# import numpy as np
 
 from constants import Constants
 from representation import transform_coordinates
@@ -186,9 +187,8 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     actions1 = jax.random.categorical(rng1, masked_logits1, axis=-1)
     actions2 = jax.random.categorical(rng2, masked_logits2, axis=-1)
 
-    # action1 = np.argmax(masked_logits1, axis=-1)
-    # action2 = np.argmax(masked_logits2, axis=-1)
-    # action3 = np.argmax(masked_logits3, axis=-1)
+    # actions1 = np.argmax(masked_logits1, axis=-1)
+    # actions2 = np.argmax(masked_logits2, axis=-1)
 
     target_y = jax.vmap(
         generate_attack_masks_y,
@@ -206,6 +206,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
 
     actions3 = jax.random.categorical(rng3, masked_logits3, axis=-1)
+    # actions3 = np.argmax(masked_logits3, axis=-1)
 
     actions = jnp.stack([actions1, actions2, actions3]).T
     return actions
