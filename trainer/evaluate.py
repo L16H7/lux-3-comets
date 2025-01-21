@@ -192,14 +192,14 @@ def evaluate(
         "p1_points_std": last_match_steps["p1_points_std"],
     }
     info2_ = {
-        "eval/p0_wins": info["p0_wins"][-1],
-        "eval/p1_wins": info["p1_wins"][-1],
-        "eval/p0_sap_destroyed_units": info["p0_sap_units_destroyed"].sum(),
-        "eval/p1_sap_destroyed_units": info["p1_sap_units_destroyed"].sum(),
-        "eval/p0_collision_destroyed_units": info["p0_collision_units_destroyed"].sum(),
-        "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
-        "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
-        "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
+        f"eval_{opponent_label}/p0_wins": info["p0_wins"][-1],
+        f"eval_{opponent_label}/p1_wins": info["p1_wins"][-1],
+        f"eval_{opponent_label}/p0_sap_destroyed_units": info["p0_sap_units_destroyed"].sum(),
+        f"eval_{opponent_label}/p1_sap_destroyed_units": info["p1_sap_units_destroyed"].sum(),
+        f"eval_{opponent_label}/p0_collision_destroyed_units": info["p0_collision_units_destroyed"].sum(),
+        f"eval_{opponent_label}/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
+        f"eval_{opponent_label}/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
+        f"eval_{opponent_label}/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
     }
     info_dict = {f"eval_{opponent_label}/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 
