@@ -243,7 +243,10 @@ def make_train(config: Config):
                     p1_agent_observations = p1_agent_observations.reshape(-1, 10, 17, 17)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
-                    get_opponent_actions(
+                    p1_actions = get_opponent_actions(
+                        rng=p1_action_rng,
+                        observations=observations["player_1"],
+                        unit_sap_range=meta_env_params.unit_sap_range,
                         self_state=actor_train_state,
                         opponent1_state=opponent1_state,
                         opponent2_state=opponent2_state,
@@ -252,47 +255,6 @@ def make_train(config: Config):
                         agent_positions=p1_agent_positions,
                         agent_episode_info=p1_agent_episode_info,
                         env_info=env_info,
-                    )
-                    p1_logits = actor_train_state.apply_fn(
-                        actor_train_state.params,
-                        {
-                            "states": p1_agent_states,
-                            "observations": p1_agent_observations,
-                            "positions": p1_agent_positions,
-                            "match_steps": p1_agent_episode_info[:, 0],
-                            "matches": p1_agent_episode_info[:, 1],
-                            "team_points": p1_agent_episode_info[:, 2],
-                            "opponent_points": p1_agent_episode_info[:, 3],
-                            "unit_move_cost": env_info[:, 0],
-                            "unit_sap_cost": env_info[:, 1],
-                            "unit_sap_range": env_info[:, 2],
-                            "unit_sensor_range": env_info[:, 3],
-                        }
-                    )
-
-                    p1_actions, p1_log_probs, p1_logits_mask = get_actions(
-                        rng=p1_action_rng,
-                        team_idx=1,
-                        opponent_idx=0,
-                        logits=p1_logits,
-                        observations=observations['player_1'],
-                        sap_ranges=meta_env_params.unit_sap_range,
-                    )
-
-                    # COMMENT FOR FIXED OPPONENT
-                    p1_combined_states = combined_states_info(
-                        p1_states,
-                        p0_states
-                    )
-                    p1_values = critic_train_state.apply_fn(
-                        critic_train_state.params,
-                        {
-                            "states": p1_combined_states,
-                            "match_steps": p1_episode_info[:, 0],
-                            "matches": p1_episode_info[:, 1],
-                            "team_points": p1_episode_info[:, 2],
-                            "opponent_points": p1_episode_info[:, 3],
-                        }
                     )
 
                     p0_relic_mask = observations['player_0'].relic_nodes != -1
@@ -336,26 +298,25 @@ def make_train(config: Config):
                     p1_rewards = rewards[:, 1, :].reshape(-1)
 
                     p0_values = p0_values.reshape(-1).repeat(16)
-                    p1_values = p1_values.reshape(-1).repeat(16)
 
                     # COMMENT FOR FIXED OPPONENT
                     transition = Transition(
-                        agent_states=jnp.concat([p0_agent_states, p1_agent_states], axis=0),
-                        observations=jnp.concat([p0_agent_observations, p1_agent_observations], axis=0),
-                        states=jnp.concat([p0_combined_states, p1_combined_states], axis=0),
-                        episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),
-                        agent_episode_info=jnp.concat([p0_agent_episode_info, p1_agent_episode_info], axis=0),
-                        actions=jnp.concat([p0_actions.reshape(-1, 3), p1_actions.reshape(-1, 3)], axis=0),
-                        log_probs=jnp.concat([p0_log_probs, p1_log_probs], axis=0),
-                        values=jnp.concat([p0_values, p1_values], axis=0),
-                        agent_positions=jnp.concat([p0_agent_positions, p1_agent_positions], axis=0),
-                        rewards=jnp.concat([p0_rewards, p1_rewards], axis=0),
-                        dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(2 * config.n_agents),
-                        units_mask=jnp.concat([p0_units_mask.reshape(-1), p1_units_mask.reshape(-1)], axis=0),
-                        logits1_mask=jnp.concat([p0_logits_mask[0], p1_logits_mask[0]], axis=0),
-                        logits2_mask=jnp.concat([p0_logits_mask[1], p1_logits_mask[1]], axis=0),
-                        logits3_mask=jnp.concat([p0_logits_mask[2], p1_logits_mask[2]], axis=0),
-                        env_information=env_info.repeat(2, axis=0),
+                        agent_states=p0_agent_states,
+                        observations=p0_agent_observations,
+                        states=p0_combined_states,
+                        episode_info=p0_episode_info,
+                        agent_episode_info=p0_agent_episode_info,
+                        actions=p0_actions.reshape(-1, 3),
+                        log_probs=p0_log_probs,
+                        values=p0_values,
+                        agent_positions=p0_agent_positions,
+                        rewards=p0_rewards,
+                        dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(config.n_agents),
+                        units_mask=p0_units_mask.reshape(-1),
+                        logits1_mask=p0_logits_mask[0],
+                        logits2_mask=p0_logits_mask[1],
+                        logits3_mask=p0_logits_mask[2],
+                        env_information=env_info,
                     )
 
                     # FIXED OPPONENT
@@ -447,35 +408,9 @@ def make_train(config: Config):
                     }
                 )
 
-                # COMMENT FOR FIXED OPPONENT
-                p1_combined_states = combined_states_info(
-                    p1_states,
-                    p0_states,
-                )
-
-                p1_last_values = critic_train_state.apply_fn(
-                    critic_train_state.params,
-                    {
-                        "states": p1_combined_states,
-                        "match_steps": p1_episode_info[:, 0],
-                        "matches": p1_episode_info[:, 1],
-                        "team_points": p1_episode_info[:, 2],
-                        "opponent_points": p1_episode_info[:, 3],
-                    }
-                )
-
-                # FIXED OPPONENT
-                # advantages, targets = calculate_gae(
-                #     transitions,
-                #     p0_last_values.repeat(config.n_agents, axis=1).reshape(-1),
-                #     config.gamma,
-                #     config.gae_lambda
-                # )
-
-                # SELF PLAY
                 advantages, targets = calculate_gae(
                     transitions,
-                    jnp.concat([p0_last_values, p1_last_values], axis=0).repeat(config.n_agents, axis=1).reshape(-1),
+                    p0_last_values.repeat(config.n_agents, axis=1).reshape(-1),
                     config.gamma,
                     config.gae_lambda
                 )
