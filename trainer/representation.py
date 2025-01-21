@@ -222,8 +222,7 @@ def create_representations(
         transformed_previous_positions,
     )
 
-    points_map = points_map.at[:, 0, 0].set(-2)
-    points_map = points_map.at[:, 23, 23].set(-2)
+    points_map = points_map.at[:, 0, 0].set(-1)
     updated_points_map = update_points_map_batch(
         points_map,
         mark_duplicates_batched(
