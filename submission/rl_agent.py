@@ -139,6 +139,7 @@ class Agent():
             observations=observation,
             sap_ranges=jnp.array([self.env_cfg["unit_sap_range"]]),
             relic_nodes=self.discovered_relic_nodes,
+            step=step,
         )
         if step > 333 and self.team_id == 1:
             sensor = transform_observation(observation.sensor_mask)

@@ -4,7 +4,7 @@ import jax.numpy as jnp
 # import numpy as np
 
 from constants import Constants
-from representation import transform_coordinates
+from representation import transform_coordinates, reconcile_positions
 
 
 directions = jnp.array(
@@ -78,7 +78,7 @@ def filter_targets_with_sensor(targets, sensor_map):
 
 
 # @jax.jit
-def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges, relic_nodes):
+def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges, relic_nodes, step):
     n_envs = observations.units.position.shape[0]
     
     agent_positions = observations.units.position[:, team_idx, ..., None, :] 
@@ -149,7 +149,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         ], dtype=jnp.int16
     )
 
-    relic_nodes_positions = relic_nodes.copy()
+    relic_nodes_positions = reconcile_positions(relic_nodes)
     relic_nodes_positions = jnp.where(
         relic_nodes_positions == -1,
         -100,
@@ -185,6 +185,9 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         -100,
         relic_targets,
     )
+    if step > 114:
+        a = True
+
 
     target_positions = jnp.concatenate([
         opponent_targets.reshape(n_envs, -1, 2),

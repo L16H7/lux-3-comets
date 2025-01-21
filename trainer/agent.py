@@ -4,7 +4,7 @@ import distrax
 import jax.numpy as jnp
 
 from constants import Constants
-from representation import transform_coordinates
+from representation import transform_coordinates, reconcile_positions
 
 
 directions = jnp.array(
@@ -149,7 +149,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         ], dtype=jnp.int16
     )
 
-    relic_nodes_positions = relic_nodes.copy()
+    relic_nodes_positions = reconcile_positions(relic_nodes)
     relic_nodes_positions = jnp.where(
         relic_nodes_positions == -1,
         -100,
