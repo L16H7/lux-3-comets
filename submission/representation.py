@@ -219,6 +219,9 @@ def create_representations(
         -1,
         transformed_previous_positions,
     )
+
+    points_map = points_map.at[:, 0, 0].set(-2)
+    points_map = points_map.at[:, 23, 23].set(-2)
     updated_points_map = update_points_map_batch(
         points_map,
         mark_duplicates_batched(
@@ -233,9 +236,17 @@ def create_representations(
         points_gained * 2,
     )
 
-    # if points_gained[0] > 0:
-    #     a = True
-    # SCALE
+    updated_points_map = jnp.where(
+        obs.steps[0] == 101,
+        jnp.maximum(updated_points_map, 0),
+        updated_points_map
+    )
+    updated_points_map = jnp.where(
+        obs.steps[0] == 202,
+        jnp.maximum(updated_points_map, 0),
+        updated_points_map
+    )
+
     energy_map = jnp.where(
         obs.sensor_mask,
         obs.map_features.energy,
@@ -246,11 +257,11 @@ def create_representations(
         team_energy_maps / 800.0,
         opponent_unit_maps / 4.0,
         opponent_energy_maps / 800.0,
-        relic_node_maps,
         energy_map.transpose((0, 2, 1)) / 20.0,
         asteroid_maps.transpose((0, 2, 1)),
         nebula_maps.transpose((0, 2, 1)),
         obs.sensor_mask.transpose((0, 2, 1)),
+        relic_node_maps,
         updated_points_map,
     ]
     state_representation = jnp.stack(maps, axis=1)
@@ -277,6 +288,7 @@ def create_representations(
         state_representation=state_representation,
         unit_positions_team=unit_positions_team,
     )
+
 
     agent_ids = (jnp.arange(16) + 1) / 16
     agent_ids = jnp.broadcast_to(agent_ids, (agent_positions.shape[0], 16))

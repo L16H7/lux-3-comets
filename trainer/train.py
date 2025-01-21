@@ -27,7 +27,7 @@ from evaluate import evaluate
 from luxai_s3.env import LuxAIS3Env
 from luxai_s3.params import EnvParams, env_params_ranges
 from make_states import make_states
-from opponent import get_actions as get_opponent_actions
+from opponent import get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
 from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info
 from model import Actor
@@ -127,7 +127,8 @@ def make_train(config: Config):
         rng: jax.Array,
         actor_train_state: TrainState,
         critic_train_state: TrainState,
-        # opponent_state: TrainState,
+        opponent1_state: TrainState,
+        opponent2_state: TrainState,
     ):
         N_TOTAL_AGENTS = config.n_envs * config.n_agents
 
@@ -242,10 +243,16 @@ def make_train(config: Config):
                     p1_agent_observations = p1_agent_observations.reshape(-1, 10, 17, 17)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
-                    # FIXED OPPONENT
-                    # p1_logits = opponent_state.apply_fn(
-                    #     opponent_state.params,
-
+                    get_opponent_actions(
+                        self_state=actor_train_state,
+                        opponent1_state=opponent1_state,
+                        opponent2_state=opponent2_state,
+                        agent_states=p1_agent_states,
+                        agent_observations=p1_agent_observations,
+                        agent_positions=p1_agent_positions,
+                        agent_episode_info=p1_agent_episode_info,
+                        env_info=env_info,
+                    )
                     p1_logits = actor_train_state.apply_fn(
                         actor_train_state.params,
                         {
@@ -640,10 +647,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
@@ -659,10 +666,13 @@ def train(config: Config):
     #     params=opponent_params,
     #     tx=actor_tx,
     # )
-    ''' DEGUGGING
-    opponent_state, _ = make_states(config=config)
-    '''
-    # opponent_state = replicate(opponent_state, jax.local_devices())
+
+    # DEBUGGING
+    opponent1_state, _ = make_states(config=config)
+    opponent2_state, _ = make_states(config=config)
+
+    opponent1_state = replicate(opponent1_state, jax.local_devices())
+    opponent2_state = replicate(opponent2_state, jax.local_devices())
  
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
@@ -679,7 +689,8 @@ def train(config: Config):
         train_device_rngs,
         actor_train_state,
         critic_train_state,
-        # opponent_state,
+        opponent1_state,
+        opponent2_state,
     ).compile()
 
     elapsed_time = time() - t
@@ -701,7 +712,8 @@ def train(config: Config):
                 train_device_rngs,
                 actor_train_state,
                 critic_train_state,
-                # opponent_state
+                opponent1_state,
+                opponent2_state,
             )
         )
         elapsed_time = time() - t
@@ -743,10 +755,10 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=256,
-        n_envs_per_device=256,
-        n_eval_envs=128,
-        n_minibatches=64,
+        n_envs=8,
+        n_envs_per_device=8,
+        n_eval_envs=8,
+        n_minibatches=2,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,

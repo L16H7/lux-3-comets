@@ -156,7 +156,7 @@ class Agent():
         self.prev_team_points = team_points
         self.prev_agent_positions = jnp.expand_dims(agent_positions, axis=0)
 
-        if step == 90:
-            a = True
+        # if step == 90:
+        #     a = True
         
         return jnp.squeeze(actions, axis=0)
