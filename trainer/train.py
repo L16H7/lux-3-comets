@@ -578,7 +578,7 @@ def make_train(config: Config):
                 eval_meta_keys,
                 eval_meta_env_params,
                 updated_runner_state.actor_train_state,
-                opponent1_state,
+                opponent2_state,
                 "opponent2",
                 config.n_eval_envs,
                 config.n_agents,
