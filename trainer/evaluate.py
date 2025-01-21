@@ -15,6 +15,7 @@ def evaluate(
     meta_env_params,
     actor_train_state,
     opponent_state,
+    opponent_label,
     n_envs,
     n_agents,
     v_reset,
@@ -94,8 +95,8 @@ def evaluate(
         p1_agent_observations = p1_agent_observations.reshape(-1, 10, 17, 17)
         p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
-        p1_logits = actor_train_state.apply_fn(
-            actor_train_state.params,
+        p1_logits = opponent_state.apply_fn(
+            opponent_state.params,
             {
                 "states": p1_agent_states,
                 "observations": p1_agent_observations,
@@ -200,7 +201,7 @@ def evaluate(
         "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
         "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
     }
-    info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
+    info_dict = {f"eval_{opponent_label}/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 
     return {
         **info_dict,

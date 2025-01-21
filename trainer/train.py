@@ -550,8 +550,8 @@ def make_train(config: Config):
                 eval_meta_keys,
                 eval_meta_env_params,
                 updated_runner_state.actor_train_state,
-                # opponent_state,
                 updated_runner_state.actor_train_state,
+                "self",
                 config.n_eval_envs,
                 config.n_agents,
                 v_reset,
@@ -559,9 +559,41 @@ def make_train(config: Config):
             )
             eval_info = jax.lax.pmean(eval_info, axis_name="devices")
 
+            eval_info_opponent1 = evaluate(
+                eval_rng,
+                eval_meta_keys,
+                eval_meta_env_params,
+                updated_runner_state.actor_train_state,
+                opponent1_state,
+                "opponent1",
+                config.n_eval_envs,
+                config.n_agents,
+                v_reset,
+                v_step
+            )
+            eval_info_opponent1 = jax.lax.pmean(eval_info_opponent1, axis_name="devices")
+
+            eval_info_opponent2 = evaluate(
+                eval_rng,
+                eval_meta_keys,
+                eval_meta_env_params,
+                updated_runner_state.actor_train_state,
+                opponent1_state,
+                "opponent2",
+                config.n_eval_envs,
+                config.n_agents,
+                v_reset,
+                v_step
+            )
+            eval_info_opponent2 = jax.lax.pmean(eval_info_opponent2, axis_name="devices")
+
             meta_step_info = {
                 "update_step_info": update_step_info,
-                "eval_info": eval_info,
+                "eval_info": {
+                    **eval_info,
+                    **eval_info_opponent1,
+                    **eval_info_opponent2,
+                },
             }
 
             meta_state = (rng, updated_runner_state.actor_train_state, updated_runner_state.critic_train_state)
