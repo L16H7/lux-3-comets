@@ -107,6 +107,9 @@ class Agent():
         ) = representations
         self.points_map = points_map
 
+        if step > 44 and self.team_id == 0:
+            a = True
+ 
         agent_states = states.repeat(16, axis=0)
         agent_observations = jnp.squeeze(agent_observations, axis=0)
         agent_episode_info = episode_info.repeat(16, axis=0)

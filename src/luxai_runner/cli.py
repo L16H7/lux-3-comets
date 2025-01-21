@@ -53,13 +53,13 @@ class Args:
 
 
 def main():
-    args = Args(
-        # players=["./kits/python/main.py", "./kits/jax_submission/main.py"],
-        players=["./submission/main.py", "./submission/main.py"],
-        # seed=7371693,
-        output="replay.json"
-    )
-
+    # args = Args(
+    #     # players=["./kits/python/main.py", "./kits/jax_submission/main.py"],
+    #     players=["./submission/main.py", "./submission/main.py"],
+    #     seed=7325481,
+    #     output="replay.json"
+    # )
+    args = tyro.cli(Args)
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 

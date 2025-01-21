@@ -97,7 +97,7 @@ def update_points_map(points_map, positions, points_gained):
     current_values = points_map[rows, cols]
 
     confirmed_positive = (current_values == 1.0)
-    confirmed_negative = (current_values == -2.0)
+    confirmed_negative = (current_values == -1.0)
 
     confirmed_mask = confirmed_positive | confirmed_negative
     unconfirmed_mask = ~confirmed_mask
@@ -132,7 +132,7 @@ def update_points_map(points_map, positions, points_gained):
         1.0,  # Keep positives as is
         jnp.where(
             confirmed_negative,
-            -2.0,  # Keep negatives as is
+            -1.0,  # Keep negatives as is
             new_unconfirmed_values
         )
     )
