@@ -256,6 +256,7 @@ def make_train(config: Config):
                         agent_positions=p1_agent_positions,
                         agent_episode_info=p1_agent_episode_info,
                         env_info=env_info,
+                        relic_nodes=p1_discovered_relic_nodes,
                     )
 
                     p0_relic_mask = observations['player_0'].relic_nodes != -1

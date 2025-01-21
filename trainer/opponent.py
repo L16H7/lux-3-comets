@@ -15,7 +15,8 @@ def get_opponent_actions(
     agent_observations,
     agent_positions,
     agent_episode_info,
-    env_info
+    env_info,
+    relic_nodes,
 ):
     n_envs = agent_states.shape[0]
     frac = n_envs // 8
@@ -89,5 +90,6 @@ def get_opponent_actions(
         logits=opponent_logits,
         observations=observations,
         sap_ranges=unit_sap_range,
+        relic_nodes=relic_nodes,
     ) 
     return oppnent_actions
