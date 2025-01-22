@@ -194,8 +194,6 @@ def ppo_update(
         "adv_mean": adv_mean,
         "adv_std": adv_std,
         "loss": loss,
-        "actor_resblock_mean": grads_mean[0]['params']['ResidualBlock_0']['Conv_0']['kernel'],
-        "actor_resblock_std": grads_std[0]['params']['ResidualBlock_0']['Conv_0']['kernel'],
         "actor_dense6_mean": grads_mean[0]['params']['Dense_6']['kernel'],
         "actor_dense6_std": grads_std[0]['params']['Dense_6']['kernel'],
     }

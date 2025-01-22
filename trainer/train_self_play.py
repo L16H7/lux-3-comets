@@ -560,8 +560,6 @@ def make_train(config: Config):
                     "adv_std": loss_info["adv_std"],
                     "value_mean": loss_info["value_mean"],
                     "value_std": loss_info["value_std"],
-                    "actor_resblock_mean": loss_info["actor_resblock_mean"],
-                    "actor_resblock_std": loss_info["actor_resblock_std"],
                     "actor_dense6_mean": loss_info["actor_dense6_mean"],
                     "actor_dense6_std": loss_info["actor_dense6_std"],
                     "reward_mean": transitions.rewards.mean(),
@@ -642,10 +640,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
@@ -750,9 +748,9 @@ if __name__ == "__main__":
         n_eval_envs=128,
         n_minibatches=64,
         n_epochs=1,
-        actor_learning_rate=3e-4,
-        critic_learning_rate=3e-4,
-        wandb_project="no-rnn",
+        actor_learning_rate=8e-4,
+        critic_learning_rate=8e-4,
+        wandb_project="new-model",
         train_seed=42,
         entropy_coeff=0.005,
     )

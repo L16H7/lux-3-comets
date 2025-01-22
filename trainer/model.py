@@ -105,27 +105,21 @@ class Actor(nn.Module):
     @nn.compact
     def __call__(self, actor_input: ActorInput):
         state_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.BatchNorm(use_running_average=True),
+            nn.Conv(32, (3, 3), kernel_init=orthogonal(math.sqrt(2))),
             nn.relu,
-            ResidualBlock(features=32),
-            ResidualBlock(features=64, kernel_size=(3, 3), strides=(2, 2)),
-            ResidualBlock(features=128, kernel_size=(3, 3), strides=(2, 2)),
-            ResidualBlock(features=256, kernel_size=(3, 3), strides=(2, 2)),
-            lambda x: jnp.mean(x, axis=(1, 2)),
-            nn.Dense(128),
+            nn.Conv(32, (2, 2), kernel_init=orthogonal(math.sqrt(2))),
+            nn.relu,
+            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Dense(256),
             nn.relu,
         ])
 
         observation_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.BatchNorm(use_running_average=True),
+            nn.Conv(32, (3, 3), kernel_init=orthogonal(math.sqrt(2))),
             nn.relu,
-            ResidualBlock(features=32),
-            ResidualBlock(features=64, kernel_size=(3, 3), strides=(2, 2)),
-            ResidualBlock(features=128, kernel_size=(3, 3), strides=(2, 2)),
-            ResidualBlock(features=256, kernel_size=(3, 3), strides=(2, 2)),
-            lambda x: jnp.mean(x, axis=(1, 2)),
+            nn.Conv(32, (2, 2), kernel_init=orthogonal(math.sqrt(2))),
+            nn.relu,
+            lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(256),
             nn.relu,
         ])
@@ -210,16 +204,12 @@ class Critic(nn.Module):
         seq_len, batch_size = critic_input['states'].shape[:2]
 
         state_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.BatchNorm(use_running_average=True),
+            nn.Conv(32, (3, 3), kernel_init=orthogonal(math.sqrt(2))),
             nn.relu,
-            ResidualBlock(features=32),
-            ResidualBlock(features=64, kernel_size=(3, 3), strides=(2, 2)),
-            ResidualBlock(features=128, kernel_size=(3, 3), strides=(2, 2)),
-            ResidualBlock(features=256, kernel_size=(3, 3), strides=(2, 2)),
-            ResidualBlock(features=256, kernel_size=(3, 3), strides=(2, 2)),
-            lambda x: jnp.mean(x, axis=(1, 2)),
-            nn.Dense(256),
+            nn.Conv(64, (2, 2), kernel_init=orthogonal(math.sqrt(2))),
+            nn.relu,
+            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Dense(512),
             nn.relu,
         ])
 
