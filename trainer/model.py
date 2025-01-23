@@ -126,8 +126,9 @@ class Actor(nn.Module):
         batch_size = actor_input['states'].shape[0]
 
         patch_embeddings = state_patch_encoder(
-            actor_input['states'].transpose((0, 2, 3, 1))
+            actor_input['states']
         )
+
         patch_embeddings = patch_embeddings.reshape(batch_size, -1, self.hidden_dim)
 
         seq_len = patch_embeddings.shape[1]
@@ -224,7 +225,7 @@ class Critic(nn.Module):
         ])
 
         state_embeddings = state_encoder(
-            critic_input['states'].transpose((0, 2, 3, 1))
+            critic_input['states']
         )
 
         info_input = jnp.stack([

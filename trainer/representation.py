@@ -19,10 +19,10 @@ def transform_coordinates(coordinates, map_width=24, map_height=24):
 
 def transform_observation(obs):
     # Horizontal flip across the last dimension (24, 24 grids)
-    flipped = jnp.flip(obs, axis=3)
+    flipped = jnp.flip(obs, axis=2)
     
     # Rotate 90 degrees clockwise after flip, across the last two dimensions (24x24)
-    rotated = jnp.rot90(flipped, k=-1, axes=(2, 3))
+    rotated = jnp.rot90(flipped, k=-1, axes=(1, 2))
     
     return rotated
 
@@ -213,6 +213,7 @@ def create_representations(
     #     proximity_positions,
     #     prev_agent_positions,
     # )
+
     prev_agent_positions = proximity_positions
 
     transformed_previous_positions = transform_coordinates(prev_agent_positions)
@@ -265,7 +266,7 @@ def create_representations(
         relic_node_maps,
         updated_points_map,
     ]
-    state_representation = jnp.stack(maps, axis=1)
+    state_representation = jnp.stack(maps, axis=-1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
     match_steps = obs.match_steps[:, None] / 100.0
@@ -285,18 +286,12 @@ def create_representations(
  
     agent_positions = unit_positions_team
 
-    agent_observations = create_agent_patches(
-        state_representation=state_representation,
-        unit_positions_team=unit_positions_team,
-    )
-
-
     agent_ids = (jnp.arange(16) + 1) / 16
     agent_ids = jnp.broadcast_to(agent_ids, (agent_positions.shape[0], 16))
 
     return (
         state_representation,
-        agent_observations,
+        None,
         episode_info,
         updated_points_map,
         agent_positions,
@@ -339,24 +334,24 @@ def create_agent_representations(
     return p0_representations, p1_representations
 
 def combined_states_info(team_states, opponent_states):
-    opponent_states = transform_observation(opponent_states.copy())
+    transformed_opponent_states = transform_observation(opponent_states)
     combined_states = jnp.stack([
-        team_states[:, 0, ...], 
-        team_states[:, 1, ...], 
-        opponent_states[:, 0, ...],
-        opponent_states[:, 1, ...],
-        team_states[:, 4, ...], # team relics
-        opponent_states[:, 4, ...], # opponent relics
+        team_states[..., 0], 
+        team_states[..., 1],
+        transformed_opponent_states[..., 0],
+        transformed_opponent_states[..., 1],
+        team_states[..., 4], # team relics
+        transformed_opponent_states[..., 4], # opponent relics
         # energy
-        jnp.where(team_states[:, 5, ...] != 0, team_states[:, 5, ...], opponent_states[:, 5, ...]),
+        jnp.where(team_states[..., 5] != 0, team_states[..., 5], transformed_opponent_states[..., 5]),
         # asteroid
-        jnp.where(team_states[:, 6, ...] != 0, team_states[:, 6, ...], opponent_states[:, 6, ...]),
+        jnp.where(team_states[..., 6] != 0, team_states[..., 6], transformed_opponent_states[..., 6]),
         # nebula
-        jnp.where(team_states[:, 7, ...] != 0, team_states[:, 7, ...], opponent_states[:, 7, ...]),
-        team_states[:, 8, ...],
-        opponent_states[:, 8, ...], 
-        team_states[:, 9, ...],
-        opponent_states[:, 9, ...], 
-    ], axis=1)
+        jnp.where(team_states[..., 7] != 0, team_states[..., 7], transformed_opponent_states[..., 7]),
+        team_states[..., 8],
+        transformed_opponent_states[..., 8], 
+        team_states[..., 9],
+        transformed_opponent_states[..., 9], 
+    ], axis=-1)
 
     return combined_states
