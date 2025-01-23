@@ -5,14 +5,14 @@ from flax.training.train_state import TrainState
 import jax.numpy as jnp
 
 from config import Config
-from model import Actor, Critic
+from model import ActorCritic
 
 
 def make_states(config: Config):
     rng = jax.random.PRNGKey(config.train_seed)
-    actor = Actor(n_actions=6)
+    actor = ActorCritic(n_actions=6)
     BATCH = 16
-    actor_network_params = actor.init(rng, {
+    network_params = actor.init(rng, {
         "states": jnp.zeros((BATCH, 24, 24, 10)),
         "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
         "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
@@ -26,28 +26,12 @@ def make_states(config: Config):
         "agent_ids": jnp.zeros((BATCH,)),
     })
 
-    num_params = sum(x.size for x in jax.tree_util.tree_leaves(actor_network_params))
+    num_params = sum(x.size for x in jax.tree_util.tree_leaves(network_params))
     print(f"Number of actor parameters: {num_params:,}")
-
-    critic = Critic()
-    critic_network_params = critic.init(rng, {
-        "states": jnp.zeros((BATCH, 24, 24, 13)),
-        "match_steps": jnp.zeros((BATCH,)),
-        "matches": jnp.zeros((BATCH,)),
-        "team_points": jnp.zeros((BATCH,)),
-        "opponent_points": jnp.zeros((BATCH,)),
-    })
-    num_params = sum(x.size for x in jax.tree_util.tree_leaves(critic_network_params))
-    print(f"Number of critic parameters: {num_params:,}")
 
     actor_tx = optax.chain(
         optax.clip_by_global_norm(config.max_grad_norm),
         optax.adamw(config.actor_learning_rate),
-    )
-
-    critic_tx = optax.chain(
-        optax.clip_by_global_norm(config.max_grad_norm),
-        optax.adamw(config.critic_learning_rate),
     )
 
     ### --------- RESUME HERE --------- ###
@@ -63,15 +47,11 @@ def make_states(config: Config):
     ### ------------------------------- ###
 
 
-    actor_train_state = TrainState.create(
+    train_state = TrainState.create(
         apply_fn=actor.apply,
-        params=actor_network_params,
+        params=network_params,
         tx=actor_tx,
     )
-    critic_train_state = TrainState.create(
-        apply_fn=critic.apply,
-        params=critic_network_params,
-        tx=critic_tx,
-    )
 
-    return actor_train_state, critic_train_state
+
+    return train_state

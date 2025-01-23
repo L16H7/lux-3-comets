@@ -223,10 +223,7 @@ def make_train(config: Config):
                         relic_nodes=p0_discovered_relic_nodes,
                     )
 
-                    p0_combined_states = combined_states_info(
-                        p0_states,
-                        p1_states
-                    )
+
 
                     p0_values = critic_train_state.apply_fn(
                         critic_train_state.params,

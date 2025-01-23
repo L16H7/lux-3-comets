@@ -6,7 +6,6 @@ from typing import NamedTuple
 
 
 class Transition(NamedTuple):
-    agent_states: jnp.ndarray
     episode_info: jnp.ndarray
     states: jnp.ndarray
     actions: jnp.ndarray
@@ -47,7 +46,6 @@ def calculate_gae(
 
 def ppo_update(
     actor_train_state: TrainState,
-    critic_train_state: TrainState,
     transitions: Transition,
     advantages: jax.Array,
     targets: jax.Array,
@@ -62,11 +60,11 @@ def ppo_update(
     adv_std = advantages.std()
     advantages = (advantages - adv_mean) / (adv_std + 1e-8)
 
-    def _loss_fn(actor_params, critic_params):
-        logits = actor_train_state.apply_fn(
+    def _loss_fn(actor_params):
+        logits, values = actor_train_state.apply_fn(
             actor_params,
             {
-                "states": transitions.agent_states,
+                "states": transitions.states,
                 "positions": transitions.agent_positions,
                 "match_steps": transitions.episode_info[:, 0],
                 "matches": transitions.episode_info[:, 1],
@@ -134,16 +132,6 @@ def ppo_update(
 
         entropy_loss = entropy.sum() / active_units
 
-        values = critic_train_state.apply_fn(
-            critic_params,
-            {
-                "states": transitions.states,
-                "match_steps": transitions.episode_info[:, 0],
-                "matches": transitions.episode_info[:, 1],
-                "team_points": transitions.episode_info[:, 2],
-                "opponent_points": transitions.episode_info[:, 3],
-            }
-        )
         values = jnp.squeeze(values)
 
         value_pred_clipped = transitions.values + (values - transitions.values).clip(-clip_eps, clip_eps)
@@ -171,12 +159,9 @@ def ppo_update(
 
         return loss, update_info
 
-    grad_fn = jax.value_and_grad(_loss_fn, argnums=(0, 1), has_aux=True)
-    (loss, update_info), grads = grad_fn(
-        actor_train_state.params, critic_train_state.params
-    )
+    grad_fn = jax.value_and_grad(_loss_fn, has_aux=True)
+    (loss, update_info), grads = grad_fn(actor_train_state.params)
     (loss, update_info) = jax.lax.pmean((loss, update_info), axis_name="devices")
-    actor_grads, critic_grads = grads
 
     def mean_leaf(x):
         return jnp.mean(x)
@@ -187,15 +172,14 @@ def ppo_update(
     grads_mean = jax.tree_util.tree_map(mean_leaf, grads)
     grads_std = jax.tree_util.tree_map(std_leaf, grads)
 
-    updated_actor_train_state = actor_train_state.apply_gradients(grads=actor_grads)
-    updated_critic_train_state = critic_train_state.apply_gradients(grads=critic_grads)
+    updated_actor_train_state = actor_train_state.apply_gradients(grads=grads)
 
     update_step_info = {
         **update_info,
         "adv_mean": adv_mean,
         "adv_std": adv_std,
         "loss": loss,
-        "actor_dense6_mean": grads_mean[0]['params']['Dense_6']['kernel'],
-        "actor_dense6_std": grads_std[0]['params']['Dense_6']['kernel'],
+        "actor_dense6_mean": grads_mean['params']['Dense_6']['kernel'],
+        "actor_dense6_std": grads_std['params']['Dense_6']['kernel'],
     }
-    return updated_actor_train_state, updated_critic_train_state, update_step_info 
+    return updated_actor_train_state, update_step_info 

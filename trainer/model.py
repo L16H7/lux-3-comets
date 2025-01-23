@@ -109,7 +109,7 @@ def get_unit_embeddings(x, unit_positions):
     return x[batch_indices, unit_positions[:, :, 0], unit_positions[:, :, 1]]
 
 
-class Actor(nn.Module):
+class ActorCritic(nn.Module):
     n_actions: int = 6
     info_emb_dim: int = 64
     hidden_dim: int = 256
@@ -160,14 +160,14 @@ class Actor(nn.Module):
             hidden_dim=self.hidden_dim + self.info_emb_dim,
             num_heads=4
         )
-        x = encoder(x)
+        state_embeddings = encoder(x)
         upsample_layer = nn.ConvTranspose(
             features=self.hidden_dim, 
             kernel_size=(4, 4), 
             strides=(4, 4),
             kernel_init=orthogonal(math.sqrt(2))
         )
-        x = upsample_layer(x)
+        x = upsample_layer(state_embeddings)
         x = x.reshape(batch_size, 24, 24, -1)
 
         unit_embeddings = get_unit_embeddings(x, actor_input['positions'])
@@ -196,66 +196,6 @@ class Actor(nn.Module):
         logits2 = x_coordinate_head(x)
         logits3 = y_coordinate_head(x)
 
-        return logits1, logits2, logits3
-
-
-class CriticInput(TypedDict):
-    states: jax.Array
-    match_steps: jax.Array         # 4 phases each with 25 steps
-    team_points: jax.Array
-    opponent_points: jax.Array
- 
-
-class Critic(nn.Module):
-    info_emb_dim: int = 64
-    hidden_dim: int = 256
- 
-    @nn.compact
-    def __call__(self, critic_input):
-        state_patch_encoder = nn.Conv(
-            features=self.hidden_dim,
-            kernel_size=(4, 4),
-            strides=(4, 4),
-            kernel_init=orthogonal(math.sqrt(2))
-        )
-
-        batch_size = critic_input['states'].shape[0]
-
-        patch_embeddings = state_patch_encoder(
-            critic_input['states']
-        )
-
-        patch_embeddings = patch_embeddings.reshape(batch_size, -1, self.hidden_dim)
-
-        seq_len = patch_embeddings.shape[1]
-        positional_embeddings = sinusoidal_positional_encoding(seq_len, self.hidden_dim)
-        embeddings = patch_embeddings + positional_embeddings[None, :, :]
-
-        info_input = jnp.stack([
-            critic_input['team_points'],
-            critic_input['opponent_points'],
-            critic_input['match_steps'],
-            critic_input['matches'],
-        ], axis=-1)
-
-
-        info_embeddings = nn.Sequential([
-            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.relu,
-        ])(info_input)
-
-        x = jnp.concatenate([
-            embeddings,
-            info_embeddings[:, None, :].repeat(seq_len, axis=1)
-        ], axis=-1)
-
-        encoder = TransformerEncoder(
-            hidden_dim=self.hidden_dim + self.info_emb_dim,
-            num_heads=4
-        )
-        x = encoder(x)
-        x = x.reshape(batch_size, -1)
-
         critic = nn.Sequential(
             [
                 nn.Dense(
@@ -266,5 +206,6 @@ class Critic(nn.Module):
             ]
         )
 
-        values = critic(x)
-        return values
+        values = critic(state_embeddings.reshape(batch_size, -1))
+
+        return (logits1, logits2, logits3), values

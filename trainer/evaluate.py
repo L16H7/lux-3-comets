@@ -48,7 +48,7 @@ def evaluate(
             p0_units_mask,
         ) = p0_representations
 
-        p0_logits = actor_train_state.apply_fn(
+        p0_logits, _ = actor_train_state.apply_fn(
             actor_train_state.params,
             {
                 "states": p0_states,
@@ -85,7 +85,7 @@ def evaluate(
             p1_units_mask,
         ) = p1_representations
 
-        p1_logits = opponent_state.apply_fn(
+        p1_logits, _ = opponent_state.apply_fn(
             opponent_state.params,
             {
                 "states": p1_states,
