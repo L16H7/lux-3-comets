@@ -808,6 +808,7 @@ class LuxAIS3Env(environment.Environment):
         lose_rewards = jnp.zeros((2,))
         lose_rewards = lose_rewards.at[1 - winner].set(jnp.where(match_ended, -1.0, 0.0))
         rewards = win_rewards + lose_rewards
+        rewards = state.team_points
 
         return (
             lax.stop_gradient(self.get_obs(state, params, key=key)),
