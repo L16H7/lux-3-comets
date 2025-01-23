@@ -54,9 +54,8 @@ class Args:
 
 def main():
     # args = Args(
-    #     # players=["./kits/python/main.py", "./kits/jax_submission/main.py"],
     #     players=["./submission/main.py", "./submission/main.py"],
-    #     seed=7325481,
+    #     # seed=6472549,
     #     output="replay.json"
     # )
     args = tyro.cli(Args)

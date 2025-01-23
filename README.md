@@ -28,3 +28,13 @@ Action masking improves the learning. https://arxiv.org/abs/2006.14171
 - By default, all cells will be marked as 0.
 - If agents do not score any points, all prev positions will be marked as -1 permanently.
 - If agents score points, all prev positions will be marked as 1 except for -1 cells.
+
+# League training
+- There will be 3 opponents.
+    1. self
+    2. best checkpoint
+    3. exploiter
+
+- self plays 3/8 of the n_envs
+- best checkpoint plays 3/8
+- exploiter plays 2/8

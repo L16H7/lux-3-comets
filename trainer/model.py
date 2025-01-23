@@ -1,9 +1,7 @@
-import functools
 import jax
 import math
 import flax.linen as nn
 import jax.numpy as jnp
-import numpy as np
 from flax.linen.initializers import orthogonal
 from typing import TypedDict
 
@@ -50,35 +48,16 @@ def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
     return embeddings
 
 
-import jax
-import jax.numpy as jnp
-from flax import linen as nn
-from jax.nn.initializers import orthogonal
-from typing import Tuple
-
-class ResidualBlock(nn.Module):
-    features: int
-    kernel_size: Tuple[int, int] = (3, 3)
-    strides: Tuple[int, int] = (1, 1)
-
-    @nn.compact
-    def __call__(self, x):
-        residual = x
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(x)
-        y = nn.BatchNorm(use_running_average=True)(y)
-        y = nn.relu(y)
-        y = nn.Conv(self.features, self.kernel_size, padding="SAME")(y)
-        y = nn.BatchNorm(use_running_average=True)(y)
-
-        downsample = nn.Sequential([
-            nn.Conv(self.features, (1, 1), self.strides, padding='SAME'),
-            nn.BatchNorm(use_running_average=True)
-        ])
-
-        if residual.shape != y.shape:
-            residual = downsample(residual)
-        y = y + residual
-        return nn.leaky_relu(y)
+def sinusoidal_positional_encoding(seq_len, dim):
+    """Create static sinusoidal positional encoding."""
+    position = jnp.arange(0, seq_len)[:, jnp.newaxis]
+    div_term = jnp.exp(jnp.arange(0, dim, 2) * -(jnp.log(10000.0) / dim))
+    
+    positional_embeddings = jnp.zeros((seq_len, dim))
+    positional_embeddings = positional_embeddings.at[:, 0::2].set(jnp.sin(position * div_term))
+    positional_embeddings = positional_embeddings.at[:, 1::2].set(jnp.cos(position * div_term))
+    
+    return positional_embeddings
 
 
 class ActorInput(TypedDict):
@@ -95,86 +74,118 @@ class ActorInput(TypedDict):
     unit_sensor_range: jax.Array
     agent_ids: jax.Array
  
+
+class TransformerEncoder(nn.Module):
+    def __init__(
+        self,
+        hidden_dim: int,
+        num_heads: int,
+    ) -> None:
+
+        self.norm1 = nn.LayerNorm()
+        self.attn = nn.MultiHeadDotProductAttention(
+            kernel_init=nn.initializers.xavier_uniform(),
+            broadcast_dropout=False,
+            num_heads=num_heads
+        )
+
+        self.norm2 = nn.LayerNorm()
+
+        self.mlp = nn.Sequential([
+            nn.Dense(hidden_dim),
+            nn.gelu,
+            nn.Dense(hidden_dim),
+        ])
+
+    def __call__(self, x: jax.Array) -> jax.Array:
+        x = x + self.attn(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
+        return x
+
+
+def get_unit_embeddings(x, unit_positions):
+    # x: (batch, 24, 24, emb_dim)
+    # unit_positions: (batch, num_units, 2)
+    batch_indices = jnp.arange(x.shape[0])[:, None]
+    return x[batch_indices, unit_positions[:, :, 0], unit_positions[:, :, 1]]
+
+
 class Actor(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 32
-    action_emb_dim: int = 16
-    hidden_dim: int = 128
-    position_emb_dim: int = 32
+    info_emb_dim: int = 128
+    hidden_dim: int = 768
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
-        state_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), kernel_init=orthogonal(math.sqrt(2))),
-            nn.relu,
-            nn.Conv(32, (2, 2), kernel_init=orthogonal(math.sqrt(2))),
-            nn.relu,
-            lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(256),
-            nn.relu,
-        ])
-
-        observation_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), kernel_init=orthogonal(math.sqrt(2))),
-            nn.relu,
-            nn.Conv(32, (2, 2), kernel_init=orthogonal(math.sqrt(2))),
-            nn.relu,
-            lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(256),
-            nn.relu,
-        ])
+        state_patch_encoder = nn.Conv(
+            features=self.hidden_dim,
+            kernel_size=(4, 4),
+            strides=(4, 4),
+            kernel_init=orthogonal(math.sqrt(2))
+        )
 
         batch_size = actor_input['states'].shape[0]
 
-        observation_embeddings = observation_encoder(
-            actor_input['observations'].transpose((0, 2, 3, 1))
-        )
-
-        state_embeddings = state_encoder(
+        patch_embeddings = state_patch_encoder(
             actor_input['states'].transpose((0, 2, 3, 1))
         )
+        patch_embeddings = patch_embeddings.reshape(batch_size, -1, self.hidden_dim)
 
-        position_embeddings = get_2d_positional_embeddings(
-            actor_input['positions'],
-            embedding_dim=32,
-            max_size=24
-        )
+        seq_len = patch_embeddings.shape[1]
+        positional_embeddings = sinusoidal_positional_encoding(seq_len, self.hidden_dim)
+        embeddings = patch_embeddings + positional_embeddings[None, :, :]
 
         info_input = jnp.stack([
             actor_input['team_points'],
             actor_input['opponent_points'],
             actor_input['match_steps'],
             actor_input['matches'],
+            actor_input['unit_move_cost'],
+            actor_input['unit_sap_cost'],
+            actor_input['unit_sap_range'],
+            actor_input['unit_sensor_range'],
         ], axis=-1)
 
         info_embeddings = nn.Sequential([
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
+            nn.relu,
         ])(info_input)
+
+        x = jnp.concatenate([
+            embeddings,
+            info_embeddings[:, None, :].repeat(seq_len, axis=1)
+        ], axis=-1)
+
+        encoder = TransformerEncoder(
+            hidden_dim=self.hidden_dim + self.info_emb_dim,
+            num_heads=8
+        )
+        x = encoder(x)
+        upsample_layer = nn.ConvTranspose(
+            features=self.hidden_dim, 
+            kernel_size=(4, 4), 
+            strides=(4, 4),
+            kernel_init=orthogonal(math.sqrt(2))
+        )
+        x = upsample_layer(x)
+        x = x.reshape(batch_size, 24, 24, -1)
+
+        unit_embeddings = get_unit_embeddings(x, actor_input['positions'][:, None, :])
 
         actor = nn.Sequential(
             [
                 nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
+                    256, kernel_init=orthogonal(2),
                 ),
-                nn.leaky_relu,
+                nn.relu,
                 nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
+                    256, kernel_init=orthogonal(2),
                 ),
-                nn.leaky_relu,
+                nn.relu,
             ]
         )
 
-        embeddings = jnp.concat([
-            state_embeddings,
-            info_embeddings,
-            position_embeddings,
-            observation_embeddings,
-        ], axis=-1)
-
-        attention = nn.SelfAttention(num_heads=8)
-        attended_embeddings = attention(embeddings)
-        x = actor(attended_embeddings)
+        x = actor(unit_embeddings)
 
         action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
 
