@@ -134,7 +134,7 @@ class ActorCritic(nn.Module):
             ),
             nn.relu,
             nn.Conv(
-                features=64,
+                features=32,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding="SAME",
@@ -142,31 +142,7 @@ class ActorCritic(nn.Module):
             ),
             nn.relu,
             nn.Conv(
-                features=64,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding="SAME",
-                kernel_init=orthogonal(math.sqrt(2))
-            ),
-            nn.relu,
-            nn.Conv(
-                features=128,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding="SAME",
-                kernel_init=orthogonal(math.sqrt(2))
-            ),
-            nn.relu,
-            nn.Conv(
-                features=128,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding="SAME",
-                kernel_init=orthogonal(math.sqrt(2))
-            ),
-            nn.relu,
-            nn.Conv(
-                features=256,
+                features=32,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding="SAME",
@@ -195,32 +171,45 @@ class ActorCritic(nn.Module):
 
         state_embeddings = state_encoder(actor_input['states'])
 
-        unit_embeddings = get_unit_embeddings(state_embeddings, actor_input['positions'])
-
-        actor = nn.Sequential(
-            [
-                nn.Dense(
-                    256, kernel_init=orthogonal(2),
-                ),
-                nn.relu,
-                nn.Dense(
-                    256, kernel_init=orthogonal(2),
-                ),
-                nn.relu,
-            ]
+        action_head = nn.Conv(
+            features=6,
+            kernel_size=(2, 2),
+            strides=(1, 1),
+            padding="SAME",
+            kernel_init=orthogonal(math.sqrt(2))
         )
 
-        x = actor(unit_embeddings)
+        x_coordinate_head = nn.Conv(
+            features=17,
+            kernel_size=(2, 2),
+            strides=(1, 1),
+            padding="SAME",
+            kernel_init=orthogonal(math.sqrt(2))
+        )
 
-        action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
+        y_coordinate_head = nn.Conv(
+            features=17,
+            kernel_size=(2, 2),
+            strides=(1, 1),
+            padding="SAME",
+            kernel_init=orthogonal(math.sqrt(2))
+        )
 
-        x_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
-        y_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
+        logits1 = get_unit_embeddings(
+            action_head(state_embeddings),
+            actor_input['positions']
+        )
 
-        logits1 = action_head(x)
-        logits2 = x_coordinate_head(x)
-        logits3 = y_coordinate_head(x)
+        logits2 = get_unit_embeddings(
+            x_coordinate_head(state_embeddings),
+            actor_input['positions']
+        )
 
+        logits3 = get_unit_embeddings(
+            y_coordinate_head(state_embeddings),
+            actor_input['positions']
+        )
+ 
         critic = nn.Sequential(
             [
                 nn.Dense(

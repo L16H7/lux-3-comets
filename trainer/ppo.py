@@ -179,7 +179,7 @@ def ppo_update(
         "adv_mean": adv_mean,
         "adv_std": adv_std,
         "loss": loss,
-        "actor_dense6_mean": grads_mean['params']['Dense_6']['kernel'],
-        "actor_dense6_std": grads_std['params']['Dense_6']['kernel'],
+        # "actor_dense6_mean": grads_mean['params']['Dense_6']['kernel'],
+        # "actor_dense6_std": grads_std['params']['Dense_6']['kernel'],
     }
     return updated_actor_train_state, update_step_info 
