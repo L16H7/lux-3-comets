@@ -514,8 +514,8 @@ def make_train(config: Config):
 
             eval_info = evaluate(
                 eval_rng,
-                eval_meta_keys,
-                eval_meta_env_params,
+                meta_keys,
+                meta_env_params,
                 updated_runner_state.actor_train_state,
                 updated_runner_state.actor_train_state,
                 'self',
@@ -548,10 +548,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
@@ -598,8 +598,8 @@ def train(config: Config):
     meta_step = 0
     update_step = 0
     while True:
-        rng, train_rng, _, _ = jax.random.split(rng, num=4)
-        train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
+        #rng, train_rng, _, _ = jax.random.split(rng, num=4)
+        #train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
         loop += 1
         t = time()
         train_summary = jax.block_until_ready(
@@ -642,9 +642,9 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=256,
-        n_envs_per_device=256,
-        n_eval_envs=128,
+        n_envs=128,
+        n_envs_per_device=128,
+        n_eval_envs=16,
         n_minibatches=64,
         n_epochs=1,
         actor_learning_rate=3e-4,
