@@ -116,25 +116,67 @@ class ActorCritic(nn.Module):
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
-        state_patch_encoder = nn.Conv(
-            features=32,
-            kernel_size=(4, 4),
-            strides=(4, 4),
-            kernel_init=orthogonal(math.sqrt(2))
-        )
+        state_encoder = nn.Sequential([
+            nn.Conv(
+                features=32,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding="SAME",
+                kernel_init=orthogonal(math.sqrt(2))
+            ),
+            nn.relu,
+            nn.Conv(
+                features=32,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding="SAME",
+                kernel_init=orthogonal(math.sqrt(2))
+            ),
+            nn.relu,
+            nn.Conv(
+                features=64,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding="SAME",
+                kernel_init=orthogonal(math.sqrt(2))
+            ),
+            nn.relu,
+            nn.Conv(
+                features=64,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding="SAME",
+                kernel_init=orthogonal(math.sqrt(2))
+            ),
+            nn.relu,
+            nn.Conv(
+                features=128,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding="SAME",
+                kernel_init=orthogonal(math.sqrt(2))
+            ),
+            nn.relu,
+            nn.Conv(
+                features=128,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding="SAME",
+                kernel_init=orthogonal(math.sqrt(2))
+            ),
+            nn.relu,
+            nn.Conv(
+                features=256,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding="SAME",
+                kernel_init=orthogonal(math.sqrt(2))
+            ),
+            nn.relu,
+        ])
 
         batch_size = actor_input['states'].shape[0]
 
-        patch_embeddings = state_patch_encoder(
-            actor_input['states']
-        )
-
-        patch_embeddings = patch_embeddings.reshape(batch_size, -1, 32)
-
-        seq_len = patch_embeddings.shape[1]
-        positional_embeddings = sinusoidal_positional_encoding(seq_len, 32)
-        embeddings = patch_embeddings + positional_embeddings[None, :, :]
-        
         info_input = jnp.stack([
             actor_input['team_points'],
             actor_input['opponent_points'],
@@ -151,26 +193,9 @@ class ActorCritic(nn.Module):
             nn.relu,
         ])(info_input)
 
-        x = jnp.concatenate([
-            embeddings,
-            info_embeddings[:, None, :].repeat(seq_len, axis=1)
-        ], axis=-1)
+        state_embeddings = state_encoder(actor_input['states'])
 
-        encoder = TransformerEncoder(
-            hidden_dim=96,
-            num_heads=4
-        )
-        state_embeddings = encoder(x)
-        upsample_layer = nn.ConvTranspose(
-            features=self.hidden_dim, 
-            kernel_size=(4, 4), 
-            strides=(4, 4),
-            kernel_init=orthogonal(math.sqrt(2))
-        )
-        x = upsample_layer(state_embeddings.reshape(batch_size, 6, 6, -1))
-        x = x.reshape(batch_size, 24, 24, -1)
-
-        unit_embeddings = get_unit_embeddings(x, actor_input['positions'])
+        unit_embeddings = get_unit_embeddings(state_embeddings, actor_input['positions'])
 
         actor = nn.Sequential(
             [
@@ -206,6 +231,6 @@ class ActorCritic(nn.Module):
             ]
         )
 
-        values = critic(state_embeddings.reshape(batch_size, -1))
+        values = critic(state_embeddings.mean(axis=(1, 2)))
 
         return (logits1, logits2, logits3), values
