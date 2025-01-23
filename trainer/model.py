@@ -117,7 +117,7 @@ class ActorCritic(nn.Module):
     @nn.compact
     def __call__(self, actor_input: ActorInput):
         state_patch_encoder = nn.Conv(
-            features=self.hidden_dim,
+            features=32,
             kernel_size=(4, 4),
             strides=(4, 4),
             kernel_init=orthogonal(math.sqrt(2))
@@ -129,10 +129,10 @@ class ActorCritic(nn.Module):
             actor_input['states']
         )
 
-        patch_embeddings = patch_embeddings.reshape(batch_size, -1, self.hidden_dim)
+        patch_embeddings = patch_embeddings.reshape(batch_size, -1, 32)
 
         seq_len = patch_embeddings.shape[1]
-        positional_embeddings = sinusoidal_positional_encoding(seq_len, self.hidden_dim)
+        positional_embeddings = sinusoidal_positional_encoding(seq_len, 32)
         embeddings = patch_embeddings + positional_embeddings[None, :, :]
         
         info_input = jnp.stack([
@@ -157,7 +157,7 @@ class ActorCritic(nn.Module):
         ], axis=-1)
 
         encoder = TransformerEncoder(
-            hidden_dim=self.hidden_dim + self.info_emb_dim,
+            hidden_dim=96,
             num_heads=4
         )
         state_embeddings = encoder(x)
