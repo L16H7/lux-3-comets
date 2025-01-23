@@ -48,21 +48,15 @@ def evaluate(
             p0_units_mask,
         ) = p0_representations
 
-        p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
-        p0_agent_states = p0_states.repeat(16, axis=0)
-        p0_agent_observations = p0_agent_observations.reshape(-1, 10, 17, 17)
-        p0_agent_positions = p0_agent_positions.reshape(-1, 2)
-
         p0_logits = actor_train_state.apply_fn(
             actor_train_state.params,
             {
-                "states": p0_agent_states,
-                "observations": p0_agent_observations,
+                "states": p0_states,
                 "positions": p0_agent_positions,
-                "match_steps": p0_agent_episode_info[:, 0],
-                "matches": p0_agent_episode_info[:, 1],
-                "team_points": p0_agent_episode_info[:, 2],
-                "opponent_points": p0_agent_episode_info[:, 3],
+                "match_steps": p0_episode_info[:, 0],
+                "matches": p0_episode_info[:, 1],
+                "team_points": p0_episode_info[:, 2],
+                "opponent_points": p0_episode_info[:, 3],
                 "unit_move_cost": env_info[:, 0],
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],
@@ -91,21 +85,15 @@ def evaluate(
             p1_units_mask,
         ) = p1_representations
 
-        p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
-        p1_agent_states = p1_states.repeat(16, axis=0)
-        p1_agent_observations = p1_agent_observations.reshape(-1, 10, 17, 17)
-        p1_agent_positions = p1_agent_positions.reshape(-1, 2)
-
         p1_logits = opponent_state.apply_fn(
             opponent_state.params,
             {
-                "states": p1_agent_states,
-                "observations": p1_agent_observations,
+                "states": p1_states,
                 "positions": p1_agent_positions,
-                "match_steps": p1_agent_episode_info[:, 0],
-                "matches": p1_agent_episode_info[:, 1],
-                "team_points": p1_agent_episode_info[:, 2],
-                "opponent_points": p1_agent_episode_info[:, 3],
+                "match_steps": p1_episode_info[:, 0],
+                "matches": p1_episode_info[:, 1],
+                "team_points": p1_episode_info[:, 2],
+                "opponent_points": p1_episode_info[:, 3],
                 "unit_move_cost": env_info[:, 0],
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],

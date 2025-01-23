@@ -316,18 +316,17 @@ def make_train(config: Config):
                     p0_rewards = jnp.squeeze(rewards[:, 0])
                     p1_rewards = jnp.squeeze(rewards[:, 1])
 
-                    import pdb; pdb.set_trace()
                     transition = Transition(
                         agent_states=jnp.concat([p0_states, p1_states], axis=0),
                         states=jnp.concat([p0_combined_states, p1_combined_states], axis=0),
                         episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),
-                        actions=jnp.concat([p0_actions.reshape(-1, 3), p1_actions.reshape(-1, 3)], axis=0),
+                        actions=jnp.concat([p0_actions, p1_actions], axis=0),
                         log_probs=jnp.concat([p0_log_probs, p1_log_probs], axis=0),
                         values=jnp.concat([p0_values, p1_values], axis=0),
                         agent_positions=jnp.concat([p0_agent_positions, p1_agent_positions], axis=0),
                         rewards=jnp.concat([p0_rewards, p1_rewards], axis=0),
                         dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(2),
-                        units_mask=jnp.concat([p0_units_mask.reshape(-1), p1_units_mask.reshape(-1)], axis=0),
+                        units_mask=jnp.concat([p0_units_mask, p1_units_mask], axis=0),
                         logits1_mask=jnp.concat([p0_logits_mask[0], p1_logits_mask[0]], axis=0),
                         logits2_mask=jnp.concat([p0_logits_mask[1], p1_logits_mask[1]], axis=0),
                         logits3_mask=jnp.concat([p0_logits_mask[2], p1_logits_mask[2]], axis=0),

@@ -61,19 +61,17 @@ def ppo_update(
     adv_mean = advantages.mean()
     adv_std = advantages.std()
     advantages = (advantages - adv_mean) / (adv_std + 1e-8)
-    advantages = jnp.where(units_mask, advantages, 0)
 
     def _loss_fn(actor_params, critic_params):
         logits = actor_train_state.apply_fn(
             actor_params,
             {
                 "states": transitions.agent_states,
-                "observations": transitions.observations,
                 "positions": transitions.agent_positions,
-                "match_steps": transitions.agent_episode_info[:, 0],
-                "matches": transitions.agent_episode_info[:, 1],
-                "team_points": transitions.agent_episode_info[:, 2],
-                "opponent_points": transitions.agent_episode_info[:, 3],
+                "match_steps": transitions.episode_info[:, 0],
+                "matches": transitions.episode_info[:, 1],
+                "team_points": transitions.episode_info[:, 2],
+                "opponent_points": transitions.episode_info[:, 3],
                 "unit_move_cost": transitions.env_information[:, 0],
                 "unit_sap_cost": transitions.env_information[:, 1],
                 "unit_sap_range": transitions.env_information[:, 2],
@@ -114,7 +112,12 @@ def ppo_update(
 
         log_ratio = log_probs - transitions.log_probs
         log_ratio = jnp.where(units_mask, log_ratio, 0)
-        
+        log_ratio = jnp.where(
+            units_mask.sum(axis=-1) > 0, 
+            log_ratio.sum(axis=-1) / units_mask.sum(axis=-1), 
+            0
+        )
+       
         ratio = jnp.exp(log_ratio)
 
         actor_loss1 = advantages * ratio
@@ -141,7 +144,7 @@ def ppo_update(
                 "opponent_points": transitions.episode_info[:, 3],
             }
         )
-        values = jnp.squeeze(values.repeat(16, axis=0), axis=-1)
+        values = jnp.squeeze(values)
 
         value_pred_clipped = transitions.values + (values - transitions.values).clip(-clip_eps, clip_eps)
 
