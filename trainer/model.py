@@ -109,6 +109,21 @@ def get_unit_embeddings(x, unit_positions):
     return x[batch_indices, unit_positions[:, :, 0], unit_positions[:, :, 1]]
 
 
+class ResidualBlock(nn.Module):
+    features: int
+    kernel_size = (3, 3)
+    strides = (1, 1)
+
+    @nn.compact
+    def __call__(self, x):
+        residual = x
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(x)
+        y = nn.leaky_relu(y)
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(y)
+        y += residual  # Adding the input x to the output of the convolution block
+        return nn.leaky_relu(y)  # Apply activation after adding the residual
+
+
 class ActorCritic(nn.Module):
     n_actions: int = 6
     info_emb_dim: int = 64
@@ -124,31 +139,26 @@ class ActorCritic(nn.Module):
                 padding="SAME",
                 kernel_init=orthogonal(math.sqrt(2))
             ),
-            nn.relu,
+            nn.leaky_relu,
+            ResidualBlock(32),
             nn.Conv(
-                features=32,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding="SAME",
                 kernel_init=orthogonal(math.sqrt(2))
             ),
-            nn.relu,
+            nn.leaky_relu,
+            ResidualBlock(64),
             nn.Conv(
-                features=32,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding="SAME",
                 kernel_init=orthogonal(math.sqrt(2))
             ),
-            nn.relu,
-            nn.Conv(
-                features=32,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding="SAME",
-                kernel_init=orthogonal(math.sqrt(2))
-            ),
-            nn.relu,
+            nn.leaky_relu,
+            ResidualBlock(128),
         ])
 
         batch_size = actor_input['states'].shape[0]
