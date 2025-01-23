@@ -63,7 +63,6 @@ def sinusoidal_positional_encoding(seq_len, dim):
 class ActorInput(TypedDict):
     positions: jax.Array
     states: jax.Array
-    observations: jax.Array
     match_steps: jax.Array
     matches: jax.Array
     team_points: jax.Array
@@ -134,7 +133,7 @@ class Actor(nn.Module):
         seq_len = patch_embeddings.shape[1]
         positional_embeddings = sinusoidal_positional_encoding(seq_len, self.hidden_dim)
         embeddings = patch_embeddings + positional_embeddings[None, :, :]
-
+        
         info_input = jnp.stack([
             actor_input['team_points'],
             actor_input['opponent_points'],
@@ -170,7 +169,7 @@ class Actor(nn.Module):
         x = upsample_layer(x)
         x = x.reshape(batch_size, 24, 24, -1)
 
-        unit_embeddings = get_unit_embeddings(x, actor_input['positions'][:, None, :])
+        unit_embeddings = get_unit_embeddings(x, actor_input['positions'])
 
         actor = nn.Sequential(
             [

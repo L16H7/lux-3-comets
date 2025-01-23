@@ -14,10 +14,9 @@ def make_states(config: Config):
     BATCH = 16
     actor_network_params = actor.init(rng, {
         "states": jnp.zeros((BATCH, 10, 24, 24)),
-        "observations": jnp.zeros((BATCH, 10, 17, 17)),
         "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
         "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
-        "positions": jnp.zeros((BATCH, 2), dtype=jnp.int32),
+        "positions": jnp.zeros((BATCH, 16, 2), dtype=jnp.int32),
         "team_points": jnp.zeros((BATCH,)),
         "opponent_points": jnp.zeros((BATCH,)),
         "unit_move_cost": jnp.zeros((BATCH,)),
