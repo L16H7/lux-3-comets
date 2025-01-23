@@ -111,8 +111,8 @@ def get_unit_embeddings(x, unit_positions):
 
 class Actor(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 128
-    hidden_dim: int = 768
+    info_emb_dim: int = 64
+    hidden_dim: int = 256
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
@@ -158,7 +158,7 @@ class Actor(nn.Module):
 
         encoder = TransformerEncoder(
             hidden_dim=self.hidden_dim + self.info_emb_dim,
-            num_heads=8
+            num_heads=4
         )
         x = encoder(x)
         upsample_layer = nn.ConvTranspose(
@@ -207,26 +207,29 @@ class CriticInput(TypedDict):
  
 
 class Critic(nn.Module):
-    info_emb_dim: int = 32
+    info_emb_dim: int = 64
     hidden_dim: int = 256
  
     @nn.compact
     def __call__(self, critic_input):
-        seq_len, batch_size = critic_input['states'].shape[:2]
+        state_patch_encoder = nn.Conv(
+            features=self.hidden_dim,
+            kernel_size=(4, 4),
+            strides=(4, 4),
+            kernel_init=orthogonal(math.sqrt(2))
+        )
 
-        state_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), kernel_init=orthogonal(math.sqrt(2))),
-            nn.relu,
-            nn.Conv(64, (2, 2), kernel_init=orthogonal(math.sqrt(2))),
-            nn.relu,
-            lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(512),
-            nn.relu,
-        ])
+        batch_size = critic_input['states'].shape[0]
 
-        state_embeddings = state_encoder(
+        patch_embeddings = state_patch_encoder(
             critic_input['states']
         )
+
+        patch_embeddings = patch_embeddings.reshape(batch_size, -1, self.hidden_dim)
+
+        seq_len = patch_embeddings.shape[1]
+        positional_embeddings = sinusoidal_positional_encoding(seq_len, self.hidden_dim)
+        embeddings = patch_embeddings + positional_embeddings[None, :, :]
 
         info_input = jnp.stack([
             critic_input['team_points'],
@@ -238,23 +241,30 @@ class Critic(nn.Module):
 
         info_embeddings = nn.Sequential([
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
+            nn.relu,
         ])(info_input)
 
-        embeddings = jnp.concat([
-            state_embeddings,
-            info_embeddings,
+        x = jnp.concatenate([
+            embeddings,
+            info_embeddings[:, None, :].repeat(seq_len, axis=1)
         ], axis=-1)
+
+        encoder = TransformerEncoder(
+            hidden_dim=self.hidden_dim + self.info_emb_dim,
+            num_heads=4
+        )
+        x = encoder(x)
+        x = x.reshape(batch_size, -1)
 
         critic = nn.Sequential(
             [
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
-                nn.leaky_relu,
+                nn.relu,
                 nn.Dense(1, kernel_init=orthogonal(1.0)),
             ]
         )
 
-        values = critic(embeddings)
+        values = critic(x)
         return values
