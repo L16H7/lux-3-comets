@@ -167,7 +167,7 @@ class ActorCritic(nn.Module):
             strides=(4, 4),
             kernel_init=orthogonal(math.sqrt(2))
         )
-        x = upsample_layer(state_embeddings)
+        x = upsample_layer(state_embeddings.reshape(batch_size, 6, 6, -1))
         x = x.reshape(batch_size, 24, 24, -1)
 
         unit_embeddings = get_unit_embeddings(x, actor_input['positions'])
