@@ -10,9 +10,10 @@ from model import ActorCritic
 
 def make_states(config: Config):
     rng = jax.random.PRNGKey(config.train_seed)
-    actor = ActorCritic(n_actions=6)
+    model = ActorCritic(n_actions=6)
+
     BATCH = 16
-    network_params = actor.init(rng, {
+    model_input = {
         "states": jnp.zeros((BATCH, 24, 24, 10)),
         "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
         "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
@@ -24,7 +25,8 @@ def make_states(config: Config):
         "unit_sap_range": jnp.zeros((BATCH,)),
         "unit_sensor_range": jnp.zeros((BATCH,)),
         "agent_ids": jnp.zeros((BATCH,)),
-    })
+    }
+    network_params = model.init(rng, model_input)
 
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(network_params))
     print(f"Number of actor parameters: {num_params:,}")
@@ -39,16 +41,11 @@ def make_states(config: Config):
     actor_checkpoint_path = '/root/lux-3-comets/checkpoints_old/35_actor'
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     actor_network_params = orbax_checkpointer.restore(actor_checkpoint_path)
-
-    critic_checkpoint_path = '/root/lux-3-comets/checkpoints_old/35_critic'
-    critic_network_params = orbax_checkpointer.restore(critic_checkpoint_path)
-    print('resumed from', actor_checkpoint_path, critic_checkpoint_path)
     '''
     ### ------------------------------- ###
 
-
     train_state = TrainState.create(
-        apply_fn=actor.apply,
+        apply_fn=model.apply,
         params=network_params,
         tx=actor_tx,
     )

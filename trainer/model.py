@@ -111,13 +111,14 @@ def get_unit_embeddings(x, unit_positions):
 
 class ActorCritic(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 64
-    hidden_dim: int = 256
+    info_emb_dim: int = 128
+    hidden_dim: int = 128
+    patch_emb_dim: int = 640
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
         state_patch_encoder = nn.Conv(
-            features=32,
+            features=self.patch_emb_dim,
             kernel_size=(4, 4),
             strides=(4, 4),
             kernel_init=orthogonal(math.sqrt(2))
@@ -129,10 +130,10 @@ class ActorCritic(nn.Module):
             actor_input['states']
         )
 
-        patch_embeddings = patch_embeddings.reshape(batch_size, -1, 32)
+        patch_embeddings = patch_embeddings.reshape(batch_size, -1, self.patch_emb_dim)
 
         seq_len = patch_embeddings.shape[1]
-        positional_embeddings = sinusoidal_positional_encoding(seq_len, 32)
+        positional_embeddings = sinusoidal_positional_encoding(seq_len, self.patch_emb_dim)
         embeddings = patch_embeddings + positional_embeddings[None, :, :]
         
         info_input = jnp.stack([
@@ -148,7 +149,7 @@ class ActorCritic(nn.Module):
 
         info_embeddings = nn.Sequential([
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.relu,
+            nn.gelu,
         ])(info_input)
 
         x = jnp.concatenate([
@@ -157,31 +158,32 @@ class ActorCritic(nn.Module):
         ], axis=-1)
 
         encoder = TransformerEncoder(
-            hidden_dim=96,
-            num_heads=4
+            hidden_dim=self.patch_emb_dim + self.info_emb_dim,
+            num_heads=8
         )
         state_embeddings = encoder(x)
+        
         upsample_layer = nn.ConvTranspose(
             features=self.hidden_dim, 
             kernel_size=(4, 4), 
             strides=(4, 4),
             kernel_init=orthogonal(math.sqrt(2))
         )
-        x = upsample_layer(state_embeddings.reshape(batch_size, 6, 6, -1))
-        x = x.reshape(batch_size, 24, 24, -1)
+        upsampled = upsample_layer(state_embeddings.reshape(batch_size, 6, 6, -1))
+        upsampled = upsampled.reshape(batch_size, 24, 24, -1)
 
-        unit_embeddings = get_unit_embeddings(x, actor_input['positions'])
+        unit_embeddings = get_unit_embeddings(upsampled, actor_input['positions'])
 
         actor = nn.Sequential(
             [
                 nn.Dense(
-                    256, kernel_init=orthogonal(2),
+                    self.hidden_dim, kernel_init=orthogonal(2),
                 ),
-                nn.relu,
+                nn.gelu,
                 nn.Dense(
-                    256, kernel_init=orthogonal(2),
+                    self.hidden_dim, kernel_init=orthogonal(2),
                 ),
-                nn.relu,
+                nn.gelu,
             ]
         )
 
@@ -199,13 +201,13 @@ class ActorCritic(nn.Module):
         critic = nn.Sequential(
             [
                 nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
+                    128, kernel_init=orthogonal(2),
                 ),
-                nn.relu,
+                nn.gelu,
                 nn.Dense(1, kernel_init=orthogonal(1.0)),
             ]
         )
 
-        values = critic(state_embeddings.reshape(batch_size, -1))
+        values = critic(upsampled.mean(axis=(1, 2)).reshape(batch_size, -1))
 
         return (logits1, logits2, logits3), values
