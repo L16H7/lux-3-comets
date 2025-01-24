@@ -115,6 +115,7 @@ def ppo_update(
         #     log_ratio.sum(axis=-1) / units_mask.sum(axis=-1), 
         #     0
         # )
+        log_ratio = log_ratio.mean(axis=-1)
        
         ratio = jnp.exp(log_ratio)
 
