@@ -286,8 +286,8 @@ def make_train(config: Config):
                         states=jnp.concat([p0_states, p1_states], axis=0),
                         episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),
                         actions=jnp.concat([p0_actions, p1_actions], axis=0),
-                        log_probs=jnp.concat([p0_log_probs, p1_log_probs], axis=0),
-                        values=jnp.concat([p0_values, p1_values], axis=0),
+                        log_probs=jnp.concat([jax.lax.stop_gradient(p0_log_probs), jax.lax.stop_gradient(p1_log_probs)], axis=0),
+                        values=jnp.concat([jax.lax.stop_gradient(p0_values), jax.lax.stop_gradient(p1_values)], axis=0),
                         agent_positions=jnp.concat([p0_agent_positions, p1_agent_positions], axis=0),
                         rewards=jnp.concat([p0_rewards, p1_rewards], axis=0),
                         dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(2),
@@ -394,8 +394,8 @@ def make_train(config: Config):
                         updated_actor_train_state, minibatch_info = ppo_update(
                             actor_train_state=train_state,
                             transitions=transitions,
-                            advantages=advantages,
-                            targets=targets,
+                            advantages=jax.lax.stop_gradient(advantages),
+                            targets=jax.lax.stop_gradient(targets),
                             clip_eps=config.policy_clip,
                             vf_coef=config.value_coeff,
                             ent_coef=config.entropy_coeff,
@@ -514,8 +514,8 @@ def make_train(config: Config):
 
             eval_info = evaluate(
                 eval_rng,
-                eval_meta_keys,
-                eval_meta_env_params,
+                meta_keys,
+                meta_env_params,
                 updated_runner_state.actor_train_state,
                 updated_runner_state.actor_train_state,
                 'self',
@@ -548,10 +548,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
@@ -598,8 +598,8 @@ def train(config: Config):
     meta_step = 0
     update_step = 0
     while True:
-        rng, train_rng, _, _ = jax.random.split(rng, num=4)
-        train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
+        # rng, train_rng, _, _ = jax.random.split(rng, num=4)
+        # train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
         loop += 1
         t = time()
         train_summary = jax.block_until_ready(
@@ -642,10 +642,10 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=32,
         n_update_steps=16,
-        n_envs=512,
-        n_envs_per_device=512,
-        n_eval_envs=128,
-        n_minibatches=32,
+        n_envs=32,
+        n_envs_per_device=32,
+        n_eval_envs=32,
+        n_minibatches=4,
         n_epochs=1,
         actor_learning_rate=3e-4,
         wandb_project="new-model",
