@@ -488,21 +488,7 @@ def make_train(config: Config):
 
                 loss_info = jtu.tree_map(lambda x: x.mean(-1).mean(-1), loss_info)
                 update_step_info = {
-                    "actor_loss": loss_info["actor_loss"],
-                    "value_loss": loss_info["value_loss"],
-                    "entropy": loss_info["entropy"],
-                    "loss": loss_info["loss"],
-                    "approx_kl": loss_info["approx_kl"],
-                    "clip_frac": loss_info["clip_frac"],
-                    "explained_var": loss_info["explained_var"],
-                    "adv_mean": loss_info["adv_mean"],
-                    "adv_std": loss_info["adv_std"],
-                    "value_mean": loss_info["value_mean"],
-                    "value_std": loss_info["value_std"],
-                    "actor_resblock_mean": loss_info["actor_resblock_mean"],
-                    "actor_resblock_std": loss_info["actor_resblock_std"],
-                    "actor_dense6_mean": loss_info["actor_dense6_mean"],
-                    "actor_dense6_std": loss_info["actor_dense6_std"],
+                    **loss_info, 
                     "reward_mean": transitions.rewards.mean(),
                     "reward_std": transitions.rewards.std(),
                 }

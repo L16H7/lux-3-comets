@@ -179,7 +179,13 @@ def ppo_update(
         "adv_mean": adv_mean,
         "adv_std": adv_std,
         "loss": loss,
-        "actor_dense6_mean": grads_mean['params']['Dense_6']['kernel'],
-        "actor_dense6_std": grads_std['params']['Dense_6']['kernel'],
+        "grads/Dense_0_mean": grads_mean['params']['Dense_0']['kernel'],
+        "grads/Dense_0_std": grads_std['params']['Dense_0']['kernel'],
+        "grads/Dense_6_mean": grads_mean['params']['Dense_6']['kernel'],
+        "grads/Dense_6_std": grads_std['params']['Dense_6']['kernel'],
+        "grads/Conv_0_mean": grads_mean['params']['Conv_0']['kernel'],
+        "grads/Conv_0_std": grads_std['params']['Conv_0']['kernel'],
+        "grads/Key_mean": grads_mean['params']['MultiHeadDotProductAttention_0']['key'],
+        "grads/Key_std": grads_std['params']['MultiHeadDotProductAttention_0']['key'],
     }
     return updated_actor_train_state, update_step_info 
