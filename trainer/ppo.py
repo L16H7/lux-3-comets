@@ -53,8 +53,8 @@ def ppo_update(
     vf_coef: float,
     ent_coef: float,
 ):
-    units_mask = transitions.units_mask
-    active_units = units_mask.sum() + 1e-8
+    # units_mask = transitions.units_mask
+    # active_units = units_mask.sum() + 1e-8
 
     adv_mean = advantages.mean()
     adv_std = advantages.std()
@@ -109,28 +109,28 @@ def ppo_update(
         log_probs = log_probs1 + jnp.where(target_log_probs_mask, log_probs2, 0) + jnp.where(target_log_probs_mask, log_probs3, 0)
 
         log_ratio = log_probs - transitions.log_probs
-        log_ratio = jnp.where(units_mask, log_ratio, 0)
-        log_ratio = jnp.where(
-            units_mask.sum(axis=-1) > 0, 
-            log_ratio.sum(axis=-1) / units_mask.sum(axis=-1), 
-            0
-        )
+        # log_ratio = jnp.where(units_mask, log_ratio, 0)
+        # log_ratio = jnp.where(
+        #     units_mask.sum(axis=-1) > 0, 
+        #     log_ratio.sum(axis=-1) / units_mask.sum(axis=-1), 
+        #     0
+        # )
        
         ratio = jnp.exp(log_ratio)
 
         actor_loss1 = advantages * ratio
         actor_loss2 = advantages * jnp.clip(ratio, 1.0 - clip_eps, 1.0 + clip_eps)
 
-        actor_loss = -jnp.minimum(actor_loss1, actor_loss2).sum() / active_units
+        actor_loss = -jnp.minimum(actor_loss1, actor_loss2).mean()
         
-        entropy1 = jnp.where(units_mask, dist1.entropy(), 0)
-        target_log_probs_mask = jnp.where(units_mask, target_log_probs_mask, 0)
+        # entropy1 = jnp.where(units_mask, dist1.entropy(), 0)
+        entropy1 = dist1.entropy()
         entropy2 = jnp.where(target_log_probs_mask, dist2.entropy(), 0)
         entropy3 = jnp.where(target_log_probs_mask, dist3.entropy(), 0)
 
         entropy = entropy1 + entropy2 + entropy3
 
-        entropy_loss = entropy.sum() / active_units
+        entropy_loss = entropy.mean()
 
         values = jnp.squeeze(values)
 
@@ -143,8 +143,8 @@ def ppo_update(
         loss = actor_loss + vf_coef * value_loss - ent_coef * entropy_loss
 
         explained_var = 1 - jnp.var(values - targets) / (jnp.var(targets) + 1e-8)
-        approx_kl = ((ratio - 1.0) - log_ratio).sum() / active_units # http://joschu.net/blog/kl-approx.html
-        clip_frac = (abs((ratio - 1.0)) > clip_eps).sum() / active_units
+        approx_kl = ((ratio - 1.0) - log_ratio).mean()  # http://joschu.net/blog/kl-approx.html
+        clip_frac = (abs((ratio - 1.0)) > clip_eps).mean()
 
         update_info = {
             "explained_var": explained_var,

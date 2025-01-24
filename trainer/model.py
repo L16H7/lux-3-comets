@@ -111,7 +111,7 @@ def get_unit_embeddings(x, unit_positions):
 
 class ActorCritic(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 128
+    info_emb_dim: int = 64
     hidden_dim: int = 128
     patch_emb_dim: int = 640
  
@@ -139,12 +139,6 @@ class ActorCritic(nn.Module):
         info_input = jnp.stack([
             actor_input['team_points'],
             actor_input['opponent_points'],
-            actor_input['match_steps'],
-            actor_input['matches'],
-            actor_input['unit_move_cost'],
-            actor_input['unit_sap_cost'],
-            actor_input['unit_sap_range'],
-            actor_input['unit_sensor_range'],
         ], axis=-1)
 
         info_embeddings = nn.Sequential([
