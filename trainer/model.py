@@ -102,12 +102,31 @@ class TransformerEncoder(nn.Module):
         return x
 
 
+class SEBlock(nn.Module):
+    features: int
+    reduction_ratio: int = 16
+
+    @nn.compact
+    def __call__(self, x):
+        # Squeeze: Global Average Pooling
+        squeezed = jnp.mean(x, axis=(1, 2), keepdims=True)
+        
+        # Excitation: Two fully connected layers with relu and sigmoid activations
+        excitation = nn.Dense(features=self.features // self.reduction_ratio)(squeezed)
+        excitation = nn.relu(excitation)
+        excitation = nn.Dense(features=self.features)(excitation)
+        excitation = nn.sigmoid(excitation)
+        
+        # Scale the input feature map
+        return x * excitation
+
+
 def get_unit_embeddings(x, unit_positions):
-    # x: (batch, 24, 24, emb_dim)
+    # x: (batch, height, width, emb_dim)
     # unit_positions: (batch, num_units, 2)
     batch_indices = jnp.arange(x.shape[0])[:, None]
+    # Safeguarding against out-of-bounds indices
     return x[batch_indices, unit_positions[:, :, 0], unit_positions[:, :, 1]]
-
 
 class ResidualBlock(nn.Module):
     features: int
@@ -117,11 +136,17 @@ class ResidualBlock(nn.Module):
     @nn.compact
     def __call__(self, x):
         residual = x
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(x)
-        y = nn.leaky_relu(y)
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(y)
-        y += residual  # Adding the input x to the output of the convolution block
-        return nn.leaky_relu(y)  # Apply activation after adding the residual
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME",
+                    kernel_init=orthogonal(math.sqrt(2)))(x)
+        y = nn.leaky_relu(y, negative_slope=0.01)
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME",
+                    kernel_init=orthogonal(math.sqrt(2)))(y)
+        
+        # Add Squeeze-and-Excitation layer
+        y = SEBlock(self.features)(y)
+
+        y += residual
+        return nn.leaky_relu(y, negative_slope=0.01)
 
 
 class ActorCritic(nn.Module):
@@ -130,106 +155,49 @@ class ActorCritic(nn.Module):
     hidden_dim: int = 256
  
     @nn.compact
-    def __call__(self, actor_input: ActorInput):
+    def __call__(self, actor_input):
         state_encoder = nn.Sequential([
-            nn.Conv(
-                features=32,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding="SAME",
-                kernel_init=orthogonal(math.sqrt(2))
-            ),
+            nn.Conv(features=32, kernel_size=(3, 3), strides=(2, 2), padding="SAME",
+                    kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             ResidualBlock(32),
-            nn.Conv(
-                features=64,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding="SAME",
-                kernel_init=orthogonal(math.sqrt(2))
-            ),
+            nn.Conv(features=64, kernel_size=(3, 3), strides=(2, 2), padding="SAME",
+                    kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             ResidualBlock(64),
-            nn.Conv(
-                features=128,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding="SAME",
-                kernel_init=orthogonal(math.sqrt(2))
-            ),
+            nn.Conv(features=128, kernel_size=(3, 3), strides=(2, 2), padding="SAME",
+                    kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             ResidualBlock(128),
         ])
 
         batch_size = actor_input['states'].shape[0]
+        flat_info = jnp.concatenate([
+            actor_input[k][:, None] for k in [
+                'team_points', 'opponent_points', 'match_steps', 'matches', 
+                'unit_move_cost', 'unit_sap_cost', 'unit_sap_range', 'unit_sensor_range'
+            ]], axis=-1)
+        info_input = flat_info.repeat(24 * 24, axis=1).reshape(batch_size, 24, 24, -1)
 
-        info_input = jnp.stack([
-            actor_input['team_points'],
-            actor_input['opponent_points'],
-            actor_input['match_steps'],
-            actor_input['matches'],
-            actor_input['unit_move_cost'],
-            actor_input['unit_sap_cost'],
-            actor_input['unit_sap_range'],
-            actor_input['unit_sensor_range'],
-        ], axis=-1)
+        states = jnp.concatenate([info_input, actor_input['states']], axis=-1)
+        state_embeddings = state_encoder(states)
 
-        info_embeddings = nn.Sequential([
-            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
+        action_head = nn.Conv(features=self.n_actions, kernel_size=(1, 1), padding="SAME",
+                              kernel_init=orthogonal(math.sqrt(2)))
+        x_coordinate_head = nn.Conv(features=17, kernel_size=(1, 1), padding="SAME",
+                                    kernel_init=orthogonal(math.sqrt(2)))
+        y_coordinate_head = nn.Conv(features=17, kernel_size=(1, 1), padding="SAME",
+                                    kernel_init=orthogonal(math.sqrt(2)))
+
+        logits_action = get_unit_embeddings(action_head(state_embeddings), actor_input['positions'])
+        logits_x = get_unit_embeddings(x_coordinate_head(state_embeddings), actor_input['positions'])
+        logits_y = get_unit_embeddings(y_coordinate_head(state_embeddings), actor_input['positions'])
+
+        critic = nn.Sequential([
+            nn.Dense(self.hidden_dim, kernel_init=orthogonal(2)),
             nn.relu,
-        ])(info_input)
-
-        state_embeddings = state_encoder(actor_input['states'])
-
-        action_head = nn.Conv(
-            features=6,
-            kernel_size=(2, 2),
-            strides=(1, 1),
-            padding="SAME",
-            kernel_init=orthogonal(math.sqrt(2))
-        )
-
-        x_coordinate_head = nn.Conv(
-            features=17,
-            kernel_size=(2, 2),
-            strides=(1, 1),
-            padding="SAME",
-            kernel_init=orthogonal(math.sqrt(2))
-        )
-
-        y_coordinate_head = nn.Conv(
-            features=17,
-            kernel_size=(2, 2),
-            strides=(1, 1),
-            padding="SAME",
-            kernel_init=orthogonal(math.sqrt(2))
-        )
-
-        logits1 = get_unit_embeddings(
-            action_head(state_embeddings),
-            actor_input['positions']
-        )
-
-        logits2 = get_unit_embeddings(
-            x_coordinate_head(state_embeddings),
-            actor_input['positions']
-        )
-
-        logits3 = get_unit_embeddings(
-            y_coordinate_head(state_embeddings),
-            actor_input['positions']
-        )
- 
-        critic = nn.Sequential(
-            [
-                nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
-                ),
-                nn.relu,
-                nn.Dense(1, kernel_init=orthogonal(1.0)),
-            ]
-        )
-
+            nn.Dense(1, kernel_init=orthogonal(1.0))
+        ])
         values = critic(state_embeddings.mean(axis=(1, 2)))
 
-        return (logits1, logits2, logits3), values
+        return (logits_action, logits_x, logits_y), values
