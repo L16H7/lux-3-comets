@@ -254,9 +254,9 @@ def create_representations(
         0
     )
     maps = [
-        team_unit_maps / 4.0,
+        # team_unit_maps / 4.0,
         team_energy_maps / 800.0,
-        opponent_unit_maps / 4.0,
+        # opponent_unit_maps / 4.0,
         opponent_energy_maps / 800.0,
         energy_map.transpose((0, 2, 1)) / 20.0,
         asteroid_maps.transpose((0, 2, 1)),
@@ -290,17 +290,13 @@ def create_representations(
         unit_positions_team=unit_positions_team,
     )
 
-
-    agent_ids = (jnp.arange(16) + 1) / 16
-    agent_ids = jnp.broadcast_to(agent_ids, (agent_positions.shape[0], 16))
-
     return (
         state_representation,
         agent_observations,
         episode_info,
         updated_points_map,
         agent_positions,
-        agent_ids.reshape(-1, 1),
+        unit_energies_team / 400.0,
         unit_energies_team > 0, # mask energy depleted agents in ppo update
     )
         
@@ -342,21 +338,18 @@ def combined_states_info(team_states, opponent_states):
     opponent_states = transform_observation(opponent_states.copy())
     combined_states = jnp.stack([
         team_states[:, 0, ...], 
-        team_states[:, 1, ...], 
         opponent_states[:, 0, ...],
-        opponent_states[:, 1, ...],
-        team_states[:, 4, ...], # team relics
-        opponent_states[:, 4, ...], # opponent relics
         # energy
-        jnp.where(team_states[:, 5, ...] != 0, team_states[:, 5, ...], opponent_states[:, 5, ...]),
+        jnp.where(team_states[:, 2, ...] != 0, team_states[:, 2, ...], opponent_states[:, 2, ...]),
         # asteroid
-        jnp.where(team_states[:, 6, ...] != 0, team_states[:, 6, ...], opponent_states[:, 6, ...]),
+        jnp.where(team_states[:, 3, ...] != 0, team_states[:, 3, ...], opponent_states[:, 3, ...]),
         # nebula
-        jnp.where(team_states[:, 7, ...] != 0, team_states[:, 7, ...], opponent_states[:, 7, ...]),
-        team_states[:, 8, ...],
-        opponent_states[:, 8, ...], 
-        team_states[:, 9, ...],
-        opponent_states[:, 9, ...], 
+        jnp.where(team_states[:, 4, ...] != 0, team_states[:, 4, ...], opponent_states[:, 4, ...]),
+        team_states[:, 5, ...], # sensor
+        team_states[:, 6, ...],
+        opponent_states[:, 6, ...], 
+        team_states[:, 7, ...],
+        opponent_states[:, 7, ...], 
     ], axis=1)
 
     return combined_states

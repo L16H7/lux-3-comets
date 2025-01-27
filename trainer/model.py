@@ -76,7 +76,7 @@ class ActorInput(TypedDict):
     unit_sap_cost: jax.Array
     unit_sap_range: jax.Array
     unit_sensor_range: jax.Array
-    agent_ids: jax.Array
+    energies: jax.Array
  
 class Actor(nn.Module):
     n_actions: int = 6
@@ -89,7 +89,7 @@ class Actor(nn.Module):
     def __call__(self, actor_input: ActorInput):
         observation_encoder = nn.Sequential([
             nn.Conv(
-                features=64,
+                features=32,
                 kernel_size=(4, 4),
                 strides=(2, 2),
                 padding=0,
@@ -97,9 +97,9 @@ class Actor(nn.Module):
                 use_bias=False,
             ),
             nn.leaky_relu,
-            ResidualBlock(64),
+            ResidualBlock(32),
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(2, 2),
                 padding=0,
@@ -115,8 +115,7 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(512),
-            nn.leaky_relu
+            nn.Dense(256),
         ])
 
         batch_size = actor_input['states'].shape[0]
@@ -135,25 +134,15 @@ class Actor(nn.Module):
             actor_input['team_points'],
             actor_input['opponent_points'],
             actor_input['match_steps'],
-            actor_input['matches'],
-        ], axis=-1)
-
-        env_info_input = jnp.stack([
-            actor_input['unit_move_cost'],
+            actor_input['energies'].reshape(-1),
             actor_input['unit_sap_cost'],
             actor_input['unit_sap_range'],
-            actor_input['unit_sensor_range'],
         ], axis=-1)
 
         info_embeddings = nn.Sequential([
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
         ])(info_input)
-
-        env_info_embeddings = nn.Sequential([
-            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-        ])(env_info_input)
 
         actor = nn.Sequential(
             [
@@ -170,7 +159,6 @@ class Actor(nn.Module):
 
         embeddings = jnp.concat([
             info_embeddings,
-            env_info_embeddings,
             position_embeddings,
             observation_embeddings,
         ], axis=-1)

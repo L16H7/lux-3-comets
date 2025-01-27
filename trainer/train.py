@@ -176,7 +176,7 @@ def make_train(config: Config):
                         p0_episode_info,
                         p0_points_map,
                         p0_agent_positions,
-                        p0_agent_ids,
+                        p0_energies,
                         p0_units_mask,
                     ) = p0_representations
                     (
@@ -185,13 +185,13 @@ def make_train(config: Config):
                         p1_episode_info,
                         p1_points_map,
                         p1_agent_positions,
-                        p1_agent_ids,
+                        p1_energies,
                         p1_units_mask,
                     ) = p1_representations
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
                     p0_agent_states = p0_states.repeat(config.n_agents, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p0_agent_observations = p0_agent_observations.reshape(-1, 10, 47, 47) 
+                    p0_agent_observations = p0_agent_observations.reshape(-1, 8, 47, 47) 
                     p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
                     p0_logits = actor_train_state.apply_fn(
@@ -208,6 +208,7 @@ def make_train(config: Config):
                             "unit_sap_cost": env_info[:, 1],
                             "unit_sap_range": env_info[:, 2],
                             "unit_sensor_range": env_info[:, 3],
+                            "energies": p0_energies,
                         }
                     )
 
@@ -240,7 +241,7 @@ def make_train(config: Config):
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
                     p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p1_agent_observations = p1_agent_observations.reshape(-1, 10, 47, 47)
+                    p1_agent_observations = p1_agent_observations.reshape(-1, 8, 47, 47)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
                     # FIXED OPPONENT
@@ -261,6 +262,7 @@ def make_train(config: Config):
                             "unit_sap_cost": env_info[:, 1],
                             "unit_sap_range": env_info[:, 2],
                             "unit_sensor_range": env_info[:, 3],
+                            "energies": p1_energies,
                         }
                     )
 
@@ -344,6 +346,7 @@ def make_train(config: Config):
                         log_probs=jnp.concat([p0_log_probs, p1_log_probs], axis=0),
                         values=jnp.concat([p0_values, p1_values], axis=0),
                         agent_positions=jnp.concat([p0_agent_positions, p1_agent_positions], axis=0),
+                        agent_energies=jnp.concat([p0_energies, p1_energies], axis=0),
                         rewards=jnp.concat([p0_rewards, p1_rewards], axis=0),
                         dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(2 * config.n_agents),
                         units_mask=jnp.concat([p0_units_mask.reshape(-1), p1_units_mask.reshape(-1)], axis=0),
@@ -642,10 +645,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
