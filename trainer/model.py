@@ -99,7 +99,7 @@ class Actor(nn.Module):
                 features=32,
                 kernel_size=(4, 4),
                 strides=(2, 2),
-                padding='SAME',
+                padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False,
             ),
