@@ -40,7 +40,7 @@ def evaluate(
 
         (
             p0_states,
-            p0_agent_observations,
+            p0_observations,
             p0_episode_info,
             p0_points_map,
             p0_agent_positions,
@@ -52,6 +52,7 @@ def evaluate(
             actor_train_state.params,
             {
                 "states": p0_states,
+                "observations": p0_observations,
                 "positions": p0_agent_positions,
                 "match_steps": p0_episode_info[:, 0],
                 "matches": p0_episode_info[:, 1],
@@ -77,7 +78,7 @@ def evaluate(
 
         (
             p1_states,
-            p1_agent_observations,
+            p1_observations,
             p1_episode_info,
             p1_points_map,
             p1_agent_positions,
@@ -89,6 +90,7 @@ def evaluate(
             opponent_state.params,
             {
                 "states": p1_states,
+                "observations": p1_observations,
                 "positions": p1_agent_positions,
                 "match_steps": p1_episode_info[:, 0],
                 "matches": p1_episode_info[:, 1],

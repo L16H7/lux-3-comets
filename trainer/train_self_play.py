@@ -169,7 +169,7 @@ def make_train(config: Config):
 
                     (
                         p0_states,
-                        _,
+                        p0_observations,
                         p0_episode_info,
                         p0_points_map,
                         p0_agent_positions,
@@ -178,7 +178,7 @@ def make_train(config: Config):
                     ) = p0_representations
                     (
                         p1_states,
-                        _,
+                        p1_observations,
                         p1_episode_info,
                         p1_points_map,
                         p1_agent_positions,
@@ -190,6 +190,7 @@ def make_train(config: Config):
                         actor_train_state.params,
                         {
                             "states": p0_states,
+                            "observations": p0_observations,
                             "positions": p0_agent_positions,
                             "match_steps": p0_episode_info[:, 0],
                             "matches": p0_episode_info[:, 1],
@@ -217,6 +218,7 @@ def make_train(config: Config):
                         actor_train_state.params,
                         {
                             "states": p1_states,
+                            "observations": p1_observations,
                             "positions": p1_agent_positions,
                             "match_steps": p1_episode_info[:, 0],
                             "matches": p1_episode_info[:, 1],
@@ -284,6 +286,7 @@ def make_train(config: Config):
 
                     transition = Transition(
                         states=jnp.concat([p0_states, p1_states], axis=0),
+                        observations=jnp.concat([p0_observations, p1_observations], axis=0),
                         episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),
                         actions=jnp.concat([p0_actions, p1_actions], axis=0),
                         log_probs=jnp.concat([jax.lax.stop_gradient(p0_log_probs), jax.lax.stop_gradient(p1_log_probs)], axis=0),
@@ -330,18 +333,18 @@ def make_train(config: Config):
                 ) = runner_state
 
                 (
-                        p0_states,
-                        _,
-                        p0_episode_info,
-                        _,
-                        p0_agent_positions,
-                        _,
-                        _,
-                    ) = p0_representations
+                    p0_states,
+                    p0_observations,
+                    p0_episode_info,
+                    _,
+                    p0_agent_positions,
+                    _,
+                    _,
+                ) = p0_representations
 
                 (
                     p1_states,
-                    _,
+                    p1_observations,
                     p1_episode_info,
                     _,
                     p1_agent_positions,
@@ -353,6 +356,7 @@ def make_train(config: Config):
                         actor_train_state.params,
                         {
                             "states": p0_states,
+                            "observations": p0_observations,
                             "positions": p0_agent_positions,
                             "match_steps": p0_episode_info[:, 0],
                             "matches": p0_episode_info[:, 1],
@@ -369,6 +373,7 @@ def make_train(config: Config):
                         actor_train_state.params,
                         {
                             "states": p1_states,
+                            "observations": p1_observations,
                             "positions": p1_agent_positions,
                             "match_steps": p1_episode_info[:, 0],
                             "matches": p1_episode_info[:, 1],
@@ -460,19 +465,7 @@ def make_train(config: Config):
 
                 loss_info = jtu.tree_map(lambda x: x.mean(-1).mean(-1), loss_info)
                 update_step_info = {
-                    "actor_loss": loss_info["actor_loss"],
-                    "value_loss": loss_info["value_loss"],
-                    "entropy": loss_info["entropy"],
-                    "loss": loss_info["loss"],
-                    "approx_kl": loss_info["approx_kl"],
-                    "clip_frac": loss_info["clip_frac"],
-                    "explained_var": loss_info["explained_var"],
-                    "adv_mean": loss_info["adv_mean"],
-                    "adv_std": loss_info["adv_std"],
-                    "value_mean": loss_info["value_mean"],
-                    "value_std": loss_info["value_std"],
-                    # "actor_dense6_mean": loss_info["actor_dense6_mean"],
-                    # "actor_dense6_std": loss_info["actor_dense6_std"],
+                    **loss_info,
                     "reward_mean": transitions.rewards.mean(),
                     "reward_std": transitions.rewards.std(),
                 }
@@ -514,8 +507,8 @@ def make_train(config: Config):
 
             eval_info = evaluate(
                 eval_rng,
-                meta_keys,
-                meta_env_params,
+                eval_meta_keys,
+                eval_meta_env_params,
                 updated_runner_state.actor_train_state,
                 updated_runner_state.actor_train_state,
                 'self',
@@ -553,25 +546,6 @@ def train(config: Config):
     #     config={**asdict(config)}
     # )
 
-    # FIXED OPPONENT
-    # checkpoint_path = ''
-    # orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
-    # opponent_params = orbax_checkpointer.restore(checkpoint_path)
-    # actor = Actor()
-    # actor_tx = optax.chain(
-    #     optax.clip_by_global_norm(config.max_grad_norm),
-    #     optax.adamw(config.actor_learning_rate),
-    # )
-    # opponent_state = TrainState.create(
-    #     apply_fn=actor.apply,
-    #     params=opponent_params,
-    #     tx=actor_tx,
-    # )
-    ''' DEGUGGING
-    opponent_state, _ = make_states(config=config)
-    '''
-    # opponent_state = replicate(opponent_state, jax.local_devices())
- 
     rng = jax.random.key(config.train_seed)
     actor_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
@@ -585,7 +559,6 @@ def train(config: Config):
     train_fn = train_fn.lower(
         train_device_rngs,
         actor_train_state,
-        # opponent_state,
     ).compile()
 
     elapsed_time = time() - t
@@ -598,15 +571,14 @@ def train(config: Config):
     meta_step = 0
     update_step = 0
     while True:
-        # rng, train_rng, _, _ = jax.random.split(rng, num=4)
-        # train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
+        rng, train_rng, _, _ = jax.random.split(rng, num=4)
+        train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
         loop += 1
         t = time()
         train_summary = jax.block_until_ready(
             train_fn(
                 train_device_rngs,
                 actor_train_state,
-                # opponent_state
             )
         )
         elapsed_time = time() - t

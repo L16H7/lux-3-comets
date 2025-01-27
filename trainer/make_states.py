@@ -13,7 +13,8 @@ def make_states(config: Config):
     actor = ActorCritic(n_actions=6)
     BATCH = 16
     network_params = actor.init(rng, {
-        "states": jnp.zeros((BATCH, 24, 24, 10)),
+        "states": jnp.zeros((BATCH, 10, 24, 24)),
+        "observations": jnp.zeros((BATCH, 16, 10, 17, 17)),
         "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
         "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
         "positions": jnp.zeros((BATCH, 16, 2), dtype=jnp.int32),

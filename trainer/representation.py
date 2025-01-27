@@ -266,7 +266,7 @@ def create_representations(
         relic_node_maps,
         updated_points_map,
     ]
-    state_representation = jnp.stack(maps, axis=-1)
+    state_representation = jnp.stack(maps, axis=1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
     match_steps = obs.match_steps[:, None] / 100.0
@@ -289,9 +289,14 @@ def create_representations(
     agent_ids = (jnp.arange(16) + 1) / 16
     agent_ids = jnp.broadcast_to(agent_ids, (agent_positions.shape[0], 16))
 
+    agent_observations = create_agent_patches(
+        state_representation=state_representation,
+        unit_positions_team=unit_positions_team,
+    )
+
     return (
         state_representation,
-        None,
+        agent_observations,
         episode_info,
         updated_points_map,
         agent_positions,
