@@ -3,9 +3,8 @@ import jax
 import math
 import flax.linen as nn
 import jax.numpy as jnp
-import numpy as np
 from flax.linen.initializers import orthogonal
-from typing import TypedDict
+from typing import Tuple, TypedDict
 
 
 def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
@@ -24,7 +23,7 @@ def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
         raise ValueError("embedding_dim must be divisible by 4")
         
     # Normalize positions to [-1, 1]
-    positions = positions / (max_size / 2) - 1
+    positions = (positions / (max_size / 2)) - 1
     
     # Generate frequency bands
     freq_bands = jnp.arange(embedding_dim // 4)
@@ -49,12 +48,6 @@ def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
     
     return embeddings
 
-
-import jax
-import jax.numpy as jnp
-from flax import linen as nn
-from jax.nn.initializers import orthogonal
-from typing import Tuple
 
 class ResidualBlock(nn.Module):
     features: int
@@ -135,7 +128,7 @@ class Actor(nn.Module):
         position_embeddings = get_2d_positional_embeddings(
             actor_input['positions'],
             embedding_dim=32,
-            max_size=24
+            max_size=6
         )
 
         info_input = jnp.stack([
