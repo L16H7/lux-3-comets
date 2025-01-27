@@ -208,11 +208,13 @@ def create_representations(
         -1
     )
 
-    prev_agent_positions = jnp.where(
-        points_gained[:, None, None] > 0,
-        proximity_positions,
-        prev_agent_positions,
-    )
+    # prev_agent_positions = jnp.where(
+    #     points_gained[:, None, None] > 0,
+    #     proximity_positions,
+    #     prev_agent_positions,
+    # )
+    prev_agent_positions = proximity_positions
+
     transformed_previous_positions = transform_coordinates(prev_agent_positions)
     transformed_previous_positions = jnp.where(
         transformed_previous_positions == 24,
@@ -220,8 +222,7 @@ def create_representations(
         transformed_previous_positions,
     )
 
-    points_map = points_map.at[:, 0, 0].set(-2)
-    points_map = points_map.at[:, 23, 23].set(-2)
+    points_map = points_map.at[:, 0, 0].set(-1)
     updated_points_map = update_points_map_batch(
         points_map,
         mark_duplicates_batched(
