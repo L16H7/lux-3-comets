@@ -161,43 +161,100 @@ class ActorCritic(nn.Module):
                     kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             ResidualBlock(32),
-            nn.Conv(features=64, kernel_size=(3, 3), strides=(2, 2), padding="SAME",
-                    kernel_init=orthogonal(math.sqrt(2))),
+            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Dense(128),
+        ])
+
+        observation_encoder = nn.Sequential([
+            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
-            ResidualBlock(64),
-            nn.Conv(features=128, kernel_size=(3, 3), strides=(2, 2), padding="SAME",
-                    kernel_init=orthogonal(math.sqrt(2))),
+            ResidualBlock(32),
             nn.leaky_relu,
-            ResidualBlock(128),
+            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Dense(256),
         ])
 
         batch_size = actor_input['states'].shape[0]
-        flat_info = jnp.concatenate([
-            actor_input[k][:, None] for k in [
-                'team_points', 'opponent_points', 'match_steps', 'matches', 
-                'unit_move_cost', 'unit_sap_cost', 'unit_sap_range', 'unit_sensor_range'
-            ]], axis=-1)
-        info_input = flat_info.repeat(24 * 24, axis=1).reshape(batch_size, 24, 24, -1)
 
-        states = jnp.concatenate([info_input, actor_input['states']], axis=-1)
-        state_embeddings = state_encoder(states)
+        observation_embeddings = observation_encoder(
+            actor_input['observations'].reshape(-1, 10, 17, 17).transpose(0, 2, 3, 1)
+        )
 
-        action_head = nn.Conv(features=self.n_actions, kernel_size=(1, 1), padding="SAME",
-                              kernel_init=orthogonal(math.sqrt(2)))
-        x_coordinate_head = nn.Conv(features=17, kernel_size=(1, 1), padding="SAME",
-                                    kernel_init=orthogonal(math.sqrt(2)))
-        y_coordinate_head = nn.Conv(features=17, kernel_size=(1, 1), padding="SAME",
-                                    kernel_init=orthogonal(math.sqrt(2)))
+        state_embeddings = state_encoder(
+            actor_input['states'].transpose((0, 2, 3, 1))
+        )
 
-        logits_action = get_unit_embeddings(action_head(state_embeddings), actor_input['positions'])
-        logits_x = get_unit_embeddings(x_coordinate_head(state_embeddings), actor_input['positions'])
-        logits_y = get_unit_embeddings(y_coordinate_head(state_embeddings), actor_input['positions'])
+        position_embeddings = get_2d_positional_embeddings(
+            actor_input['positions'].reshape(-1, 2),
+            embedding_dim=32,
+            max_size=24
+        )
 
-        critic = nn.Sequential([
-            nn.Dense(self.hidden_dim, kernel_init=orthogonal(2)),
-            nn.relu,
-            nn.Dense(1, kernel_init=orthogonal(1.0))
-        ])
-        values = critic(state_embeddings.mean(axis=(1, 2)))
+        info_input = jnp.stack([
+            actor_input['team_points'],
+            actor_input['opponent_points'],
+            actor_input['match_steps'],
+            actor_input['matches'],
+        ], axis=-1)
 
-        return (logits_action, logits_x, logits_y), values
+        env_info_input = jnp.stack([
+            actor_input['unit_move_cost'],
+            actor_input['unit_sap_cost'],
+            actor_input['unit_sap_range'],
+            actor_input['unit_sensor_range'],
+        ], axis=-1)
+
+        info_embeddings = nn.Sequential([
+            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+        ])(info_input)
+
+        env_info_embeddings = nn.Sequential([
+            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+        ])(env_info_input)
+
+        actor = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
+            ]
+        )
+
+        embeddings = jnp.concat([
+            state_embeddings.repeat(16, axis=0),
+            info_embeddings.repeat(16, axis=0),
+            env_info_embeddings.repeat(16, axis=0),
+            position_embeddings,
+            observation_embeddings,
+        ], axis=-1)
+
+        x = actor(embeddings)
+
+        action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
+
+        x_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
+        y_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
+
+        logits1 = action_head(x)
+        logits2 = x_coordinate_head(x)
+        logits3 = y_coordinate_head(x)
+
+        critic = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
+                nn.Dense(1, kernel_init=orthogonal(1.0)),
+            ]
+        )
+        values = critic(state_embeddings)
+
+        return (logits1, logits2, logits3), values

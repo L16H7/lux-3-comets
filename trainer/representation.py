@@ -19,10 +19,10 @@ def transform_coordinates(coordinates, map_width=24, map_height=24):
 
 def transform_observation(obs):
     # Horizontal flip across the last dimension (24, 24 grids)
-    flipped = jnp.flip(obs, axis=2)
+    flipped = jnp.flip(obs, axis=3)
     
     # Rotate 90 degrees clockwise after flip, across the last two dimensions (24x24)
-    rotated = jnp.rot90(flipped, k=-1, axes=(1, 2))
+    rotated = jnp.rot90(flipped, k=-1, axes=(2, 3))
     
     return rotated
 

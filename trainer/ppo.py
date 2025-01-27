@@ -54,7 +54,7 @@ def ppo_update(
     vf_coef: float,
     ent_coef: float,
 ):
-    units_mask = transitions.units_mask
+    units_mask = transitions.units_mask.reshape(-1)
     active_units = units_mask.sum() + 1e-8
 
     adv_mean = advantages.mean()
@@ -103,11 +103,11 @@ def ppo_update(
         dist2 = distrax.Categorical(logits=masked_logits2)
         dist3 = distrax.Categorical(logits=masked_logits3)
 
-        log_probs1 = dist1.log_prob(transitions.actions[..., 0])
-        log_probs2 = dist2.log_prob(transitions.actions[..., 1])
-        log_probs3 = dist3.log_prob(transitions.actions[..., 2])
+        log_probs1 = dist1.log_prob(transitions.actions[..., 0].reshape(-1))
+        log_probs2 = dist2.log_prob(transitions.actions[..., 1].reshape(-1))
+        log_probs3 = dist3.log_prob(transitions.actions[..., 2].reshape(-1))
 
-        target_log_probs_mask = (transitions.actions[..., 0] == 5)
+        target_log_probs_mask = (transitions.actions[..., 0].reshape(-1) == 5)
         log_probs = log_probs1 + jnp.where(target_log_probs_mask, log_probs2, 0) + jnp.where(target_log_probs_mask, log_probs3, 0)
 
         log_ratio = log_probs - transitions.log_probs
