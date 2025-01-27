@@ -75,6 +75,7 @@ class Agent():
         self.discovered_relic_nodes = np.ones((1, 6, 2), dtype=jnp.int32) * -1
         self.prev_team_points = 0
         self.points_map = jnp.zeros((1, 24, 24), dtype=jnp.float32)
+        self.search_map = jnp.zeros((1, 24, 24), dtype=jnp.float32)
         self.points_gained = 0
         self.prev_agent_positions = jnp.ones((1, 16, 2), dtype=jnp.int32) * -1
 
@@ -91,23 +92,26 @@ class Agent():
             max_steps_in_match=100,
             prev_agent_positions=self.prev_agent_positions,
             points_map=self.points_map,
+            search_map=self.search_map,
             points_gained=jnp.array([self.points_gained]),
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
         )
         
         (
-            states,
+            _,
             agent_observations,
             episode_info,
             points_map,
+            search_map,
             agent_positions,
-            _,
+            agent_energies,
             _,
         ) = representations
-        self.points_map = points_map
 
-        agent_states = states.repeat(16, axis=0)
+        self.points_map = points_map
+        self.search_map = search_map
+
         agent_observations = jnp.squeeze(agent_observations, axis=0)
         agent_episode_info = episode_info.repeat(16, axis=0)
         agent_positions = agent_positions.reshape(-1, 2)
@@ -115,7 +119,6 @@ class Agent():
         logits = self.inference_fn(
             { "params": self.params },
             {
-                "states": agent_states,
                 "observations": agent_observations,
                 "positions": agent_positions,
                 "match_steps": agent_episode_info[:, 0],
@@ -126,6 +129,7 @@ class Agent():
                 "unit_sap_cost": self.unit_sap_cost,
                 "unit_sap_range": self.unit_sap_range,
                 "unit_sensor_range": self.unit_sensor_range,
+                "energies": agent_energies,
             }
         )
 
@@ -138,6 +142,7 @@ class Agent():
             logits=logits,
             observations=observation,
             sap_ranges=jnp.array([self.env_cfg["unit_sap_range"]]),
+            relic_nodes=self.discovered_relic_nodes,
         )
 
         transformed_targets = transform_coordinates(actions[..., 1:], 17, 17)
