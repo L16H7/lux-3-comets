@@ -272,6 +272,17 @@ def create_representations(
         updated_search_map
     )
 
+    updated_search_map = jnp.where(
+        obs.steps[0] == 101,
+        0,
+        updated_search_map
+    )
+    updated_search_map = jnp.where(
+        obs.steps[0] == 202,
+        0,
+        updated_search_map
+    )
+
     energy_map = jnp.where(
         obs.sensor_mask,
         obs.map_features.energy,
