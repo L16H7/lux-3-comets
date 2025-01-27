@@ -287,7 +287,7 @@ def create_representations(
     updated_search_map = jnp.where(
         jnp.logical_and(
             (relic_nodes[..., 0] > -1).sum(axis=-1) == 2,
-            obs.steps < 100
+            obs.steps < 101
         )[:, None, None],
         jnp.ones_like(updated_search_map),
         updated_search_map
@@ -297,7 +297,7 @@ def create_representations(
     updated_search_map = jnp.where(
         jnp.logical_and(
             (relic_nodes[..., 0] > -1).sum(axis=-1) == 4,
-            obs.steps < 200
+            obs.steps < 202
         )[:, None, None],
         jnp.ones_like(updated_search_map),
         updated_search_map
@@ -307,7 +307,7 @@ def create_representations(
     updated_search_map = jnp.where(
         jnp.logical_and(
             (relic_nodes[..., 0] > -1).sum(axis=-1) == 6,
-            obs.steps < 300
+            obs.steps < 303
         )[:, None, None],
         jnp.ones_like(updated_search_map),
         updated_search_map
@@ -317,7 +317,7 @@ def create_representations(
     updated_search_map = jnp.where(
         jnp.logical_and(
             (discovered_relic_nodes[..., 0] > -1).sum(axis=-1) == 2,
-            obs.steps > 200
+            obs.steps > 202
         )[:, None, None],
         jnp.ones_like(updated_search_map),
         updated_search_map
