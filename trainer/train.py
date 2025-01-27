@@ -750,7 +750,7 @@ if __name__ == "__main__":
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
-        wandb_project="no-rnn",
+        wandb_project="simplicity",
         train_seed=42,
         entropy_coeff=0.005,
     )
