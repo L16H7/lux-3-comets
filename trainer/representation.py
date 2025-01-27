@@ -286,7 +286,7 @@ def create_representations(
     # if relic_nodes are found for match 1
     updated_search_map = jnp.where(
         jnp.logical_and(
-            (discovered_relic_nodes[..., 0] > -1).sum(axis=-1) == 2,
+            (relic_nodes[..., 0] > -1).sum(axis=-1) == 2,
             obs.steps < 100
         )[:, None, None],
         jnp.ones_like(updated_search_map),
@@ -296,7 +296,7 @@ def create_representations(
     # if relic_nodes are found for match 2
     updated_search_map = jnp.where(
         jnp.logical_and(
-            (discovered_relic_nodes[..., 0] > -1).sum(axis=-1) == 4,
+            (relic_nodes[..., 0] > -1).sum(axis=-1) == 4,
             obs.steps < 200
         )[:, None, None],
         jnp.ones_like(updated_search_map),
@@ -306,7 +306,7 @@ def create_representations(
     # if relic_nodes are found for match 3
     updated_search_map = jnp.where(
         jnp.logical_and(
-            (discovered_relic_nodes[..., 0] > -1).sum(axis=-1) == 6,
+            (relic_nodes[..., 0] > -1).sum(axis=-1) == 6,
             obs.steps < 300
         )[:, None, None],
         jnp.ones_like(updated_search_map),
