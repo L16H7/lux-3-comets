@@ -219,6 +219,7 @@ def make_train(config: Config):
                         logits=p0_logits,
                         observations=observations['player_0'],
                         sap_ranges=meta_env_params.unit_sap_range,
+                        relic_nodes=p0_discovered_relic_nodes,
                     )
 
                     p0_combined_states = combined_states_info(
@@ -270,6 +271,7 @@ def make_train(config: Config):
                         logits=p1_logits,
                         observations=observations['player_1'],
                         sap_ranges=meta_env_params.unit_sap_range,
+                        relic_nodes=p1_discovered_relic_nodes,
                     )
 
                     # COMMENT FOR FIXED OPPONENT

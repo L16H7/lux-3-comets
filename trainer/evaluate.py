@@ -77,6 +77,7 @@ def evaluate(
             logits=p0_logits,
             observations=observations['player_0'],
             sap_ranges=meta_env_params.unit_sap_range,
+            relic_nodes=p0_discovered_relic_nodes,
         )
 
         (
@@ -118,6 +119,7 @@ def evaluate(
             logits=p1_logits,
             observations=observations['player_1'],
             sap_ranges=meta_env_params.unit_sap_range,
+            relic_nodes=p1_discovered_relic_nodes,
         )
 
         transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
