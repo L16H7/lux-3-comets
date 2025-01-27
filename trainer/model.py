@@ -126,7 +126,7 @@ class Actor(nn.Module):
         )
 
         position_embeddings = get_2d_positional_embeddings(
-            actor_input['positions'],
+            actor_input['positions'] // 4,
             embedding_dim=32,
             max_size=6
         )
