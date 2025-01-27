@@ -64,9 +64,9 @@ class ResidualBlock(nn.Module):
     @nn.compact
     def __call__(self, x):
         residual = x
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(x)
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME", use_bias=False)(x)
         y = nn.leaky_relu(y)
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(y)
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME", use_bias=False)(y)
         y += residual  # Adding the input x to the output of the convolution block
         return nn.leaky_relu(y)  # Apply activation after adding the residual
 
@@ -94,19 +94,15 @@ class Actor(nn.Module):
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
-        state_encoder = nn.Sequential([
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-            # ResidualBlock(32),
-            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
-            nn.leaky_relu,
-            lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(128),
-            # nn.leaky_relu
-        ])
-
         observation_encoder = nn.Sequential([
-            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(
+                features=32,
+                kernel_size=(4, 4),
+                strides=(2, 2),
+                padding='SAME',
+                kernel_init=orthogonal(math.sqrt(2)),
+                use_bias=False,
+            ),
             nn.leaky_relu,
             ResidualBlock(32),
             nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
@@ -120,10 +116,6 @@ class Actor(nn.Module):
 
         observation_embeddings = observation_encoder(
             actor_input['observations'].transpose((0, 2, 3, 1))
-        )
-
-        state_embeddings = state_encoder(
-            actor_input['states'].transpose((0, 2, 3, 1))
         )
 
         position_embeddings = get_2d_positional_embeddings(
@@ -170,7 +162,6 @@ class Actor(nn.Module):
         )
 
         embeddings = jnp.concat([
-            state_embeddings,
             info_embeddings,
             env_info_embeddings,
             position_embeddings,

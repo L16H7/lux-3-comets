@@ -89,7 +89,7 @@ def create_unit_maps(
 
 # @profile
 def create_agent_patches(state_representation, unit_positions_team):
-    side = 8
+    side = 23
     full = (side * 2) + 1
     n_envs, _, _, _ = state_representation.shape
     padding = ((0, 0),  # No padding for the batch dimension
