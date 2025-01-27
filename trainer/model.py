@@ -3,7 +3,7 @@ import math
 import flax.linen as nn
 import jax.numpy as jnp
 from flax.linen.initializers import orthogonal
-from typing import TypedDict
+from typing import TypedDict, Tuple
 
 
 def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
@@ -74,53 +74,6 @@ class ActorInput(TypedDict):
     agent_ids: jax.Array
  
 
-class TransformerEncoder(nn.Module):
-    def __init__(
-        self,
-        hidden_dim: int,
-        num_heads: int,
-    ) -> None:
-
-        self.norm1 = nn.LayerNorm()
-        self.attn = nn.MultiHeadDotProductAttention(
-            kernel_init=nn.initializers.xavier_uniform(),
-            broadcast_dropout=False,
-            num_heads=num_heads
-        )
-
-        self.norm2 = nn.LayerNorm()
-
-        self.mlp = nn.Sequential([
-            nn.Dense(hidden_dim),
-            nn.gelu,
-            nn.Dense(hidden_dim),
-        ])
-
-    def __call__(self, x: jax.Array) -> jax.Array:
-        x = x + self.attn(self.norm1(x))
-        x = x + self.mlp(self.norm2(x))
-        return x
-
-
-class SEBlock(nn.Module):
-    features: int
-    reduction_ratio: int = 16
-
-    @nn.compact
-    def __call__(self, x):
-        # Squeeze: Global Average Pooling
-        squeezed = jnp.mean(x, axis=(1, 2), keepdims=True)
-        
-        # Excitation: Two fully connected layers with relu and sigmoid activations
-        excitation = nn.Dense(features=self.features // self.reduction_ratio)(squeezed)
-        excitation = nn.relu(excitation)
-        excitation = nn.Dense(features=self.features)(excitation)
-        excitation = nn.sigmoid(excitation)
-        
-        # Scale the input feature map
-        return x * excitation
-
-
 def get_unit_embeddings(x, unit_positions):
     # x: (batch, height, width, emb_dim)
     # unit_positions: (batch, num_units, 2)
@@ -130,23 +83,17 @@ def get_unit_embeddings(x, unit_positions):
 
 class ResidualBlock(nn.Module):
     features: int
-    kernel_size = (3, 3)
-    strides = (1, 1)
+    kernel_size: Tuple[int, int] = (3, 3)
+    strides: Tuple[int, int] = (1, 1)
 
     @nn.compact
     def __call__(self, x):
         residual = x
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME",
-                    kernel_init=orthogonal(math.sqrt(2)))(x)
-        y = nn.leaky_relu(y, negative_slope=0.01)
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME",
-                    kernel_init=orthogonal(math.sqrt(2)))(y)
-        
-        # Add Squeeze-and-Excitation layer
-        y = SEBlock(self.features)(y)
-
-        y += residual
-        return nn.leaky_relu(y, negative_slope=0.01)
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(x)
+        y = nn.leaky_relu(y)
+        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME")(y)
+        y += residual  # Adding the input x to the output of the convolution block
+        return nn.leaky_relu(y)  # Apply activation after adding the residual
 
 
 class ActorCritic(nn.Module):
@@ -157,21 +104,25 @@ class ActorCritic(nn.Module):
     @nn.compact
     def __call__(self, actor_input):
         state_encoder = nn.Sequential([
-            nn.Conv(features=32, kernel_size=(3, 3), strides=(2, 2), padding="SAME",
-                    kernel_init=orthogonal(math.sqrt(2))),
+            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
-            ResidualBlock(32),
+            # ResidualBlock(32),
+            nn.Conv(32, (3, 3), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(128),
+            # nn.leaky_relu
         ])
 
         observation_encoder = nn.Sequential([
             nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             ResidualBlock(32),
+            nn.Conv(32, (2, 2), padding='SAME', kernel_init=orthogonal(math.sqrt(2))),
             nn.leaky_relu,
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(256),
+            nn.leaky_relu
         ])
 
         batch_size = actor_input['states'].shape[0]
@@ -246,6 +197,60 @@ class ActorCritic(nn.Module):
         logits2 = x_coordinate_head(x)
         logits3 = y_coordinate_head(x)
 
+
+        critic_state_encoder = nn.Sequential(
+            [
+                nn.Conv(
+                    128,
+                    (2, 2),
+                    strides=1,
+                    padding='SAME',
+                    kernel_init=orthogonal(math.sqrt(2)),
+                ),
+                nn.leaky_relu,
+                nn.Conv(
+                    128,
+                    (2, 2),
+                    strides=1,
+                    padding='SAME',
+                    kernel_init=orthogonal(math.sqrt(2)),
+                ),
+                nn.leaky_relu,
+                nn.Conv(
+                    128,
+                    (2, 2),
+                    strides=1,
+                    padding='SAME',
+                    kernel_init=orthogonal(math.sqrt(2)),
+                ),
+                nn.leaky_relu,
+                nn.Conv(
+                    128,
+                    (2, 2),
+                    strides=1,
+                    padding='SAME',
+                    kernel_init=orthogonal(math.sqrt(2)),
+                ),
+                nn.leaky_relu,
+                lambda x: x.reshape((x.shape[0], -1)),
+                nn.Dense(256),
+                nn.leaky_relu,
+            ]
+        )
+        critic_state_embeddings = state_encoder(
+            actor_input['states'].transpose((0, 2, 3, 1))
+        )
+
+        critic_info_embeddings = nn.Sequential([
+            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
+            nn.leaky_relu,
+        ])(info_input)
+
+        embeddings = jnp.concat([
+            critic_state_embeddings,
+            critic_info_embeddings,
+        ], axis=-1)
+
         critic = nn.Sequential(
             [
                 nn.Dense(
@@ -255,6 +260,7 @@ class ActorCritic(nn.Module):
                 nn.Dense(1, kernel_init=orthogonal(1.0)),
             ]
         )
-        values = critic(state_embeddings)
+
+        values = critic(embeddings)
 
         return (logits1, logits2, logits3), values
