@@ -60,6 +60,8 @@ def make_train(config: Config):
             p1_discovered_relic_nodes=observations['player_1'].relic_nodes,
             p0_points_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.float32),
             p1_points_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.float32),
+            p0_search_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.int32),
+            p1_search_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.int32),
             p0_points_gained=jnp.zeros((n_envs)),
             p1_points_gained=jnp.zeros((n_envs)),
             p0_prev_agent_positions=jnp.zeros((n_envs, 16, 2), dtype=jnp.int32),
@@ -79,6 +81,8 @@ def make_train(config: Config):
         p1_agent_positions,
         p0_points_map,
         p1_points_map,
+        p0_search_map,
+        p1_search_map,
         meta_keys,
         meta_env_params,
     ):
@@ -114,6 +118,8 @@ def make_train(config: Config):
             p1_discovered_relic_nodes=p1_discovered_relic_nodes,
             p0_points_map=p0_points_map,
             p1_points_map=p1_points_map,
+            p0_search_map=p0_search_map,
+            p1_search_map=p1_search_map,
             p0_points_gained=envinfo["points_gained"][..., 0],
             p1_points_gained=envinfo["points_gained"][..., 1],
             p0_prev_agent_positions=p0_agent_positions,
@@ -175,6 +181,7 @@ def make_train(config: Config):
                         p0_agent_observations,
                         p0_episode_info,
                         p0_points_map,
+                        p0_search_map,
                         p0_agent_positions,
                         p0_energies,
                         p0_units_mask,
@@ -184,6 +191,7 @@ def make_train(config: Config):
                         p1_agent_observations,
                         p1_episode_info,
                         p1_points_map,
+                        p1_search_map,
                         p1_agent_positions,
                         p1_energies,
                         p1_units_mask,
@@ -191,7 +199,7 @@ def make_train(config: Config):
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
                     p0_agent_states = p0_states.repeat(config.n_agents, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p0_agent_observations = p0_agent_observations.reshape(-1, 8, 47, 47) 
+                    p0_agent_observations = p0_agent_observations.reshape(-1, 11, 47, 47) 
                     p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
                     p0_logits = actor_train_state.apply_fn(
@@ -241,7 +249,7 @@ def make_train(config: Config):
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
                     p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p1_agent_observations = p1_agent_observations.reshape(-1, 8, 47, 47)
+                    p1_agent_observations = p1_agent_observations.reshape(-1, 11, 47, 47)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
                     # FIXED OPPONENT
@@ -325,6 +333,8 @@ def make_train(config: Config):
                         p1_agent_positions.reshape(config.n_envs, -1, 2),
                         p0_points_map,
                         p1_points_map,
+                        p0_search_map,
+                        p1_search_map,
                         meta_keys,
                         meta_env_params,
                     )
@@ -355,26 +365,6 @@ def make_train(config: Config):
                         logits3_mask=jnp.concat([p0_logits_mask[2], p1_logits_mask[2]], axis=0),
                         env_information=env_info.repeat(2, axis=0),
                     )
-
-                    # FIXED OPPONENT
-                    # transition = Transition(
-                    #     agent_states=jnp.squeeze(p0_agent_states, axis=0),
-                    #     observations=jnp.squeeze(p0_agent_observations, axis=0),
-                    #     states=p0_states,
-                    #     episode_info=p0_episode_info,
-                    #     agent_episode_info=p0_agent_episode_info,
-                    #     actions=p0_actions,
-                    #     log_probs=jnp.squeeze(p0_log_probs, axis=0),
-                    #     values=jnp.squeeze(p0_values, axis=[0, 2]),
-                    #     agent_positions=jnp.squeeze(p0_agent_positions, axis=0),
-                    #     rewards=jnp.squeeze(p0_rewards, axis=[0, 2]),
-                    #     dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(config.n_agents),
-                    #     units_mask=p0_units_mask.reshape(-1),
-                    #     logits1_mask=jnp.squeeze(p0_logits_mask[0], axis=0),
-                    #     logits2_mask=jnp.squeeze(p0_logits_mask[1], axis=0),
-                    #     logits3_mask=jnp.squeeze(p0_logits_mask[2], axis=0),
-                    #     env_information=env_information,
-                    # )
 
                     runner_state = RunnerState(
                         rng,
@@ -417,12 +407,14 @@ def make_train(config: Config):
                     _,
                     _,
                     _,
+                    _,
                 ) = p0_representations
 
                 (
                     p1_states,
                     _,
                     p1_episode_info,
+                    _,
                     _,
                     _,
                     _,
@@ -645,10 +637,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     # FIXED OPPONENT
     # checkpoint_path = ''
@@ -748,10 +740,10 @@ if __name__ == "__main__":
         n_meta_steps=1,
         n_actor_steps=16,
         n_update_steps=32,
-        n_envs=128,
-        n_envs_per_device=128,
-        n_eval_envs=128,
-        n_minibatches=64,
+        n_envs=4,
+        n_envs_per_device=4,
+        n_eval_envs=4,
+        n_minibatches=2,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,

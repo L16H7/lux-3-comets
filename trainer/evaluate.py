@@ -42,6 +42,7 @@ def evaluate(
             p0_agent_observations,
             p0_episode_info,
             p0_points_map,
+            p0_search_map,
             p0_agent_positions,
             p0_agent_energies,
             p0_units_mask,
@@ -49,7 +50,7 @@ def evaluate(
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
         p0_agent_states = p0_states.repeat(16, axis=0)
-        p0_agent_observations = p0_agent_observations.reshape(-1, 8, 47, 47)
+        p0_agent_observations = p0_agent_observations.reshape(-1, 11, 47, 47)
         p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
         p0_logits = actor_train_state.apply_fn(
@@ -86,6 +87,7 @@ def evaluate(
             p1_agent_observations,
             p1_episode_info,
             p1_points_map,
+            p1_search_map,
             p1_agent_positions,
             p1_agent_energies,
             p1_units_mask,
@@ -93,7 +95,7 @@ def evaluate(
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
         p1_agent_states = p1_states.repeat(16, axis=0)
-        p1_agent_observations = p1_agent_observations.reshape(-1, 8, 47, 47)
+        p1_agent_observations = p1_agent_observations.reshape(-1, 11, 47, 47)
         p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
         p1_logits = actor_train_state.apply_fn(
@@ -157,6 +159,8 @@ def evaluate(
             p1_agent_positions.reshape(n_envs, -1, 2),
             p0_points_map,
             p1_points_map,
+            p0_search_map,
+            p1_search_map,
             meta_keys,
             meta_env_params,
         )
