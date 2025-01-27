@@ -43,7 +43,7 @@ def evaluate(
             p0_episode_info,
             p0_points_map,
             p0_agent_positions,
-            p0_agent_ids,
+            p0_agent_energies,
             p0_units_mask,
         ) = p0_representations
 
@@ -66,6 +66,7 @@ def evaluate(
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
+                "energies": p0_agent_energies,
             }
         )
 
@@ -86,7 +87,7 @@ def evaluate(
             p1_episode_info,
             p1_points_map,
             p1_agent_positions,
-            p1_agent_ids,
+            p1_agent_energies,
             p1_units_mask,
         ) = p1_representations
 
@@ -109,6 +110,7 @@ def evaluate(
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
+                "energies": p1_agent_energies,
             }
         )
 
