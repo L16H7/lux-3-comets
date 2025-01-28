@@ -207,16 +207,17 @@ def create_representations(
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
-    # Update points map
-    proximity_positions = filter_by_proximity_batch(
-        prev_agent_positions,
-        relic_nodes
-    )
-
+    # filter by energy
     prev_agent_positions = jnp.where(
         unit_energies_team[..., None].repeat(2, axis=-1) > 0,
         prev_agent_positions,
         -1
+    )
+
+    # Update points map
+    proximity_positions = filter_by_proximity_batch(
+        prev_agent_positions,
+        relic_nodes
     )
 
     # prev_agent_positions = jnp.where(

@@ -14,6 +14,7 @@ import numpy as np
 from agent import get_actions, vectorized_transform_actions
 from representation import create_representations, transform_coordinates, get_env_info
 from model import Actor
+from points import update_points_map, filter_by_proximity
 
 
 class DotDict:
@@ -79,6 +80,8 @@ class Agent():
         self.temporal_states = jnp.zeros((1, 6, 24, 24), dtype=jnp.float32)
         self.points_gained = 0
         self.prev_agent_positions = jnp.ones((1, 16, 2), dtype=jnp.int32) * -1
+        self.points_gained_history = []
+        self.positions_explored_history = []
 
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
@@ -165,7 +168,32 @@ class Agent():
         self.prev_team_points = team_points
         self.prev_agent_positions = jnp.expand_dims(agent_positions, axis=0)
 
-        if step == 90:
+        if self.points_gained > 0:
+            self.points_gained_history.append(self.points_gained)
+            agent_positions = jnp.where(
+                observation.units.energy[0, self.team_id, :, None].repeat(2, axis=-1) > 0,
+                agent_positions,
+                -1
+            )
+
+            # Update points map
+            proximity_positions = filter_by_proximity(
+                agent_positions,
+                jnp.squeeze(self.discovered_relic_nodes),
+            )
+            self.positions_explored_history.append(proximity_positions)
+
+        updated_points_map = jnp.squeeze(self.points_map, axis=0)
+        for i, history in enumerate(self.positions_explored_history):
+            updated_points_map = update_points_map(
+                updated_points_map,
+                history,
+                self.points_gained_history[i]  
+            )
+
+        self.points_map = jnp.expand_dims(updated_points_map, axis=0)
+
+        if step > 33 and self.team_id == 0:
             a = True
         
         return jnp.squeeze(actions, axis=0)
