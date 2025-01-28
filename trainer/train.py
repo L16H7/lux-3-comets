@@ -56,8 +56,8 @@ def make_train(config: Config):
         n_envs = observations['player_0'].relic_nodes.shape[0]
         p0_representations, p1_representations = create_agent_representations(
             observations=observations,
-            p0_temporal_states=jnp.zeros((n_envs, 14, 24, 24)),
-            p1_temporal_states=jnp.zeros((n_envs, 14, 24, 24)),
+            p0_temporal_states=jnp.zeros((n_envs, 6, 24, 24)),
+            p1_temporal_states=jnp.zeros((n_envs, 6, 24, 24)),
             p0_discovered_relic_nodes=observations['player_0'].relic_nodes,
             p1_discovered_relic_nodes=observations['player_1'].relic_nodes,
             p0_points_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.float32),
@@ -206,7 +206,7 @@ def make_train(config: Config):
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
                     p0_agent_states = p0_states.repeat(config.n_agents, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p0_agent_observations = p0_agent_observations.reshape(-1, 25, 47, 47) 
+                    p0_agent_observations = p0_agent_observations.reshape(-1, 17, 47, 47) 
                     p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
                     p0_logits = actor_train_state.apply_fn(
@@ -256,7 +256,7 @@ def make_train(config: Config):
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
                     p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p1_agent_observations = p1_agent_observations.reshape(-1, 25, 47, 47)
+                    p1_agent_observations = p1_agent_observations.reshape(-1, 17, 47, 47)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
                     # FIXED OPPONENT
