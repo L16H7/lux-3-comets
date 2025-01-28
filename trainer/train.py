@@ -56,8 +56,8 @@ def make_train(config: Config):
         n_envs = observations['player_0'].relic_nodes.shape[0]
         p0_representations, p1_representations = create_agent_representations(
             observations=observations,
-            p0_temporal_states=jnp.zeros((n_envs, 22, 24, 24)),
-            p1_temporal_states=jnp.zeros((n_envs, 22, 24, 24)),
+            p0_temporal_states=jnp.zeros((n_envs, 14, 24, 24)),
+            p1_temporal_states=jnp.zeros((n_envs, 14, 24, 24)),
             p0_discovered_relic_nodes=observations['player_0'].relic_nodes,
             p1_discovered_relic_nodes=observations['player_1'].relic_nodes,
             p0_points_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.float32),

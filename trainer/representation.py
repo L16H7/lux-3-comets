@@ -369,8 +369,8 @@ def create_representations(
     )
 
     updated_temporal_states = jnp.concatenate([
-        temporal_states[:, 11:, ...],
-        state_representation,
+        temporal_states[:, 7:, ...],
+        state_representation[:, :7, ...],
     ], axis=1)
 
     return (
