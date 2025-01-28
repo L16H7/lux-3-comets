@@ -215,10 +215,12 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits1 = jnp.where(logits1_mask.reshape(logits1.shape), logits1, large_negative)
     masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
 
-    action1 = np.argmax(masked_logits1, axis=-1)
-    action2 = np.argmax(masked_logits2, axis=-1)
+    # action1 = np.argmax(masked_logits1, axis=-1)
+    # action2 = np.argmax(masked_logits2, axis=-1)
 
     rng, action_rng1, action_rng2, action_rng3 = jax.random.split(rng, num=4)
+    action1 = jax.random.categorical(action_rng1, masked_logits1, axis=-1)
+    action2 = jax.random.categorical(action_rng2, masked_logits2, axis=-1)
 
     target_y = jax.vmap(
         generate_attack_masks_y,
@@ -235,7 +237,8 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     logits3_mask = logits3_mask.reshape(logits3.shape)
     masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
 
-    action3 = np.argmax(masked_logits3, axis=-1)
+    # action3 = np.argmax(masked_logits3, axis=-1)
+    action3 = jax.random.categorical(action_rng3, masked_logits3, axis=-1)
 
     actions = [action1, action2, action3]
 
