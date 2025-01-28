@@ -39,6 +39,7 @@ def evaluate(
 
         (
             p0_states,
+            p0_temporal_states,
             p0_agent_observations,
             p0_episode_info,
             p0_points_map,
@@ -50,7 +51,7 @@ def evaluate(
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
         p0_agent_states = p0_states.repeat(16, axis=0)
-        p0_agent_observations = p0_agent_observations.reshape(-1, 11, 47, 47)
+        p0_agent_observations = p0_agent_observations.reshape(-1, 33, 47, 47)
         p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
         p0_logits = actor_train_state.apply_fn(
@@ -84,6 +85,7 @@ def evaluate(
 
         (
             p1_states,
+            p1_temporal_states,
             p1_agent_observations,
             p1_episode_info,
             p1_points_map,
@@ -95,7 +97,7 @@ def evaluate(
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
         p1_agent_states = p1_states.repeat(16, axis=0)
-        p1_agent_observations = p1_agent_observations.reshape(-1, 11, 47, 47)
+        p1_agent_observations = p1_agent_observations.reshape(-1, 33, 47, 47)
         p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
         p1_logits = actor_train_state.apply_fn(
@@ -153,6 +155,8 @@ def evaluate(
                 "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
                 "player_1": transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
             }),
+            p0_temporal_states,
+            p1_temporal_states,
             p0_new_discovered_relic_nodes,
             p1_new_discovered_relic_nodes,
             p0_agent_positions.reshape(n_envs, -1, 2),

@@ -167,6 +167,7 @@ def get_env_info(env_params):
 
 def create_representations(
     obs,
+    temporal_states,
     discovered_relic_nodes,
     prev_agent_positions,
     points_map,
@@ -363,12 +364,18 @@ def create_representations(
     agent_positions = unit_positions_team
 
     agent_observations = create_agent_patches(
-        state_representation=state_representation,
+        state_representation=jnp.concatenate([temporal_states, state_representation], axis=1),
         unit_positions_team=unit_positions_team,
     )
 
+    updated_temporal_states = jnp.concatenate([
+        temporal_states[:, 11:, ...],
+        state_representation,
+    ], axis=1)
+
     return (
         state_representation,
+        updated_temporal_states,
         agent_observations,
         episode_info,
         updated_points_map,
@@ -380,6 +387,8 @@ def create_representations(
         
 def create_agent_representations(
     observations,
+    p0_temporal_states,
+    p1_temporal_states,
     p0_discovered_relic_nodes,
     p1_discovered_relic_nodes,
     p0_points_map,
@@ -394,6 +403,7 @@ def create_agent_representations(
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
         obs=p0_observations,
+        temporal_states=p0_temporal_states,
         discovered_relic_nodes=p0_discovered_relic_nodes,
         prev_agent_positions=p0_prev_agent_positions,
         points_map=p0_points_map,
@@ -406,6 +416,7 @@ def create_agent_representations(
     p1_observations = observations["player_1"]
     p1_representations = create_representations(
         obs=p1_observations,
+        temporal_states=p1_temporal_states,
         discovered_relic_nodes=p1_discovered_relic_nodes,
         prev_agent_positions=p1_prev_agent_positions,
         points_map=p1_points_map,
