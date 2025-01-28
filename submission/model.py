@@ -90,8 +90,8 @@ class Actor(nn.Module):
         observation_encoder = nn.Sequential([
             nn.Conv(
                 features=32,
-                kernel_size=(4, 4),
-                strides=(2, 2),
+                kernel_size=(3, 3),
+                strides=(3, 3),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False,
@@ -108,7 +108,7 @@ class Actor(nn.Module):
             ),
             nn.leaky_relu,
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(3, 3),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
@@ -194,17 +194,17 @@ class Critic(nn.Module):
         state_encoder = nn.Sequential(
             [
                 nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
+                    64,
+                    (3, 3),
+                    strides=(2, 2),
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
                 nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
+                    64,
+                    (3, 3),
+                    strides=(1, 1),
                     padding='SAME',
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),

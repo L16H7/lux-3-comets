@@ -76,6 +76,7 @@ class Agent():
         self.prev_team_points = 0
         self.points_map = jnp.zeros((1, 24, 24), dtype=jnp.float32)
         self.search_map = jnp.zeros((1, 24, 24), dtype=jnp.float32)
+        self.temporal_states = jnp.zeros((1, 6, 24, 24), dtype=jnp.float32)
         self.points_gained = 0
         self.prev_agent_positions = jnp.ones((1, 16, 2), dtype=jnp.int32) * -1
 
@@ -88,6 +89,7 @@ class Agent():
 
         representations = create_representations(
             obs=observation,
+            temporal_states=self.temporal_states,
             discovered_relic_nodes=self.discovered_relic_nodes,
             max_steps_in_match=100,
             prev_agent_positions=self.prev_agent_positions,
@@ -100,6 +102,7 @@ class Agent():
         
         (
             _,
+            temporal_states,
             agent_observations,
             episode_info,
             points_map,
@@ -111,6 +114,7 @@ class Agent():
 
         self.points_map = points_map
         self.search_map = search_map
+        self.temporal_states = temporal_states
 
         agent_observations = jnp.squeeze(agent_observations, axis=0)
         agent_episode_info = episode_info.repeat(16, axis=0)
