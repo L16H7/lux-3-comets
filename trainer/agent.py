@@ -149,12 +149,18 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         ], dtype=jnp.int16
     )
 
-    relic_nodes_positions = reconcile_positions(relic_nodes)
+    relic_nodes_positions = relic_nodes if team_idx == 1 else transform_coordinates(relic_nodes)
     relic_nodes_positions = jnp.where(
         relic_nodes_positions == -1,
         -100,
         relic_nodes_positions,
     )
+    relic_nodes_positions = jnp.where(
+        relic_nodes_positions == 24,
+        -100,
+        relic_nodes_positions,
+    )
+ 
     relic_targets = relic_nodes_positions[:, :, None, :] + adjacent_offsets_5x5
     relic_targets = jnp.where(
         relic_targets > 0,
