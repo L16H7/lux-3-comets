@@ -1,7 +1,6 @@
 import jax
-import distrax
-
 import jax.numpy as jnp
+import numpy as np
 
 from constants import Constants
 from representation import transform_coordinates, reconcile_positions
@@ -216,12 +215,10 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     masked_logits1 = jnp.where(logits1_mask.reshape(logits1.shape), logits1, large_negative)
     masked_logits2 = jnp.where(logits2_mask.reshape(logits2.shape), logits2, large_negative)
 
-    dist1 = distrax.Categorical(logits=masked_logits1)
-    dist2 = distrax.Categorical(logits=masked_logits2)
+    action1 = np.argmax(masked_logits1, axis=-1)
+    action2 = np.argmax(masked_logits2, axis=-1)
 
     rng, action_rng1, action_rng2, action_rng3 = jax.random.split(rng, num=4)
-    actions1, log_probs1 = dist1.sample_and_log_prob(seed=action_rng1)
-    actions2, log_probs2 = dist2.sample_and_log_prob(seed=action_rng2)
 
     target_y = jax.vmap(
         generate_attack_masks_y,
@@ -231,31 +228,21 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         target_positions.reshape(n_envs, -1, 2),
         sap_ranges,
         sap_ranges,
-        actions2.reshape(n_envs, -1) - Constants.MAX_SAP_RANGE
+        action2.reshape(n_envs, -1) - Constants.MAX_SAP_RANGE
     )
 
     logits3_mask = target_y
     logits3_mask = logits3_mask.reshape(logits3.shape)
     masked_logits3 = jnp.where(logits3_mask.reshape(logits3.shape), logits3, large_negative)
 
-    dist3 = distrax.Categorical(logits=masked_logits3)
+    action3 = np.argmax(masked_logits3, axis=-1)
 
-    actions3, log_probs3 = dist3.sample_and_log_prob(seed=action_rng3)
-    actions = [actions1, actions2, actions3]
+    actions = [action1, action2, action3]
 
-    target_log_probs_mask = (actions1 == 5)
-    log_probs = log_probs1 + jnp.where(target_log_probs_mask, log_probs2, 0) + jnp.where(target_log_probs_mask, log_probs3, 0)
-
-    actions = jnp.stack([actions1.reshape(-1), actions2.reshape(-1), actions3.reshape(-1)])
+    actions = jnp.stack([action1.reshape(-1), action2.reshape(-1), action3.reshape(-1)])
     actions = actions.T.reshape(n_envs, 16, -1)
 
-    logits_mask = [
-        logits1_mask,
-        logits2_mask,
-        logits3_mask
-    ]
-
-    return actions, log_probs, logits_mask
+    return actions
 
 def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=8, choose_y=False, chosen_x=None,):
     """

@@ -135,7 +135,7 @@ class Agent():
 
         self.rng, action_rng = jax.random.split(self.rng)
 
-        actions, _, _ = get_actions(
+        actions = get_actions(
             rng=action_rng,
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
