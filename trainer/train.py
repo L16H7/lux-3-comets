@@ -206,7 +206,7 @@ def make_train(config: Config):
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
                     p0_agent_states = p0_states.repeat(config.n_agents, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p0_agent_observations = p0_agent_observations.reshape(-1, 33, 47, 47) 
+                    p0_agent_observations = p0_agent_observations.reshape(-1, 25, 47, 47) 
                     p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
                     p0_logits = actor_train_state.apply_fn(
@@ -256,7 +256,7 @@ def make_train(config: Config):
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
                     p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p1_agent_observations = p1_agent_observations.reshape(-1, 33, 47, 47)
+                    p1_agent_observations = p1_agent_observations.reshape(-1, 25, 47, 47)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
                     # FIXED OPPONENT
