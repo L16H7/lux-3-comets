@@ -88,14 +88,37 @@ class Agent():
         observation = DotDict(reshape_observation(obs))
 
         relic_mask = observation.relic_nodes != -1
+        relic_nodes_count_before = (self.discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
         self.discovered_relic_nodes[relic_mask] = observation.relic_nodes[relic_mask]
+        relic_nodes_count_after = (self.discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+
+        # reset points map if new relic node is found
+        if (relic_nodes_count_after - relic_nodes_count_before)[0] > 0:
+            self.points_map = jnp.maximum(self.points_map, 0)
+            self.points_gained_history = []
+            self.positions_explored_history = []
+
+        if step == 101 or step == 202:
+            self.points_gained_history = []
+            self.positions_explored_history = []
+            self.points_map = jnp.maximum(self.points_map, 0)
+
+        team_points = obs['team_points'][self.team_id]
+        self.points_gained = team_points - self.prev_team_points
+        self.prev_team_points = team_points
+
+        energy_agent_positions = jnp.where(
+            observation.units.energy[0, self.team_id, :, None].repeat(2, axis=-1) > -1,
+            observation.units.position[:, self.team_id, ...],
+            -1
+        )
 
         representations = create_representations(
             obs=observation,
             temporal_states=self.temporal_states,
             discovered_relic_nodes=self.discovered_relic_nodes,
             max_steps_in_match=100,
-            prev_agent_positions=self.prev_agent_positions,
+            prev_agent_positions=energy_agent_positions,
             points_map=self.points_map,
             search_map=self.search_map,
             points_gained=jnp.array([self.points_gained]),
@@ -162,16 +185,6 @@ class Agent():
 
         actions = actions.at[..., 1:].set(actions[..., 1:] - 8)
 
-        team_points = obs['team_points'][self.team_id]
-
-        self.points_gained = team_points - self.prev_team_points
-        self.prev_team_points = team_points
-        agent_positions = jnp.where(
-            observation.units.energy[0, self.team_id, :, None].repeat(2, axis=-1) > -1,
-            agent_positions,
-            -1
-        )
-        self.prev_agent_positions = jnp.expand_dims(agent_positions, axis=0)
 
         updated_points_map = jnp.squeeze(self.points_map, axis=0)
         for i, history in enumerate(self.positions_explored_history):
@@ -204,9 +217,6 @@ class Agent():
             )
             self.positions_explored_history.append(jnp.concatenate([proximity_positions, transformed_proximity_positions], axis=0))
 
-        if step == 101 or step == 202:
-            self.points_gained_history = []
-            self.positions_explored_history = []
         if step > 190 and self.team_id == 0:
             a = True
         
