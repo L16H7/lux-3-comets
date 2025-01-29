@@ -208,16 +208,16 @@ def create_representations(
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
     # Update points map
-    # proximity_positions = filter_by_proximity_batch(
-    #     prev_agent_positions,
-    #     relic_nodes
-    # )
+    proximity_positions = filter_by_proximity_batch(
+        prev_agent_positions,
+        relic_nodes
+    )
     # prev_agent_positions = jnp.where(
     #     points_gained[:, None, None] > 0,
     #     proximity_positions,
     #     prev_agent_positions,
     # )
-    # prev_agent_positions = proximity_positions
+    prev_agent_positions = proximity_positions
 
     transformed_previous_positions = transform_coordinates(prev_agent_positions)
     transformed_previous_positions = jnp.where(
