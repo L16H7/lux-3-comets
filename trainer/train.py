@@ -41,8 +41,6 @@ class RunnerState(NamedTuple):
     p1_representations: jnp.ndarray
     observations: jnp.ndarray
     states: jnp.ndarray
-    p0_discovered_relic_nodes: jnp.ndarray
-    p1_discovered_relic_nodes: jnp.ndarray
 
 
 def make_train(config: Config):
@@ -97,6 +95,37 @@ def make_train(config: Config):
             meta_env_params,
         )
 
+        p0_relic_nodes_before = (p0_discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        p0_relic_mask = next_observations['player_0'].relic_nodes != -1
+        p0_new_discovered_relic_nodes = jnp.where(
+            p0_relic_mask, 
+            next_observations['player_0'].relic_nodes, 
+            p0_discovered_relic_nodes
+        )
+        p0_relic_nodes_after = (p0_new_discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        p0_relic_nodes_diff = p0_relic_nodes_after - p0_relic_nodes_before
+        p0_points_map = jnp.where(
+            p0_relic_nodes_diff[:, None, None] > 0,
+            jnp.maximum(p0_points_map, 0),
+            p0_points_map,
+        )
+
+        p1_relic_nodes_before = (p1_discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        p1_relic_mask = next_observations['player_1'].relic_nodes != -1
+        p1_new_discovered_relic_nodes = jnp.where(
+            p1_relic_mask, 
+            next_observations['player_1'].relic_nodes, 
+            p1_discovered_relic_nodes
+        )
+
+        p1_relic_nodes_after = (p1_new_discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        p1_relic_nodes_diff = p1_relic_nodes_after - p1_relic_nodes_before
+        p1_points_map = jnp.where(
+            p1_relic_nodes_diff[:, None, None] > 0,
+            jnp.maximum(p1_points_map, 0),
+            p1_points_map,
+        )
+
         team_points = next_observations["player_0"].team_points
         team_wins = next_observations["player_0"].team_wins
         info = {
@@ -132,8 +161,8 @@ def make_train(config: Config):
             observations=next_observations,
             p0_temporal_states=p0_temporal_states,
             p1_temporal_states=p1_temporal_states,
-            p0_discovered_relic_nodes=p0_discovered_relic_nodes,
-            p1_discovered_relic_nodes=p1_discovered_relic_nodes,
+            p0_discovered_relic_nodes=p0_new_discovered_relic_nodes,
+            p1_discovered_relic_nodes=p1_new_discovered_relic_nodes,
             p0_points_map=p0_points_map,
             p1_points_map=p1_points_map,
             p0_search_map=p0_search_map,
@@ -174,9 +203,6 @@ def make_train(config: Config):
                 jax.random.split(meta_env_params_rng, config.n_envs)
             )
 
-            p0_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2), dtype=jnp.int32) * -1
-            p1_discovered_relic_nodes = jnp.ones((config.n_envs, 6, 2), dtype=jnp.int32) * -1
-
             env_info = get_env_info(meta_env_params)
 
             def _update_step(runner_state: RunnerState, _):
@@ -189,8 +215,6 @@ def make_train(config: Config):
                         p1_representations,
                         observations,
                         states,
-                        p0_discovered_relic_nodes,
-                        p1_discovered_relic_nodes,
                     ) = runner_state
 
                     (
@@ -203,6 +227,7 @@ def make_train(config: Config):
                         p0_agent_positions,
                         p0_energies,
                         p0_units_mask,
+                        p0_discovered_relic_nodes,
                     ) = p0_representations
                     (
                         p1_states,
@@ -214,6 +239,7 @@ def make_train(config: Config):
                         p1_agent_positions,
                         p1_energies,
                         p1_units_mask,
+                        p1_discovered_relic_nodes,
                     ) = p1_representations
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
@@ -271,10 +297,6 @@ def make_train(config: Config):
                     p1_agent_observations = p1_agent_observations.reshape(-1, 17, 47, 47)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
-                    # FIXED OPPONENT
-                    # p1_logits = opponent_state.apply_fn(
-                    #     opponent_state.params,
-
                     p1_logits = actor_train_state.apply_fn(
                         actor_train_state.params,
                         {
@@ -303,7 +325,6 @@ def make_train(config: Config):
                         relic_nodes=p1_discovered_relic_nodes,
                     )
 
-                    # COMMENT FOR FIXED OPPONENT
                     p1_combined_states = combined_states_info(
                         p1_states,
                         p0_states
@@ -317,20 +338,6 @@ def make_train(config: Config):
                             "team_points": p1_episode_info[:, 2],
                             "opponent_points": p1_episode_info[:, 3],
                         }
-                    )
-
-                    p0_relic_mask = observations['player_0'].relic_nodes != -1
-                    p0_new_discovered_relic_nodes = jnp.where(
-                        p0_relic_mask, 
-                        observations['player_0'].relic_nodes, 
-                        p0_discovered_relic_nodes
-                    )
-
-                    p1_relic_mask = observations['player_1'].relic_nodes != -1
-                    p1_new_discovered_relic_nodes = jnp.where(
-                        p1_relic_mask, 
-                        observations['player_1'].relic_nodes, 
-                        p1_discovered_relic_nodes
                     )
 
                     transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
@@ -348,8 +355,8 @@ def make_train(config: Config):
                         }),
                         p0_temporal_states,
                         p1_temporal_states,
-                        p0_new_discovered_relic_nodes,
-                        p1_new_discovered_relic_nodes,
+                        p0_discovered_relic_nodes,
+                        p1_discovered_relic_nodes,
                         p0_agent_positions.reshape(config.n_envs, -1, 2),
                         p1_agent_positions.reshape(config.n_envs, -1, 2),
                         p0_points_map,
@@ -395,8 +402,6 @@ def make_train(config: Config):
                         p1_next_representations,
                         next_observations,
                         next_states,
-                        p0_new_discovered_relic_nodes,
-                        p1_new_discovered_relic_nodes,
                     )
 
                     return runner_state, transition
@@ -416,8 +421,6 @@ def make_train(config: Config):
                     p1_representations,
                     observations,
                     states,
-                    p0_discovered_relic_nodes,
-                    p1_discovered_relic_nodes,
                 ) = runner_state
 
                 (
@@ -430,6 +433,7 @@ def make_train(config: Config):
                     _,
                     _,
                     _,
+                    _,
                 ) = p0_representations
 
                 (
@@ -437,6 +441,7 @@ def make_train(config: Config):
                     _,
                     _,
                     p1_episode_info,
+                    _,
                     _,
                     _,
                     _,
@@ -460,7 +465,6 @@ def make_train(config: Config):
                     }
                 )
 
-                # COMMENT FOR FIXED OPPONENT
                 p1_combined_states = combined_states_info(
                     p1_states,
                     p0_states,
@@ -477,15 +481,6 @@ def make_train(config: Config):
                     }
                 )
 
-                # FIXED OPPONENT
-                # advantages, targets = calculate_gae(
-                #     transitions,
-                #     p0_last_values.repeat(config.n_agents, axis=1).reshape(-1),
-                #     config.gamma,
-                #     config.gae_lambda
-                # )
-
-                # SELF PLAY
                 advantages, targets = calculate_gae(
                     transitions,
                     jnp.concat([p0_last_values, p1_last_values], axis=0).repeat(config.n_agents, axis=1).reshape(-1),
@@ -596,8 +591,6 @@ def make_train(config: Config):
                     p1_representations,
                     observations,
                     states,
-                    p0_discovered_relic_nodes,
-                    p1_discovered_relic_nodes,
                 )
                 return updated_runner_state, update_step_info
 
@@ -611,8 +604,6 @@ def make_train(config: Config):
                 p1_representations=p1_representations,
                 observations=observations,
                 states=states,
-                p0_discovered_relic_nodes=p0_discovered_relic_nodes,
-                p1_discovered_relic_nodes=p1_discovered_relic_nodes,
             )
 
             updated_runner_state, update_step_info = jax.lax.scan(_update_step, runner_state, None, config.n_update_steps)
@@ -664,25 +655,6 @@ def train(config: Config):
         config={**asdict(config)}
     )
 
-    # FIXED OPPONENT
-    # checkpoint_path = ''
-    # orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
-    # opponent_params = orbax_checkpointer.restore(checkpoint_path)
-    # actor = Actor()
-    # actor_tx = optax.chain(
-    #     optax.clip_by_global_norm(config.max_grad_norm),
-    #     optax.adamw(config.actor_learning_rate),
-    # )
-    # opponent_state = TrainState.create(
-    #     apply_fn=actor.apply,
-    #     params=opponent_params,
-    #     tx=actor_tx,
-    # )
-    ''' DEGUGGING
-    opponent_state, _ = make_states(config=config)
-    '''
-    # opponent_state = replicate(opponent_state, jax.local_devices())
- 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())

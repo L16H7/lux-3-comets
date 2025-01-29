@@ -22,9 +22,6 @@ def evaluate(
 ):
     N_TOTAL_AGENTS = n_envs * n_agents
 
-    p0_discovered_relic_nodes = jnp.ones((n_envs, 6, 2), dtype=jnp.int32) * -1
-    p1_discovered_relic_nodes = jnp.ones((n_envs, 6, 2), dtype=jnp.int32) * -1
-
     env_info = get_env_info(meta_env_params)
 
     def _env_step(runner_state, _):
@@ -34,7 +31,6 @@ def evaluate(
             (p0_representations, p1_representations),
             observations,
             states,
-            (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
         ) = runner_state
 
         (
@@ -47,6 +43,7 @@ def evaluate(
             p0_agent_positions,
             p0_agent_energies,
             p0_units_mask,
+            p0_discovered_relic_nodes,
         ) = p0_representations
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
@@ -93,6 +90,7 @@ def evaluate(
             p1_agent_positions,
             p1_agent_energies,
             p1_units_mask,
+            p1_discovered_relic_nodes,
         ) = p1_representations
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
@@ -175,7 +173,6 @@ def evaluate(
             (p0_next_representations, p1_next_representations),
             next_observations,
             next_states,
-            (p0_new_discovered_relic_nodes, p1_new_discovered_relic_nodes),
         )
     
         return runner_state, info
@@ -188,7 +185,6 @@ def evaluate(
         (p0_representations, p1_representations),
         observations,
         states,
-        (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
     )
 
     runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
