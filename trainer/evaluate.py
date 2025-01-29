@@ -174,7 +174,35 @@ def evaluate(
             next_observations,
             next_states,
         )
-    
+        # POINTS MAP
+        ground_truth = runner_state[4].relic_nodes_map_weights.transpose(0, 2, 1)  # shape: (n_envs, 24, 24)
+        # max_relic_nodes = runner_state[4].relic_nodes_mask.sum() // 2
+
+        prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
+
+        prediction_binary = (prediction == 1)
+
+        # Calculate true positives
+        true_positives = jnp.sum((ground_truth > 0) & (prediction_binary == 1), axis=(1, 2))
+        # Calculate false positives
+        false_positives = jnp.sum((ground_truth == 0) & (prediction_binary == 1), axis=(1, 2))
+
+        # Calculate total number of positive labels in ground truth
+        total_positives = jnp.sum(ground_truth > 0, axis=(1, 2))
+
+        # Calculate true positive percentage
+        true_positive_percentage = (true_positives / total_positives) * 100
+
+        # Calculate false positive percentage
+        false_positive_percentage = (false_positives / total_positives) * 100
+
+        info = {
+            **info,
+            "points_map_coverage_mean": jnp.mean(true_positive_percentage),
+            "points_map_coverage_std": jnp.std(true_positive_percentage),
+            "points_map_false_flags_mean": jnp.mean(false_positive_percentage),
+            "points_map_false_flags_std": jnp.std(false_positive_percentage),
+        }
         return runner_state, info
 
     p0_representations, p1_representations, observations, states = v_reset(meta_keys, meta_env_params)
@@ -187,29 +215,8 @@ def evaluate(
         states,
     )
 
-    runner_state, info = jax.lax.scan(_env_step, runner_state, None, 503)
+    runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
 
-    # POINTS MAP
-    ground_truth = runner_state[4].relic_nodes_map_weights.transpose(0, 2, 1)  # shape: (n_envs, 24, 24)
-    # max_relic_nodes = runner_state[4].relic_nodes_mask.sum() // 2
-
-    prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
-
-    prediction_binary = (prediction == 1)
-
-    # Calculate true positives
-    true_positives = jnp.sum((ground_truth > 0) & (prediction_binary == 1), axis=(1, 2))
-    # Calculate false positives
-    false_positives = jnp.sum((ground_truth == 0) & (prediction_binary == 1), axis=(1, 2))
-
-    # Calculate total number of positive labels in ground truth
-    total_positives = jnp.sum(ground_truth > 0, axis=(1, 2))
-
-    # Calculate true positive percentage
-    true_positive_percentage = (true_positives / total_positives) * 100
-
-    # Calculate false positive percentage
-    false_positive_percentage = (false_positives / total_positives) * 100
 
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 502]), axis=0), info)
 
@@ -220,6 +227,10 @@ def evaluate(
         "p1_points_mean": last_match_steps["p1_points_mean"],
         "p0_points_std": last_match_steps["p0_points_std"],
         "p1_points_std": last_match_steps["p1_points_std"],
+        "points_map_coverage_mean": last_match_steps["points_map_coverage_mean"],
+        "points_map_coverage_std": last_match_steps["points_map_coverage_std"],
+        "points_map_false_flags_mean": last_match_steps["points_map_false_flags_mean"],
+        "points_map_false_flags_std": last_match_steps["points_map_false_flags_std"],
     }
     info2_ = {
         "eval/p0_wins": info["p0_wins"][-1],
@@ -230,10 +241,6 @@ def evaluate(
         "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
         "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
         "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
-        "eval/points_map_coverage_mean": jnp.mean(true_positive_percentage),
-        "eval/points_map_coverage_std": jnp.std(true_positive_percentage),
-        "eval/points_map_false_flags_mean": jnp.mean(false_positive_percentage),
-        "eval/points_map_false_flags_std": jnp.std(false_positive_percentage),
     }
 
     info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
