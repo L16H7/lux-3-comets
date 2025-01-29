@@ -212,13 +212,6 @@ def create_representations(
         prev_agent_positions,
         relic_nodes
     )
-
-    prev_agent_positions = jnp.where(
-        unit_energies_team[..., None].repeat(2, axis=-1) > 0,
-        prev_agent_positions,
-        -1
-    )
-
     # prev_agent_positions = jnp.where(
     #     points_gained[:, None, None] > 0,
     #     proximity_positions,
