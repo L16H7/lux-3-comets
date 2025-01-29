@@ -14,7 +14,7 @@ import numpy as np
 from agent import get_actions, vectorized_transform_actions
 from representation import create_representations, transform_coordinates, get_env_info, reconcile_positions
 from model import Actor
-from points import update_points_map, filter_by_proximity
+from points import update_points_map, filter_by_proximity, mark_duplicates_single
 
 
 class DotDict:
@@ -215,9 +215,13 @@ class Agent():
                 -1,
                 transformed_proximity_positions,
             )
-            self.positions_explored_history.append(jnp.concatenate([proximity_positions, transformed_proximity_positions], axis=0))
+            self.positions_explored_history.append(
+                mark_duplicates_single(
+                    jnp.concatenate([proximity_positions, transformed_proximity_positions], axis=0)
+                )
+            )
 
-        if step > 190 and self.team_id == 0:
+        if step > 300 and self.team_id == 0:
             a = True
         
         return jnp.squeeze(actions, axis=0)
