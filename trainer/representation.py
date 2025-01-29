@@ -219,27 +219,26 @@ def create_representations(
     # )
     # prev_agent_positions = proximity_positions
 
-    transformed_previous_positions = transform_coordinates(prev_agent_positions)
-    transformed_previous_positions = jnp.where(
-        transformed_previous_positions == 24,
-        -1,
-        transformed_previous_positions,
-    )
+    # transformed_previous_positions = transform_coordinates(prev_agent_positions)
+    # transformed_previous_positions = jnp.where(
+    #     transformed_previous_positions == 24,
+    #     -1,
+    #     transformed_previous_positions,
+    # )
 
     points_map = points_map.at[:, 0, 0].set(-1)
     points_map = points_map.at[:, -1, -1].set(-1)
     updated_points_map = update_points_map_batch(
         points_map,
-        mark_duplicates_batched(
-            jnp.concatenate(
-                [
-                    prev_agent_positions,
-                    transformed_previous_positions,
-                ],
-                axis=1
-            )
-        ),
-        points_gained * 2,
+        mark_duplicates_batched(prev_agent_positions),
+        points_gained,
+    )
+    transformed_updated_points_map = transform_observation_3dim(updated_points_map)
+
+    updated_points_map = jnp.where(
+        updated_points_map !=0,
+        updated_points_map,
+        transformed_updated_points_map,
     )
 
     updated_points_map = jnp.where(
