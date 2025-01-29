@@ -106,8 +106,7 @@ def make_train(config: Config):
         p0_relic_nodes_diff = p0_relic_nodes_after - p0_relic_nodes_before
         p0_points_map = jnp.where(
             p0_relic_nodes_diff[:, None, None] > 0,
-            # jnp.maximum(p0_points_map, 0),
-            jnp.zeros_like(p0_points_map),
+            jnp.maximum(p0_points_map, 0),
             p0_points_map,
         )
 
@@ -123,8 +122,7 @@ def make_train(config: Config):
         p1_relic_nodes_diff = p1_relic_nodes_after - p1_relic_nodes_before
         p1_points_map = jnp.where(
             p1_relic_nodes_diff[:, None, None] > 0,
-            # jnp.maximum(p1_points_map, 0),
-            jnp.zeros_like(p1_points_map),
+            jnp.maximum(p1_points_map, 0),
             p1_points_map,
         )
 
