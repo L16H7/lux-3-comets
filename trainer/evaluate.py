@@ -192,6 +192,32 @@ def evaluate(
     )
 
     runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
+
+    # POINTS MAP
+    ground_truth = runner_state[4].relic_nodes_map_weights  # shape: (n_envs, 24, 24)
+    prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
+
+    prediction_binary = (prediction == 1)
+
+    # Calculate true positives
+    true_positives = jnp.sum((ground_truth == 1) & (prediction_binary == 1), axis=(1, 2))
+    # Calculate false positives
+    false_positives = jnp.sum((ground_truth == 0) & (prediction_binary == 1), axis=(1, 2))
+
+    # Calculate total number of positive labels in ground truth
+    total_positives = jnp.sum(ground_truth == 1, axis=(1, 2))
+
+    # Calculate true positive percentage
+    true_positive_percentage = (true_positives / total_positives) * 100
+
+    # Calculate false positive percentage
+    false_positive_percentage = (false_positives / (24 * 24 - total_positives)) * 100
+    # Calculate mean true positive percentage across environments
+    mean_true_positive_percentage = jnp.mean(true_positive_percentage)
+
+    # Calculate mean false positive percentage across environments
+    mean_false_positive_percentage = jnp.mean(false_positive_percentage)
+
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 503]), axis=0), info)
 
     info_ = {
@@ -211,7 +237,10 @@ def evaluate(
         "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
         "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
         "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
+        "eval/points_map_true_coverage": mean_true_positive_percentage,
+        "eval/points_map_false_flags": mean_false_positive_percentage,
     }
+
     info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 
     return {
