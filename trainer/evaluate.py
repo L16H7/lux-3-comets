@@ -211,12 +211,7 @@ def evaluate(
     true_positive_percentage = (true_positives / total_positives) * 100
 
     # Calculate false positive percentage
-    false_positive_percentage = (false_positives / (24 * 24 - total_positives)) * 100
-    # Calculate mean true positive percentage across environments
-    mean_true_positive_percentage = jnp.mean(true_positive_percentage)
-
-    # Calculate mean false positive percentage across environments
-    mean_false_positive_percentage = jnp.mean(false_positive_percentage)
+    false_positive_percentage = (false_positives / total_positives) * 100
 
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 503]), axis=0), info)
 
@@ -237,8 +232,10 @@ def evaluate(
         "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
         "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
         "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
-        "eval/points_map_true_coverage": mean_true_positive_percentage,
-        "eval/points_map_false_flags": mean_false_positive_percentage,
+        "eval/points_map_coverage_mean": jnp.mean(true_positive_percentage),
+        "eval/points_map_coverage_std": jnp.std(true_positive_percentage),
+        "eval/points_map_false_flags_mean": jnp.mean(false_positive_percentage),
+        "eval/points_map_false_flags_std": jnp.std(false_positive_percentage),
     }
 
     info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
