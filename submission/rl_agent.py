@@ -12,7 +12,7 @@ import orbax.checkpoint
 import numpy as np
 
 from agent import get_actions, vectorized_transform_actions
-from representation import create_representations, transform_coordinates, get_env_info
+from representation import create_representations, transform_coordinates, get_env_info, reconcile_positions
 from model import Actor
 from points import update_points_map, filter_by_proximity
 
@@ -166,15 +166,12 @@ class Agent():
 
         self.points_gained = team_points - self.prev_team_points
         self.prev_team_points = team_points
-        # agent_positions = jnp.where(
-        #     observation.units.energy[0, self.team_id, :, None].repeat(2, axis=-1) > 0,
-        #     agent_positions,
-        #     -1
-        # )
+        agent_positions = jnp.where(
+            observation.units.energy[0, self.team_id, :, None].repeat(2, axis=-1) > -1,
+            agent_positions,
+            -1
+        )
         self.prev_agent_positions = jnp.expand_dims(agent_positions, axis=0)
-
-        if step > 39 and self.team_id == 0:
-            a = True
 
         updated_points_map = jnp.squeeze(self.points_map, axis=0)
         for i, history in enumerate(self.positions_explored_history):
@@ -188,16 +185,16 @@ class Agent():
 
         if self.points_gained > 0:
             self.points_gained_history.append(self.points_gained)
-            # agent_positions = jnp.where(
-            #     observation.units.energy[0, self.team_id, :, None].repeat(2, axis=-1) > 0,
-            #     agent_positions,
-            #     -1
-            # )
+            agent_positions = jnp.where(
+                observation.units.energy[0, self.team_id, :, None].repeat(2, axis=-1) > -1,
+                agent_positions,
+                -1
+            )
 
             # Update points map
             proximity_positions = filter_by_proximity(
                 agent_positions,
-                jnp.squeeze(self.discovered_relic_nodes),
+                jnp.squeeze(reconcile_positions(self.discovered_relic_nodes)),
             )
             transformed_proximity_positions = transform_coordinates(proximity_positions)
             transformed_proximity_positions = jnp.where(
@@ -207,7 +204,10 @@ class Agent():
             )
             self.positions_explored_history.append(jnp.concatenate([proximity_positions, transformed_proximity_positions], axis=0))
 
-        if step > 39 and self.team_id == 0:
+        if step == 101 or step == 202:
+            self.points_gained_history = []
+            self.positions_explored_history = []
+        if step > 190 and self.team_id == 0:
             a = True
         
         return jnp.squeeze(actions, axis=0)
