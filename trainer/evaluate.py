@@ -196,12 +196,12 @@ def evaluate(
     prediction_binary = (prediction == 1)
 
     # Calculate true positives
-    true_positives = jnp.sum((ground_truth == 1) & (prediction_binary == 1), axis=(1, 2))
+    true_positives = jnp.sum((ground_truth > 0) & (prediction_binary == 1), axis=(1, 2))
     # Calculate false positives
-    false_positives = jnp.sum((ground_truth == 0) & (prediction_binary == 1), axis=(1, 2))
+    false_positives = jnp.sum((ground_truth > 0) & (prediction_binary == 1), axis=(1, 2))
 
     # Calculate total number of positive labels in ground truth
-    total_positives = jnp.sum(ground_truth == 1, axis=(1, 2))
+    total_positives = jnp.sum(ground_truth > 0, axis=(1, 2))
 
     # Calculate true positive percentage
     true_positive_percentage = (true_positives / total_positives) * 100
