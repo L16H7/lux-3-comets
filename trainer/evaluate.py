@@ -181,12 +181,13 @@ def evaluate(
 
         prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
 
-        prediction_binary = (prediction == 1)
 
         # Calculate true positives
-        true_positives = jnp.sum((ground_truth > 0) & (prediction_binary == 1), axis=(1, 2))
+        true_positives = jnp.sum((ground_truth > 0) & (prediction == 1), axis=(1, 2))
         # Calculate false positives
-        false_positives = jnp.sum((ground_truth == 0) & (prediction_binary == 1), axis=(1, 2))
+        false_positives = jnp.sum((ground_truth == 0) & (prediction == 1), axis=(1, 2))
+
+        false_negative = jnp.sum((ground_truth > 0) & (prediction == -1), axis=(1, 2))
 
         # Calculate total number of positive labels in ground truth
         total_positives = jnp.sum(ground_truth > 0, axis=(1, 2))
@@ -197,12 +198,16 @@ def evaluate(
         # Calculate false positive percentage
         false_positive_percentage = (false_positives / total_positives) * 100
 
+        false_negative_percentage = (false_negative / total_positives) * 100
+
         info = {
             **info,
             "points_map_coverage_mean": jnp.mean(true_positive_percentage),
             "points_map_coverage_std": jnp.std(true_positive_percentage),
             "points_map_false_flags_mean": jnp.mean(false_positive_percentage),
             "points_map_false_flags_std": jnp.std(false_positive_percentage),
+            "points_map_false_negative_mean": jnp.mean(false_negative_percentage),
+            "points_map_false_negative_std": jnp.std(false_negative_percentage),
         }
         return runner_state, info
 
@@ -231,6 +236,8 @@ def evaluate(
         "points_map_coverage_std": last_match_steps["points_map_coverage_std"],
         "points_map_false_flags_mean": last_match_steps["points_map_false_flags_mean"],
         "points_map_false_flags_std": last_match_steps["points_map_false_flags_std"],
+        "points_map_false_negative_mean": last_match_steps["points_map_false_negative_mean"],
+        "points_map_false_negative_std": last_match_steps["points_map_false_negative_std"],
     }
     info2_ = {
         "eval/p0_wins": info["p0_wins"][-1],
