@@ -176,7 +176,8 @@ def evaluate(
         )
         # POINTS MAP
         ground_truth = runner_state[4].relic_nodes_map_weights.transpose(0, 2, 1)  # shape: (n_envs, 24, 24)
-        # max_relic_nodes = runner_state[4].relic_nodes_mask.sum() // 2
+        max_relic_nodes = runner_state[4].relic_nodes_mask.sum(axis=-1) // 2
+        ground_truth = (ground_truth > 0) & (ground_truth <= max_relic_nodes[:, None, None])
 
         prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
 
@@ -216,7 +217,6 @@ def evaluate(
     )
 
     runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
-
 
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 502]), axis=0), info)
 
