@@ -187,7 +187,7 @@ def evaluate(
         states,
     )
 
-    runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
+    runner_state, info = jax.lax.scan(_env_step, runner_state, None, 503)
 
     # POINTS MAP
     ground_truth = runner_state[4].relic_nodes_map_weights  # shape: (n_envs, 24, 24)
@@ -209,7 +209,7 @@ def evaluate(
     # Calculate false positive percentage
     false_positive_percentage = (false_positives / total_positives) * 100
 
-    last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 503]), axis=0), info)
+    last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 502]), axis=0), info)
 
     info_ = {
         "p0_energy_depletions": last_match_steps["p0_energy_depletions"],
