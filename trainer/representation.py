@@ -253,6 +253,12 @@ def create_representations(
         updated_points_map
     )
 
+    updated_points_map = jnp.where(
+        obs.steps[0] == 505,
+        jnp.zeros_like(updated_points_map),
+        updated_points_map
+    )
+
     sensor_mask = obs.sensor_mask.transpose((0, 2, 1))
     updated_search_map = jnp.where(
         sensor_mask,
@@ -274,6 +280,11 @@ def create_representations(
     )
     updated_search_map = jnp.where(
         obs.steps[0] == 202,
+        0,
+        updated_search_map
+    )
+    updated_search_map = jnp.where(
+        obs.steps[0] == 505,
         0,
         updated_search_map
     )
