@@ -66,6 +66,10 @@ def make_train(config: Config):
             p1_points_gained=jnp.zeros((n_envs)),
             p0_prev_agent_positions=jnp.zeros((n_envs, 16, 2), dtype=jnp.int32),
             p1_prev_agent_positions=jnp.zeros((n_envs, 16, 2), dtype=jnp.int32),
+            p0_points_history_positions=jnp.zeros((101, n_envs, 16, 2), dtype=jnp.int32),
+            p1_points_history_positions=jnp.zeros((101, n_envs, 16, 2), dtype=jnp.int32),
+            p0_points_history=jnp.zeros((101,), dtype=jnp.int32),
+            p1_points_history=jnp.zeros((101,), dtype=jnp.int32),
         )
         return p0_representations, p1_representations, observations, states
 
@@ -171,6 +175,10 @@ def make_train(config: Config):
             p1_points_gained=envinfo["points_gained"][..., 1],
             p0_prev_agent_positions=p0_agent_positions,
             p1_prev_agent_positions=p1_agent_positions,
+            p0_points_history_positions=jnp.zeros((101, 4, 16, 2), dtype=jnp.int32),
+            p1_points_history_positions=jnp.zeros((101, 4, 16, 2), dtype=jnp.int32),
+            p0_points_history=jnp.zeros((101,), dtype=jnp.int32),
+            p1_points_history=jnp.zeros((101,), dtype=jnp.int32),
         )
         return p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, info
         
@@ -650,10 +658,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
@@ -733,11 +741,11 @@ if __name__ == "__main__":
     config = Config(
         n_meta_steps=1,
         n_actor_steps=16,
-        n_update_steps=32,
-        n_envs=96,
-        n_envs_per_device=96,
-        n_eval_envs=96,
-        n_minibatches=32,
+        n_update_steps=1,
+        n_envs=4,
+        n_envs_per_device=4,
+        n_eval_envs=4,
+        n_minibatches=1,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,

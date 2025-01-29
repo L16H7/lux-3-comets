@@ -173,6 +173,8 @@ def create_representations(
     points_map,
     search_map,
     points_gained,
+    points_history_positions,
+    points_history,
     max_steps_in_match=100,
     team_idx=0,
     opponent_idx=1,
@@ -212,13 +214,12 @@ def create_representations(
         prev_agent_positions,
         relic_nodes
     )
-    # prev_agent_positions = jnp.where(
-    #     points_gained[:, None, None] > 0,
-    #     proximity_positions,
-    #     prev_agent_positions,
-    # )
+
     prev_agent_positions = proximity_positions
 
+    points_history_positions = points_history_positions.at[obs.match_steps[0]].set(prev_agent_positions)
+    points_history = points_history.at[obs.match_steps[0]].set(points_gained)
+    jax.debug.breakpoint()
 
     points_map = points_map.at[:, 0, 0].set(-1)
     points_map = points_map.at[:, -1, -1].set(-1)
@@ -398,6 +399,10 @@ def create_agent_representations(
     p1_points_gained,
     p0_prev_agent_positions,
     p1_prev_agent_positions,
+    p0_points_history_positions,
+    p1_points_history_positions,
+    p0_points_history,
+    p1_points_history,
 ):
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
@@ -408,6 +413,8 @@ def create_agent_representations(
         points_map=p0_points_map,
         search_map=p0_search_map,
         points_gained=p0_points_gained,
+        points_history_positions=p0_points_history_positions,
+        points_history=p0_points_history,
         team_idx=0,
         opponent_idx=1,
     )
@@ -421,6 +428,8 @@ def create_agent_representations(
         points_map=p1_points_map,
         search_map=p1_search_map,
         points_gained=p1_points_gained,
+        points_history_positions=p1_points_history_positions,
+        points_history=p1_points_history,
         team_idx=1,
         opponent_idx=0,
     )
