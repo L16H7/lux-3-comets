@@ -95,14 +95,14 @@ def make_train(config: Config):
             meta_env_params,
         )
 
-        p0_relic_nodes_before = (p0_discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        p0_relic_nodes_before = (p0_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p0_relic_mask = next_observations['player_0'].relic_nodes != -1
         p0_new_discovered_relic_nodes = jnp.where(
             p0_relic_mask, 
             next_observations['player_0'].relic_nodes, 
             p0_discovered_relic_nodes
         )
-        p0_relic_nodes_after = (p0_new_discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        p0_relic_nodes_after = (p0_new_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p0_relic_nodes_diff = p0_relic_nodes_after - p0_relic_nodes_before
         p0_points_map = jnp.where(
             p0_relic_nodes_diff[:, None, None] > 0,
@@ -110,7 +110,7 @@ def make_train(config: Config):
             p0_points_map,
         )
 
-        p1_relic_nodes_before = (p1_discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        p1_relic_nodes_before = (p1_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p1_relic_mask = next_observations['player_1'].relic_nodes != -1
         p1_new_discovered_relic_nodes = jnp.where(
             p1_relic_mask, 
@@ -118,7 +118,7 @@ def make_train(config: Config):
             p1_discovered_relic_nodes
         )
 
-        p1_relic_nodes_after = (p1_new_discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        p1_relic_nodes_after = (p1_new_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p1_relic_nodes_diff = p1_relic_nodes_after - p1_relic_nodes_before
         p1_points_map = jnp.where(
             p1_relic_nodes_diff[:, None, None] > 0,
