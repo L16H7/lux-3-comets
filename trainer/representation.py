@@ -208,23 +208,17 @@ def create_representations(
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
     # Update points map
-    # proximity_positions = filter_by_proximity_batch(
-    #     prev_agent_positions,
-    #     relic_nodes
-    # )
+    proximity_positions = filter_by_proximity_batch(
+        prev_agent_positions,
+        relic_nodes
+    )
     # prev_agent_positions = jnp.where(
     #     points_gained[:, None, None] > 0,
     #     proximity_positions,
     #     prev_agent_positions,
     # )
-    # prev_agent_positions = proximity_positions
+    prev_agent_positions = proximity_positions
 
-    # transformed_previous_positions = transform_coordinates(prev_agent_positions)
-    # transformed_previous_positions = jnp.where(
-    #     transformed_previous_positions == 24,
-    #     -1,
-    #     transformed_previous_positions,
-    # )
 
     points_map = points_map.at[:, 0, 0].set(-1)
     points_map = points_map.at[:, -1, -1].set(-1)
@@ -236,24 +230,24 @@ def create_representations(
     transformed_updated_points_map = transform_observation_3dim(updated_points_map)
 
     updated_points_map = jnp.where(
-        updated_points_map !=0,
+        updated_points_map != 0,
         updated_points_map,
         transformed_updated_points_map,
     )
 
     updated_points_map = jnp.where(
-        obs.steps[0] == 101,
+        obs.steps[0] == 102,
         jnp.maximum(updated_points_map, 0),
         updated_points_map
     )
     updated_points_map = jnp.where(
-        obs.steps[0] == 202,
+        obs.steps[0] == 203,
         jnp.maximum(updated_points_map, 0),
         updated_points_map
     )
 
     updated_points_map = jnp.where(
-        obs.steps[0] == 505,
+        obs.steps[0] == 506,
         jnp.zeros_like(updated_points_map),
         updated_points_map
     )
@@ -273,17 +267,17 @@ def create_representations(
     )
 
     updated_search_map = jnp.where(
-        obs.steps[0] == 101,
+        obs.steps[0] == 102,
         0,
         updated_search_map
     )
     updated_search_map = jnp.where(
-        obs.steps[0] == 202,
+        obs.steps[0] == 203,
         0,
         updated_search_map
     )
     updated_search_map = jnp.where(
-        obs.steps[0] == 505,
+        obs.steps[0] == 506,
         0,
         updated_search_map
     )
