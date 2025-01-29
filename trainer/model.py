@@ -1,4 +1,3 @@
-import functools
 import jax
 import math
 import flax.linen as nn
@@ -117,8 +116,6 @@ class Actor(nn.Module):
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(256),
         ])
-
-        batch_size = actor_input['states'].shape[0]
 
         observation_embeddings = observation_encoder(
             actor_input['observations'].transpose((0, 2, 3, 1))

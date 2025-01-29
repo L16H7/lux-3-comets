@@ -116,6 +116,18 @@ def make_train(config: Config):
             "p1_net_energy_of_sap_loss": envinfo["net_energy_of_sap_loss"][:, 1].mean(),
         }
 
+        p0_agent_positions = jnp.where(
+            next_observations['player_0'].units.energy[:, 0, :, None].repeat(2, axis=-1) > -1,
+            next_observations['player_0'].units.position[:, 0, ...],
+            -1
+        )
+
+        p1_agent_positions = jnp.where(
+            next_observations['player_1'].units.energy[:, 1, :, None].repeat(2, axis=-1) > -1,
+            next_observations['player_1'].units.position[:, 1, ...],
+            -1
+        )
+
         p0_next_representations, p1_next_representations = create_agent_representations(
             observations=next_observations,
             p0_temporal_states=p0_temporal_states,
