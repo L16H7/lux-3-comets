@@ -114,6 +114,8 @@ class Actor(nn.Module):
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
+            nn.leaky_relu,
+            ResidualBlock(64),
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(256),
         ])
