@@ -8,12 +8,15 @@ from typing import NamedTuple
 class Transition(NamedTuple):
     agent_states: jnp.ndarray
     observations: jnp.ndarray
+    episode_info: jnp.ndarray
     agent_episode_info: jnp.ndarray
+    states: jnp.ndarray
     actions: jnp.ndarray
     log_probs: jnp.ndarray
     values: jnp.ndarray
     units_mask: jnp.ndarray
     agent_positions: jnp.ndarray
+    agent_energies: jnp.ndarray
     rewards: jnp.ndarray
     dones: jnp.ndarray
     logits1_mask: jnp.ndarray
@@ -61,7 +64,7 @@ def ppo_update(
     adv_mean = advantages.mean()
     adv_std = advantages.std()
     advantages = (advantages - adv_mean) / (adv_std + 1e-8)
-    advantages = advantages * units_mask
+    advantages = jnp.where(units_mask, advantages, 0)
 
     def _loss_fn(actor_params, critic_params):
         logits = actor_train_state.apply_fn(
@@ -78,6 +81,7 @@ def ppo_update(
                 "unit_sap_cost": transitions.env_information[:, 1],
                 "unit_sap_range": transitions.env_information[:, 2],
                 "unit_sensor_range": transitions.env_information[:, 3],
+                "energies": transitions.agent_energies
             }
         )
         logits1, logits2, logits3 = logits
@@ -104,18 +108,16 @@ def ppo_update(
         dist1 = distrax.Categorical(logits=masked_logits1)
         dist2 = distrax.Categorical(logits=masked_logits2)
         dist3 = distrax.Categorical(logits=masked_logits3)
-        dist = distrax.Joint([dist1, dist2, dist3])
 
-        log_probs = dist.log_prob(
-            [
-                transitions.actions[..., 0],
-                transitions.actions[..., 1],
-                transitions.actions[..., 2],
-            ]
-        )
+        log_probs1 = dist1.log_prob(transitions.actions[..., 0])
+        log_probs2 = dist2.log_prob(transitions.actions[..., 1])
+        log_probs3 = dist3.log_prob(transitions.actions[..., 2])
+
+        target_log_probs_mask = (transitions.actions[..., 0] == 5)
+        log_probs = log_probs1 + jnp.where(target_log_probs_mask, log_probs2, 0) + jnp.where(target_log_probs_mask, log_probs3, 0)
 
         log_ratio = log_probs - transitions.log_probs
-        log_ratio = log_ratio * units_mask
+        log_ratio = jnp.where(units_mask, log_ratio, 0)
         
         ratio = jnp.exp(log_ratio)
 
@@ -124,20 +126,26 @@ def ppo_update(
 
         actor_loss = -jnp.minimum(actor_loss1, actor_loss2).sum() / active_units
         
-        entropy = dist.entropy().reshape(-1) * units_mask
+        entropy1 = jnp.where(units_mask, dist1.entropy(), 0)
+        target_log_probs_mask = jnp.where(units_mask, target_log_probs_mask, 0)
+        entropy2 = jnp.where(target_log_probs_mask, dist2.entropy(), 0)
+        entropy3 = jnp.where(target_log_probs_mask, dist3.entropy(), 0)
+
+        entropy = entropy1 + entropy2 + entropy3
+
         entropy_loss = entropy.sum() / active_units
 
         values = critic_train_state.apply_fn(
             critic_params,
             {
-                "states": transitions.agent_states,
-                "match_steps": transitions.agent_episode_info[:, 0],
-                "matches": transitions.agent_episode_info[:, 1],
-                "team_points": transitions.agent_episode_info[:, 2],
-                "opponent_points": transitions.agent_episode_info[:, 3],
+                "states": transitions.states,
+                "match_steps": transitions.episode_info[:, 0],
+                "matches": transitions.episode_info[:, 1],
+                "team_points": transitions.episode_info[:, 2],
+                "opponent_points": transitions.episode_info[:, 3],
             }
         )
-        values = values.reshape(-1)
+        values = jnp.squeeze(values.repeat(16, axis=0), axis=-1)
 
         value_pred_clipped = transitions.values + (values - transitions.values).clip(-clip_eps, clip_eps)
 

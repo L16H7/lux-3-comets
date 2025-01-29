@@ -1,6 +1,9 @@
+jax==0.4.34
+jaxlib==0.4.34
 jax[cuda12]
-orbax
-wandb
-flax
-distrax
-gymnax
+orbax==0.1.9
+orbax-checkpoint==0.7.0
+wandb==0.18.5
+flax==0.9.0
+distrax==0.1.5
+gymnax==0.0.8

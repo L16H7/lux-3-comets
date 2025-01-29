@@ -22,9 +22,6 @@ def evaluate(
 ):
     N_TOTAL_AGENTS = n_envs * n_agents
 
-    p0_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
-    p1_discovered_relic_nodes = jnp.ones((n_envs, 6, 2)) * -1
-
     env_info = get_env_info(meta_env_params)
 
     def _env_step(runner_state, _):
@@ -34,22 +31,24 @@ def evaluate(
             (p0_representations, p1_representations),
             observations,
             states,
-            (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
         ) = runner_state
 
         (
             p0_states,
+            p0_temporal_states,
             p0_agent_observations,
             p0_episode_info,
             p0_points_map,
+            p0_search_map,
             p0_agent_positions,
-            p0_agent_ids,
+            p0_agent_energies,
             p0_units_mask,
+            p0_discovered_relic_nodes,
         ) = p0_representations
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
         p0_agent_states = p0_states.repeat(16, axis=0)
-        p0_agent_observations = p0_agent_observations.reshape(-1, 10, 17, 17)
+        p0_agent_observations = p0_agent_observations.reshape(-1, 17, 47, 47)
         p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
         p0_logits = actor_train_state.apply_fn(
@@ -66,6 +65,7 @@ def evaluate(
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
+                "energies": p0_agent_energies,
             }
         )
 
@@ -77,21 +77,25 @@ def evaluate(
             logits=p0_logits,
             observations=observations['player_0'],
             sap_ranges=meta_env_params.unit_sap_range,
+            relic_nodes=p0_discovered_relic_nodes,
         )
 
         (
             p1_states,
+            p1_temporal_states,
             p1_agent_observations,
             p1_episode_info,
             p1_points_map,
+            p1_search_map,
             p1_agent_positions,
-            p1_agent_ids,
+            p1_agent_energies,
             p1_units_mask,
+            p1_discovered_relic_nodes,
         ) = p1_representations
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
         p1_agent_states = p1_states.repeat(16, axis=0)
-        p1_agent_observations = p1_agent_observations.reshape(-1, 10, 17, 17)
+        p1_agent_observations = p1_agent_observations.reshape(-1, 17, 47, 47)
         p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
         p1_logits = actor_train_state.apply_fn(
@@ -108,6 +112,7 @@ def evaluate(
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
+                "energies": p1_agent_energies,
             }
         )
 
@@ -118,6 +123,7 @@ def evaluate(
             logits=p1_logits,
             observations=observations['player_1'],
             sap_ranges=meta_env_params.unit_sap_range,
+            relic_nodes=p1_discovered_relic_nodes,
         )
 
         transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
@@ -147,12 +153,16 @@ def evaluate(
                 "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
                 "player_1": transformed_p1_actions.at[:, :, 1:].set(transformed_p1_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
             }),
+            p0_temporal_states,
+            p1_temporal_states,
             p0_new_discovered_relic_nodes,
             p1_new_discovered_relic_nodes,
             p0_agent_positions.reshape(n_envs, -1, 2),
             p1_agent_positions.reshape(n_envs, -1, 2),
             p0_points_map,
             p1_points_map,
+            p0_search_map,
+            p1_search_map,
             meta_keys,
             meta_env_params,
         )
@@ -163,9 +173,42 @@ def evaluate(
             (p0_next_representations, p1_next_representations),
             next_observations,
             next_states,
-            (p0_new_discovered_relic_nodes, p1_new_discovered_relic_nodes),
         )
-    
+        # POINTS MAP
+        ground_truth = runner_state[4].relic_nodes_map_weights.transpose(0, 2, 1)  # shape: (n_envs, 24, 24)
+        max_relic_nodes = runner_state[4].relic_nodes_mask.sum(axis=-1) // 2
+        ground_truth = (ground_truth > 0) & (ground_truth <= max_relic_nodes[:, None, None])
+
+        prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
+
+
+        # Calculate true positives
+        true_positives = jnp.sum((ground_truth > 0) & (prediction == 1), axis=(1, 2))
+        # Calculate false positives
+        false_positives = jnp.sum((ground_truth == 0) & (prediction == 1), axis=(1, 2))
+
+        false_negative = jnp.sum((ground_truth > 0) & (prediction == -1), axis=(1, 2))
+
+        # Calculate total number of positive labels in ground truth
+        total_positives = jnp.sum(ground_truth > 0, axis=(1, 2))
+
+        # Calculate true positive percentage
+        true_positive_percentage = (true_positives / total_positives) * 100
+
+        # Calculate false positive percentage
+        false_positive_percentage = (false_positives / total_positives) * 100
+
+        false_negative_percentage = (false_negative / total_positives) * 100
+
+        info = {
+            **info,
+            "points_map_coverage_mean": jnp.mean(true_positive_percentage),
+            "points_map_coverage_std": jnp.std(true_positive_percentage),
+            "points_map_false_flags_mean": jnp.mean(false_positive_percentage),
+            "points_map_false_flags_std": jnp.std(false_positive_percentage),
+            "points_map_false_negative_mean": jnp.mean(false_negative_percentage),
+            "points_map_false_negative_std": jnp.std(false_negative_percentage),
+        }
         return runner_state, info
 
     p0_representations, p1_representations, observations, states = v_reset(meta_keys, meta_env_params)
@@ -176,11 +219,11 @@ def evaluate(
         (p0_representations, p1_representations),
         observations,
         states,
-        (p0_discovered_relic_nodes, p1_discovered_relic_nodes),
     )
 
     runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
-    last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 503]), axis=0), info)
+
+    last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 502]), axis=0), info)
 
     info_ = {
         "p0_energy_depletions": last_match_steps["p0_energy_depletions"],
@@ -189,6 +232,12 @@ def evaluate(
         "p1_points_mean": last_match_steps["p1_points_mean"],
         "p0_points_std": last_match_steps["p0_points_std"],
         "p1_points_std": last_match_steps["p1_points_std"],
+        "points_map_coverage_mean": last_match_steps["points_map_coverage_mean"],
+        "points_map_coverage_std": last_match_steps["points_map_coverage_std"],
+        "points_map_false_flags_mean": last_match_steps["points_map_false_flags_mean"],
+        "points_map_false_flags_std": last_match_steps["points_map_false_flags_std"],
+        "points_map_false_negative_mean": last_match_steps["points_map_false_negative_mean"],
+        "points_map_false_negative_std": last_match_steps["points_map_false_negative_std"],
     }
     info2_ = {
         "eval/p0_wins": info["p0_wins"][-1],
@@ -200,6 +249,7 @@ def evaluate(
         "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
         "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
     }
+
     info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 
     return {
