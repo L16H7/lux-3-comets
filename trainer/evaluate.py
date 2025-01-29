@@ -190,7 +190,7 @@ def evaluate(
     runner_state, info = jax.lax.scan(_env_step, runner_state, None, 503)
 
     # POINTS MAP
-    ground_truth = runner_state[4].relic_nodes_map_weights  # shape: (n_envs, 24, 24)
+    ground_truth = runner_state[4].relic_nodes_map_weights.transpose(0, 2, 1)  # shape: (n_envs, 24, 24)
     prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
 
     prediction_binary = (prediction == 1)
