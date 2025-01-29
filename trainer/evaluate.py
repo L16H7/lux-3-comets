@@ -191,6 +191,8 @@ def evaluate(
 
     # POINTS MAP
     ground_truth = runner_state[4].relic_nodes_map_weights.transpose(0, 2, 1)  # shape: (n_envs, 24, 24)
+    # max_relic_nodes = runner_state[4].relic_nodes_mask.sum() // 2
+
     prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
 
     prediction_binary = (prediction == 1)
@@ -198,7 +200,7 @@ def evaluate(
     # Calculate true positives
     true_positives = jnp.sum((ground_truth > 0) & (prediction_binary == 1), axis=(1, 2))
     # Calculate false positives
-    false_positives = jnp.sum((ground_truth > 0) & (prediction_binary == 1), axis=(1, 2))
+    false_positives = jnp.sum((ground_truth == 0) & (prediction_binary == 1), axis=(1, 2))
 
     # Calculate total number of positive labels in ground truth
     total_positives = jnp.sum(ground_truth > 0, axis=(1, 2))
