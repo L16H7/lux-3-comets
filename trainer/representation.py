@@ -383,6 +383,8 @@ def create_representations(
         unit_energies_team / 400.0,
         unit_energies_team > 0, # mask energy depleted agents in ppo update
         discovered_relic_nodes,
+        points_history_positions,
+        points_history,
     )
         
 def create_agent_representations(
