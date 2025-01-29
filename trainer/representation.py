@@ -215,19 +215,29 @@ def create_representations(
         relic_nodes
     )
 
-    prev_agent_positions = proximity_positions
+    prev_agent_positions = mark_duplicates_batched(proximity_positions)
 
     points_history_positions = points_history_positions.at[obs.match_steps[0]].set(prev_agent_positions)
     points_history = points_history.at[obs.match_steps[0]].set(points_gained)
-    jax.debug.breakpoint()
 
     points_map = points_map.at[:, 0, 0].set(-1)
     points_map = points_map.at[:, -1, -1].set(-1)
     updated_points_map = update_points_map_batch(
         points_map,
-        mark_duplicates_batched(prev_agent_positions),
+        prev_agent_positions,
         points_gained,
     )
+
+    vmap_update_points_map = jax.vmap(update_points_map_batch, in_axes=(None, 0, 0))
+
+    history_points_map = updated_points_map
+    history_points_map = vmap_update_points_map(
+        history_points_map,
+        points_history_positions,
+        points_history
+    )
+    updated_points_map = history_points_map[-1]
+
     transformed_updated_points_map = transform_observation_3dim(updated_points_map)
 
     updated_points_map = jnp.where(
@@ -253,6 +263,38 @@ def create_representations(
         updated_points_map
     )
 
+    points_history_positions = jnp.where(
+        obs.steps[0] == 102,
+        jnp.zeros_like(points_history_positions),
+        points_history_positions
+    )
+    points_history_positions = jnp.where(
+        obs.steps[0] == 203,
+        jnp.zeros_like(points_history_positions),
+        points_history_positions
+    )
+    points_history_positions = jnp.where(
+        obs.steps[0] == 506,
+        jnp.zeros_like(points_history_positions),
+        points_history_positions
+    )
+    
+    points_history = jnp.where(
+        obs.steps[0] == 102,
+        jnp.zeros_like(points_history),
+        points_history
+    )
+    points_history = jnp.where(
+        obs.steps[0] == 203,
+        jnp.zeros_like(points_history),
+        points_history
+    )
+    points_history = jnp.where(
+        obs.steps[0] == 506,
+        jnp.zeros_like(points_history),
+        points_history
+    )
+ 
     sensor_mask = obs.sensor_mask.transpose((0, 2, 1))
     updated_search_map = jnp.where(
         sensor_mask,

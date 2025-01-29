@@ -118,6 +118,25 @@ def make_train(config: Config):
             p0_points_map,
         )
 
+        mask = p0_relic_nodes_diff > 0
+        expanded_mask = mask[None, :, None, None]
+        full_mask = jnp.broadcast_to(
+            expanded_mask,
+            p0_points_history_positions.shape
+        )
+        
+        p0_points_history_positions = jnp.where(
+            full_mask, 
+            jnp.zeros_like(p0_points_history_positions),
+            p0_points_history_positions
+        )
+
+        p0_points_history = jnp.where(
+            p0_relic_nodes_diff[None, :] > 0,
+            jnp.zeros_like(p0_points_history),
+            p0_points_history,
+        )
+
         p1_relic_nodes_before = (p1_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p1_relic_mask = next_observations['player_1'].relic_nodes != -1
         p1_new_discovered_relic_nodes = jnp.where(
@@ -132,6 +151,25 @@ def make_train(config: Config):
             p1_relic_nodes_diff[:, None, None] > 0,
             jnp.maximum(p1_points_map, 0),
             p1_points_map,
+        )
+
+        mask = p1_relic_nodes_diff > 0
+        expanded_mask = mask[None, :, None, None]
+        full_mask = jnp.broadcast_to(
+            expanded_mask,
+            p1_points_history_positions.shape
+        )
+        
+        p1_points_history_positions = jnp.where(
+            full_mask, 
+            jnp.zeros_like(p1_points_history_positions),
+            p1_points_history_positions
+        )
+
+        p1_points_history = jnp.where(
+            p1_relic_nodes_diff[None, :] > 0,
+            jnp.zeros_like(p1_points_history),
+            p1_points_history,
         )
 
         team_points = next_observations["player_0"].team_points
@@ -660,10 +698,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
@@ -743,11 +781,11 @@ if __name__ == "__main__":
     config = Config(
         n_meta_steps=1,
         n_actor_steps=16,
-        n_update_steps=1,
-        n_envs=4,
-        n_envs_per_device=4,
-        n_eval_envs=4,
-        n_minibatches=1,
+        n_update_steps=32,
+        n_envs=96,
+        n_envs_per_device=96,
+        n_eval_envs=96,
+        n_minibatches=32,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
