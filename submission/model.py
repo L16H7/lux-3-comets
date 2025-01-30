@@ -1,4 +1,3 @@
-import functools
 import jax
 import math
 import flax.linen as nn
@@ -205,7 +204,7 @@ class CriticInput(TypedDict):
  
 
 class Critic(nn.Module):
-    info_emb_dim: int = 32
+    info_emb_dim: int = 96
     hidden_dim: int = 256
  
     @nn.compact
