@@ -12,7 +12,7 @@ import orbax.checkpoint
 import numpy as np
 
 from agent import get_actions, vectorized_transform_actions
-from representation import create_representations, transform_coordinates, get_env_info, reconcile_positions
+from representation import create_representations, transform_coordinates, reconcile_positions, transform_observation_3dim
 from model import Actor
 from points import update_points_map, filter_by_proximity, mark_duplicates_single
 
@@ -191,10 +191,18 @@ class Agent():
             updated_points_map = update_points_map(
                 updated_points_map,
                 history,
-                self.points_gained_history[i] * 2  
+                self.points_gained_history[i]
             )
 
         self.points_map = jnp.expand_dims(updated_points_map, axis=0)
+
+        transformed_updated_points_map = transform_observation_3dim(self.points_map)
+
+        self.points_map = jnp.where(
+            self.points_map != 0,
+            self.points_map,
+            transformed_updated_points_map
+        )
 
         if self.points_gained > 0:
             self.points_gained_history.append(self.points_gained)
@@ -209,16 +217,9 @@ class Agent():
                 agent_positions,
                 jnp.squeeze(reconcile_positions(self.discovered_relic_nodes)),
             )
-            transformed_proximity_positions = transform_coordinates(proximity_positions)
-            transformed_proximity_positions = jnp.where(
-                transformed_proximity_positions == 24,
-                -1,
-                transformed_proximity_positions,
-            )
+
             self.positions_explored_history.append(
-                mark_duplicates_single(
-                    jnp.concatenate([proximity_positions, transformed_proximity_positions], axis=0)
-                )
+                mark_duplicates_single(proximity_positions)
             )
 
         if step > 300 and self.team_id == 0:

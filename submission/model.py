@@ -1,4 +1,3 @@
-import functools
 import jax
 import math
 import flax.linen as nn
@@ -53,16 +52,36 @@ class ResidualBlock(nn.Module):
     features: int
     kernel_size: Tuple[int, int] = (3, 3)
     strides: Tuple[int, int] = (1, 1)
-
+    reduction_ratio: int = 16  # Reduction ratio for SE block
+    
     @nn.compact
     def __call__(self, x):
         residual = x
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME", use_bias=False)(x)
+        
+        # Main convolution path
+        y = nn.Conv(self.features, self.kernel_size, self.strides, 
+                   padding="SAME", use_bias=False)(x)
         y = nn.leaky_relu(y)
-        y = nn.Conv(self.features, self.kernel_size, self.strides, padding="SAME", use_bias=False)(y)
-        y += residual  # Adding the input x to the output of the convolution block
-        return nn.leaky_relu(y)  # Apply activation after adding the residual
-
+        y = nn.Conv(self.features, self.kernel_size, self.strides, 
+                   padding="SAME", use_bias=False)(y)
+        
+        # Squeeze and Excitation block
+        # Squeeze: Global average pooling
+        se = jnp.mean(y, axis=(1, 2), keepdims=True)  # Shape: (B, 1, 1, C)
+        
+        # Excitation: Two FC layers with reduction
+        se_features = max(self.features // self.reduction_ratio, 1)
+        se = nn.Conv(se_features, (1, 1), use_bias=True)(se)  # First FC
+        se = nn.leaky_relu(se)
+        se = nn.Conv(self.features, (1, 1), use_bias=True)(se)  # Second FC
+        se = nn.sigmoid(se)
+        
+        # Scale the original features
+        y = y * se
+        
+        # Add residual connection
+        y += residual
+        return nn.leaky_relu(y)
 
 class ActorInput(TypedDict):
     positions: jax.Array
@@ -80,9 +99,8 @@ class ActorInput(TypedDict):
  
 class Actor(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 32
-    action_emb_dim: int = 16
-    hidden_dim: int = 128
+    info_emb_dim: int = 96
+    hidden_dim: int = 256
     position_emb_dim: int = 32
  
     @nn.compact
@@ -114,8 +132,10 @@ class Actor(nn.Module):
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
+            nn.leaky_relu,
+            ResidualBlock(64),
             lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(256),
+            nn.Dense(512),
         ])
 
 
@@ -184,7 +204,7 @@ class CriticInput(TypedDict):
  
 
 class Critic(nn.Module):
-    info_emb_dim: int = 32
+    info_emb_dim: int = 96
     hidden_dim: int = 256
  
     @nn.compact
