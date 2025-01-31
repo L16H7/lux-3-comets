@@ -766,7 +766,7 @@ class LuxAIS3Env(environment.Environment):
         point_rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
 
         # ZERO SUM
-        SAP_DESTROYED_REWARDS = 0.05
+        SAP_DESTROYED_REWARDS = 0.2
         sap_destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
 
         p1_sap_destroyed_counts = sap_destroyed_units[1] - sap_destroyed_units[0]
