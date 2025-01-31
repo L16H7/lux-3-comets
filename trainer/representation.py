@@ -228,6 +228,13 @@ def create_representations(
         points_gained,
     )
 
+    transformed_prev_agent_positions = transform_coordinates(prev_agent_positions)
+    updated_points_map = update_points_map_batch(
+        updated_points_map,
+        mark_duplicates_batched(transformed_prev_agent_positions),
+        points_gained,
+    )
+
     vmap_update_points_map = jax.vmap(update_points_map_batch, in_axes=(None, 0, 0))
 
     history_points_map = updated_points_map
@@ -237,15 +244,16 @@ def create_representations(
         points_history
     )
     updated_points_map = history_points_map[-1]
-
-    transformed_updated_points_map = transform_observation_3dim(updated_points_map)
-
-    updated_points_map = jnp.where(
-        updated_points_map != 0,
-        updated_points_map,
-        transformed_updated_points_map,
+    
+    transformed_points_history_positions = transform_coordinates(points_history_positions)
+    history_points_map = updated_points_map
+    history_points_map = vmap_update_points_map(
+        history_points_map,
+        transformed_points_history_positions,
+        points_history
     )
-
+    updated_points_map = history_points_map[-1]
+ 
     updated_points_map = jnp.where(
         obs.steps[0] == 102,
         jnp.maximum(updated_points_map, 0),
