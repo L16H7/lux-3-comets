@@ -223,12 +223,16 @@ def create_representations(
         mark_duplicates_batched(prev_agent_positions),
         points_gained,
     )
-    transformed_updated_points_map = transform_observation_3dim(updated_points_map)
-
-    updated_points_map = jnp.where(
-        updated_points_map != 0,
+    transfromed_prev_agent_positions = transform_coordinates(prev_agent_positions)
+    transfromed_prev_agent_positions = jnp.where(
+        transfromed_prev_agent_positions == 24,
+        -1,
+        transfromed_prev_agent_positions
+    )
+    updated_points_map = update_points_map_batch(
         updated_points_map,
-        transformed_updated_points_map,
+        mark_duplicates_batched(transfromed_prev_agent_positions),
+        points_gained,
     )
 
     updated_points_map = jnp.where(
