@@ -146,15 +146,15 @@ class Agent():
         agent_episode_info = episode_info.repeat(16, axis=0)
         agent_positions = agent_positions.reshape(-1, 2)
 
-        if step == 123 and self.team_id == 0:
-            jnp.save('agent_1_team_0', agent_observations[5])
-            jnp.save('team_0_points_map2', self.points_map)
-            a = True
+        # if step == 123 and self.team_id == 0:
+        #     jnp.save('agent_1_team_0', agent_observations[5])
+        #     jnp.save('team_0_points_map2', self.points_map)
+        #     a = True
 
-        if step == 123 and self.team_id == 1:
-            jnp.save('agent_1_team_1', agent_observations[5])
-            jnp.save('team_1_points_map2', self.points_map)
-            a = True
+        # if step == 123 and self.team_id == 1:
+        #     jnp.save('agent_1_team_1', agent_observations[5])
+        #     jnp.save('team_1_points_map2', self.points_map)
+        #     a = True
 
         logits = self.inference_fn(
             { "params": self.params },

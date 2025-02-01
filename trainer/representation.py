@@ -363,16 +363,6 @@ def create_representations(
         updated_search_map
     )
 
-    # if relic_nodes doesn't spawn in match 2 (or if we suck and don't find)
-    updated_search_map = jnp.where(
-        jnp.logical_and(
-            (discovered_relic_nodes[..., 0] > -1).sum(axis=-1) == 2,
-            obs.steps > 202
-        )[:, None, None],
-        jnp.ones_like(updated_search_map),
-        updated_search_map
-    )
-
     energy_map = jnp.where(
         obs.sensor_mask,
         obs.map_features.energy,
