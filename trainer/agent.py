@@ -77,6 +77,88 @@ def filter_targets_with_sensor(targets, sensor_map):
     return result
 
 
+def compute_collision_avoidance(ally_pos, ally_energy, enemy_pos, enemy_energy, directions):
+    """
+    Computes an action mask for allied agents given positions and energies.
+    
+    Parameters:
+      ally_pos:    jnp.array with shape (n_envs, 16, 2)
+      ally_energy: jnp.array with shape (n_envs, 16)
+      enemy_pos:   jnp.array with shape (n_envs, 16, 2)
+      enemy_energy:jnp.array with shape (n_envs, 16)
+      directions:  jnp.array with shape (5, 2)  -- first row is center, others are moves
+      
+    Returns:
+      final_mask:  jnp.array with shape (n_envs, 16, 5)
+                   A boolean mask where True indicates an allowed action.
+    """
+    # 1. Compute candidate positions for each allied agent and each action.
+    #    Shape: (n_envs, 16, 5, 2)
+    candidate_positions = ally_pos[:, :, None, :] + directions[None, None, :, :]
+
+    # 2. Compare candidate positions with enemy positions.
+    #    We want to know for each candidate position (for each ally and action) whether
+    #    an enemy is exactly at that location.
+    #    Expand enemy positions to shape: (n_envs, 1, 1, 16, 2)
+    enemy_pos_exp = enemy_pos[:, None, None, :, :]
+    
+    #    Check equality along the last dimension (both coordinates must match).
+    #    The result 'is_same' has shape: (n_envs, 16, 5, 16)
+    is_same = jnp.all(candidate_positions[:, :, :, None, :] == enemy_pos_exp, axis=-1)
+
+    # 3. Check the energy condition.
+    #    Expand energies for proper broadcasting:
+    #      - ally_energy: (n_envs, 16) -> (n_envs, 16, 1, 1)
+    #      - enemy_energy: (n_envs, 16) -> (n_envs, 1, 1, 16)
+    ally_energy_exp = ally_energy[:, :, None, None]
+    enemy_energy_exp = enemy_energy[:, None, None, :]
+
+    #    Determine where an enemy has higher energy than the ally.
+    #    Shape: (n_envs, 16, 1, 16)
+    enemy_stronger = enemy_energy_exp > ally_energy_exp
+
+    #    Combine spatial match and energy condition.
+    #    For each candidate move and enemy, threat_per_enemy is True if:
+    #      - The enemy is at that candidate cell, and
+    #      - Its energy is higher than the allied agent's.
+    #    Shape: (n_envs, 16, 5, 16)
+    threat_per_enemy = is_same & enemy_stronger
+
+    #    For each candidate move (over all enemy agents), reduce with OR.
+    #    Shape: (n_envs, 16, 5)
+    threat = jnp.any(threat_per_enemy, axis=-1)
+
+    # 4. Create the final mask.
+    #    The rule is: if any adjacent cell (actions 1-4) is threatened, then both that move 
+    #    and the center (stay) action should be masked.
+    
+    #    First, aggregate threats for the four movement actions (ignoring center at index 0).
+    #    Shape: (n_envs, 16)
+    adjacent_threat = jnp.any(threat[:, :, 1:], axis=-1)
+
+    #    For the center action: allowed only if no adjacent threat exists.
+    #    Shape: (n_envs, 16)
+    allowed_center = ~adjacent_threat
+
+    #    For the movement actions (indices 1-4): allowed if that candidate cell is not threatened.
+    #    Shape: (n_envs, 16, 4)
+    allowed_adjacent = ~threat[:, :, 1:]
+
+    #    Concatenate to form the final mask.
+    #    The final_mask shape is (n_envs, 16, 5) corresponding to [center, up, right, down, left]
+    final_mask = jnp.concatenate([allowed_center[:, :, None], allowed_adjacent], axis=-1)
+    
+    return final_mask
+
+all_directions = jnp.array([
+    [0, 0],   # center (stay)
+    [0, -1],  # move up
+    [1, 0],   # move right
+    [0, 1],   # move down
+    [-1, 0],  # move left
+], dtype=jnp.int16)
+
+
 # @jax.jit
 def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges, relic_nodes):
     n_envs = observations.units.position.shape[0]
@@ -100,6 +182,14 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         new_positions[..., 1].clip(0, Constants.MAP_HEIGHT - 1),
     ]
     valid_movements = in_bounds & (~is_asteroid)
+
+    valid_collision_avoidance = compute_collision_avoidance(
+        transform_coordinates(observations.units.position[:, team_idx, ...]),
+        observations.units.energy[:, team_idx, :],
+        transform_coordinates(observations.units.position[:, opponent_idx, ...]),
+        observations.units.energy[:, opponent_idx, :],
+        all_directions,
+    )
 
     adjacent_offsets = jnp.array(
         [
@@ -205,14 +295,24 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     )
     logits2_mask = target_x
 
-    logits1_mask = jnp.concat(
-        [ 
-            jnp.ones((1, n_envs * 16, 1)),
-            valid_movements.reshape(1, -1, 4),
-            target_x.sum(axis=-1).reshape(1, n_envs * 16, 1)
-        ],
-        axis=-1
-    )
+    valid_movements = jnp.concatenate([
+        jnp.ones((1, n_envs * 16, 1), dtype=jnp.bool), # this allows center movement
+        valid_movements.reshape(1, -1, 4),
+        jnp.ones((1, n_envs * 16, 1), dtype=jnp.bool), # this allows sap actions
+    ], axis=-1)
+
+    valid_collision_avoidance = jnp.concatenate([
+        valid_collision_avoidance,
+        jnp.expand_dims(valid_collision_avoidance.sum(axis=-1) == 5, axis=-1) # if you have to run, don't sap
+    ], axis=-1)
+    valid_movements = valid_movements & valid_collision_avoidance.reshape(1, -1, 6)
+
+    sap_mask = jnp.concatenate([
+        jnp.ones((1, n_envs * 16, 5)), # allow all movements
+        target_x.sum(axis=-1).reshape(1, n_envs * 16, 1),
+    ], axis=-1)
+    
+    logits1_mask = valid_movements & (sap_mask > 0)
 
     logits1, logits2, logits3 = logits
 
