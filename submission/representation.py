@@ -223,12 +223,16 @@ def create_representations(
         mark_duplicates_batched(prev_agent_positions),
         points_gained,
     )
-    transformed_updated_points_map = transform_observation_3dim(updated_points_map)
-
-    updated_points_map = jnp.where(
-        updated_points_map != 0,
+    transfromed_prev_agent_positions = transform_coordinates(prev_agent_positions)
+    transfromed_prev_agent_positions = jnp.where(
+        transfromed_prev_agent_positions == 24,
+        -1,
+        transfromed_prev_agent_positions
+    )
+    updated_points_map = update_points_map_batch(
         updated_points_map,
-        transformed_updated_points_map,
+        mark_duplicates_batched(transfromed_prev_agent_positions),
+        points_gained,
     )
 
     updated_points_map = jnp.where(
@@ -303,16 +307,6 @@ def create_representations(
         jnp.logical_and(
             (relic_nodes[..., 0] > -1).sum(axis=-1) == 6,
             obs.steps < 303
-        )[:, None, None],
-        jnp.ones_like(updated_search_map),
-        updated_search_map
-    )
-
-    # if relic_nodes doesn't spawn in match 2 (or if we suck and don't find)
-    updated_search_map = jnp.where(
-        jnp.logical_and(
-            (discovered_relic_nodes[..., 0] > -1).sum(axis=-1) == 2,
-            obs.steps > 202
         )[:, None, None],
         jnp.ones_like(updated_search_map),
         updated_search_map

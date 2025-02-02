@@ -766,7 +766,7 @@ class LuxAIS3Env(environment.Environment):
         point_rewards = jnp.concat([p0_point_rewards, p1_point_rewards], axis=0)
 
         # ZERO SUM
-        SAP_DESTROYED_REWARDS = 0.05
+        SAP_DESTROYED_REWARDS = 0.3
         sap_destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
 
         p1_sap_destroyed_counts = sap_destroyed_units[1] - sap_destroyed_units[0]
@@ -786,7 +786,7 @@ class LuxAIS3Env(environment.Environment):
         # sapped_energy_rewards = jnp.concat([p0_sapped_energy_rewards, p1_sapped_energy_rewards], axis=0)
 
         # We should only penalize collisions.
-        COLLISION_DESTROYED_PENALTY = -0.1
+        COLLISION_DESTROYED_PENALTY = -0.2
         collision_destroyed_units = (jnp.logical_and(units_mask_before_collision, ~units_mask_after_collision)).sum(axis=-1)
 
         p0_collision_destroyed_rewards = collision_destroyed_units[0] * COLLISION_DESTROYED_PENALTY
@@ -805,9 +805,9 @@ class LuxAIS3Env(environment.Environment):
         terminated = self.is_terminal(state, params)
 
         win_rewards = jnp.zeros((2, 16))
-        win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 3.0, 0.0))
+        win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 4.0, 0.0))
         lose_rewards = jnp.zeros((2, 16))
-        lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -3.0, 0.0))
+        lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -4.0, 0.0))
         rewards = win_rewards + lose_rewards
 
         return (

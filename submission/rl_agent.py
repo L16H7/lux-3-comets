@@ -146,6 +146,16 @@ class Agent():
         agent_episode_info = episode_info.repeat(16, axis=0)
         agent_positions = agent_positions.reshape(-1, 2)
 
+        # if step == 123 and self.team_id == 0:
+        #     jnp.save('agent_1_team_0', agent_observations[5])
+        #     jnp.save('team_0_points_map2', self.points_map)
+        #     a = True
+
+        # if step == 123 and self.team_id == 1:
+        #     jnp.save('agent_1_team_1', agent_observations[5])
+        #     jnp.save('team_1_points_map2', self.points_map)
+        #     a = True
+
         logits = self.inference_fn(
             { "params": self.params },
             {
@@ -193,16 +203,20 @@ class Agent():
                 history,
                 self.points_gained_history[i]
             )
+            transformed_history = transform_coordinates(history)
+            transformed_history = jnp.where(
+                transformed_history == 24,
+                -1,
+                transformed_history
+            )
+            updated_points_map = update_points_map(
+                updated_points_map,
+                transformed_history,
+                self.points_gained_history[i]
+            )
+
 
         self.points_map = jnp.expand_dims(updated_points_map, axis=0)
-
-        transformed_updated_points_map = transform_observation_3dim(self.points_map)
-
-        self.points_map = jnp.where(
-            self.points_map != 0,
-            self.points_map,
-            transformed_updated_points_map
-        )
 
         if self.points_gained > 0:
             self.points_gained_history.append(self.points_gained)
@@ -222,7 +236,5 @@ class Agent():
                 mark_duplicates_single(proximity_positions)
             )
 
-        if step > 300 and self.team_id == 0:
-            a = True
         
         return jnp.squeeze(actions, axis=0)
