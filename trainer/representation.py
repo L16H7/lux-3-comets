@@ -340,7 +340,6 @@ def create_representations(
         0
     )
     energy_map = energy_map.transpose((0, 2, 1))
-    jax.debug.breakpoint()
 
     maps = [
         team_energy_maps / 800.0,

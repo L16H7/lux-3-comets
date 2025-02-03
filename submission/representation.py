@@ -162,13 +162,13 @@ def create_representations(
     obs,
     temporal_states,
     relic_nodes,
-    prev_agent_positions,
+    prev_agent_energies,
     points_map,
     search_map,
     points_gained,
     points_history_positions,
     points_history,
-    max_steps_in_match=100,
+    unit_move_cost,
     team_idx=0,
     opponent_idx=1,
 ):
@@ -200,8 +200,14 @@ def create_representations(
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
+    non_negative_energy_agent_positions = jnp.where(
+        unit_energies_team[..., None].repeat(2, axis=-1) > 0,
+        unit_positions_team,
+        -1
+    )
+
     # Update points map
-    points_history_positions = points_history_positions.at[obs.match_steps[0]].set(prev_agent_positions)
+    points_history_positions = points_history_positions.at[obs.match_steps[0]].set(non_negative_energy_agent_positions)
     points_history = points_history.at[obs.match_steps[0]].set(points_gained)
 
     updated_points_map = update_points_map_with_relic_nodes_scan(
@@ -327,16 +333,19 @@ def create_representations(
         updated_search_map
     )
 
+    energy_map = obs.map_features.energy - unit_move_cost[:, None, None]
     energy_map = jnp.where(
         obs.sensor_mask,
-        obs.map_features.energy,
+        energy_map,
         0
     )
+    energy_map = energy_map.transpose((0, 2, 1))
+
     maps = [
         team_energy_maps / 800.0,
         opponent_energy_maps / 800.0,
         asteroid_maps.transpose((0, 2, 1)),
-        energy_map.transpose((0, 2, 1)) / 20.0,
+        energy_map / 20.0,
         nebula_maps.transpose((0, 2, 1)),
         obs.sensor_mask.transpose((0, 2, 1)),
         relic_node_maps,
@@ -350,7 +359,7 @@ def create_representations(
 
 
     match_steps = obs.match_steps[:, None] / 100.0
-    matches = jnp.minimum(obs.steps[:, None] // max_steps_in_match, 4) / 4.0
+    matches = jnp.minimum(obs.steps[:, None] // 100, 4) / 4.0
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
     team_points = team_points / 800.0
 
@@ -403,24 +412,26 @@ def create_agent_representations(
     p1_search_map,
     p0_points_gained,
     p1_points_gained,
-    p0_prev_agent_positions,
-    p1_prev_agent_positions,
+    p0_prev_agent_energies,
+    p1_prev_agent_energies,
     p0_points_history_positions,
     p1_points_history_positions,
     p0_points_history,
     p1_points_history,
+    unit_move_cost,
 ):
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
         obs=p0_observations,
         temporal_states=p0_temporal_states,
         relic_nodes=p0_discovered_relic_nodes,
-        prev_agent_positions=p0_prev_agent_positions,
+        prev_agent_energies=p0_prev_agent_energies,
         points_map=p0_points_map,
         search_map=p0_search_map,
         points_gained=p0_points_gained,
         points_history_positions=p0_points_history_positions,
         points_history=p0_points_history,
+        unit_move_cost=unit_move_cost,
         team_idx=0,
         opponent_idx=1,
     )
@@ -430,12 +441,13 @@ def create_agent_representations(
         obs=p1_observations,
         temporal_states=p1_temporal_states,
         relic_nodes=p1_discovered_relic_nodes,
-        prev_agent_positions=p1_prev_agent_positions,
+        prev_agent_energies=p1_prev_agent_energies,
         points_map=p1_points_map,
         search_map=p1_search_map,
         points_gained=p1_points_gained,
         points_history_positions=p1_points_history_positions,
         points_history=p1_points_history,
+        unit_move_cost=unit_move_cost,
         team_idx=1,
         opponent_idx=0,
     )
