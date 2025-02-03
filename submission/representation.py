@@ -215,9 +215,6 @@ def create_representations(
 
     prev_agent_positions = proximity_positions
 
-
-    points_map = points_map.at[:, 0, 0].set(-1)
-    points_map = points_map.at[:, -1, -1].set(-1)
     updated_points_map = update_points_map_batch(
         points_map,
         mark_duplicates_batched(prev_agent_positions),
