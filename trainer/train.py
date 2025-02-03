@@ -64,8 +64,8 @@ def make_train(config: Config):
             p1_search_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.int32),
             p0_points_gained=jnp.zeros((n_envs)),
             p1_points_gained=jnp.zeros((n_envs)),
-            p0_prev_agent_positions=(jnp.ones((n_envs, 16, 2), dtype=jnp.int32) * -1),
-            p1_prev_agent_positions=(jnp.ones((n_envs, 16, 2), dtype=jnp.int32) * -1),
+            p0_prev_agent_energies=states.units.energy[:, 0, ...],
+            p1_prev_agent_energies=states.units.energy[:, 1, ...],
             p0_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
             p1_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
             p0_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
@@ -202,18 +202,6 @@ def make_train(config: Config):
             "p1_net_energy_of_sap_loss": envinfo["net_energy_of_sap_loss"][:, 1].mean(),
         }
 
-        p0_agent_positions = jnp.where(
-            next_observations['player_0'].units.energy[:, 0, :, None].repeat(2, axis=-1) > -1,
-            next_observations['player_0'].units.position[:, 0, ...],
-            -1
-        )
-
-        p1_agent_positions = jnp.where(
-            next_observations['player_1'].units.energy[:, 1, :, None].repeat(2, axis=-1) > -1,
-            next_observations['player_1'].units.position[:, 1, ...],
-            -1
-        )
-
         p0_next_representations, p1_next_representations = create_agent_representations(
             observations=next_observations,
             p0_temporal_states=p0_temporal_states,
@@ -226,8 +214,8 @@ def make_train(config: Config):
             p1_search_map=p1_search_map,
             p0_points_gained=envinfo["points_gained"][..., 0],
             p1_points_gained=envinfo["points_gained"][..., 1],
-            p0_prev_agent_positions=p0_agent_positions,
-            p1_prev_agent_positions=p1_agent_positions,
+            p0_prev_agent_energies=states.units.energy[:, 0, ...],
+            p1_prev_agent_energies=states.units.energy[:, 1, ...],
             p0_points_history_positions=p0_points_history_positions,
             p1_points_history_positions=p1_points_history_positions,
             p0_points_history=p0_points_history,

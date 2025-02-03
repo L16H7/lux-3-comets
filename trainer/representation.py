@@ -162,7 +162,7 @@ def create_representations(
     obs,
     temporal_states,
     relic_nodes,
-    prev_agent_positions,
+    prev_agent_energies,
     points_map,
     search_map,
     points_gained,
@@ -339,12 +339,14 @@ def create_representations(
         energy_map,
         0
     )
+    energy_map = energy_map.transpose((0, 2, 1))
+    jax.debug.breakpoint()
 
     maps = [
         team_energy_maps / 800.0,
         opponent_energy_maps / 800.0,
         asteroid_maps.transpose((0, 2, 1)),
-        energy_map.transpose((0, 2, 1)) / 20.0,
+        energy_map / 20.0,
         nebula_maps.transpose((0, 2, 1)),
         obs.sensor_mask.transpose((0, 2, 1)),
         relic_node_maps,
@@ -411,8 +413,8 @@ def create_agent_representations(
     p1_search_map,
     p0_points_gained,
     p1_points_gained,
-    p0_prev_agent_positions,
-    p1_prev_agent_positions,
+    p0_prev_agent_energies,
+    p1_prev_agent_energies,
     p0_points_history_positions,
     p1_points_history_positions,
     p0_points_history,
@@ -424,7 +426,7 @@ def create_agent_representations(
         obs=p0_observations,
         temporal_states=p0_temporal_states,
         relic_nodes=p0_discovered_relic_nodes,
-        prev_agent_positions=p0_prev_agent_positions,
+        prev_agent_energies=p0_prev_agent_energies,
         points_map=p0_points_map,
         search_map=p0_search_map,
         points_gained=p0_points_gained,
@@ -440,7 +442,7 @@ def create_agent_representations(
         obs=p1_observations,
         temporal_states=p1_temporal_states,
         relic_nodes=p1_discovered_relic_nodes,
-        prev_agent_positions=p1_prev_agent_positions,
+        prev_agent_energies=p1_prev_agent_energies,
         points_map=p1_points_map,
         search_map=p1_search_map,
         points_gained=p1_points_gained,
