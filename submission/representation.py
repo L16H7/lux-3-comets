@@ -2,20 +2,13 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
-from points import update_points_map_batch, mark_duplicates_batched, filter_by_proximity_batch
+from points import update_points_map_with_relic_nodes_scan
+from utils import transform_coordinates
 
 
 NEBULA_TILE = 1
 ASTEROID_TILE = 2
 
-def transform_coordinates(coordinates, map_width=24, map_height=24):
-    # Adjust for horizontal flip: (x, y) -> (MAP_WIDTH - 1 - x, y)
-    flipped_positions = jnp.stack([map_width - 1 - coordinates[..., 0], coordinates[..., 1]], axis=-1)
-    
-    # Adjust for 90-degree rotation clockwise: (MAP_WIDTH - 1 - x, y) -> (y, MAP_WIDTH - 1 - x)
-    rotated_positions = jnp.stack([map_height - 1 - flipped_positions[..., 1], flipped_positions[..., 0]], axis=-1)
-    
-    return rotated_positions
 
 def transform_observation_3dim(obs):
     # Horizontal flip across the last dimension (24, 24 grids)
@@ -168,11 +161,13 @@ def get_env_info(env_params):
 def create_representations(
     obs,
     temporal_states,
-    discovered_relic_nodes,
+    relic_nodes,
     prev_agent_positions,
     points_map,
     search_map,
     points_gained,
+    points_history_positions,
+    points_history,
     max_steps_in_match=100,
     team_idx=0,
     opponent_idx=1,
@@ -184,8 +179,6 @@ def create_representations(
     unit_masks_opponent = obs.units_mask[:, opponent_idx, :]            # Shape: [batch_size, num_opponent_units]
     unit_positions_opponent = obs.units.position[:, opponent_idx, :, :] # Shape: [batch_size, num_opponent_units, 2]
     unit_energies_opponent = obs.units.energy[:, opponent_idx, :]       # Shape: [batch_size, num_opponent_units]
-
-    relic_nodes = reconcile_positions(discovered_relic_nodes)
 
     team_unit_maps, team_energy_maps = create_unit_maps(
         unit_positions=unit_positions_team,
@@ -208,30 +201,23 @@ def create_representations(
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
     # Update points map
-    proximity_positions = filter_by_proximity_batch(
-        prev_agent_positions,
-        relic_nodes
-    )
+    points_history_positions = points_history_positions.at[obs.match_steps[0]].set(prev_agent_positions)
+    points_history = points_history.at[obs.match_steps[0]].set(points_gained)
 
-    prev_agent_positions = proximity_positions
-
-    updated_points_map = update_points_map_batch(
+    updated_points_map = update_points_map_with_relic_nodes_scan(
         points_map,
-        mark_duplicates_batched(prev_agent_positions),
-        points_gained,
+        relic_nodes,
+        points_history_positions,
+        points_history
     )
-    transfromed_prev_agent_positions = transform_coordinates(prev_agent_positions)
-    transfromed_prev_agent_positions = jnp.where(
-        transfromed_prev_agent_positions == 24,
-        -1,
-        transfromed_prev_agent_positions
-    )
-    updated_points_map = update_points_map_batch(
+    # Update twice to gain more information
+    updated_points_map = update_points_map_with_relic_nodes_scan(
         updated_points_map,
-        mark_duplicates_batched(transfromed_prev_agent_positions),
-        points_gained,
+        relic_nodes,
+        points_history_positions,
+        points_history
     )
-
+    
     updated_points_map = jnp.where(
         obs.steps[0] == 102,
         jnp.maximum(updated_points_map, 0),
@@ -249,6 +235,38 @@ def create_representations(
         updated_points_map
     )
 
+    points_history_positions = jnp.where(
+        obs.steps[0] == 102,
+        (jnp.ones_like(points_history_positions) * -1),
+        points_history_positions
+    )
+    points_history_positions = jnp.where(
+        obs.steps[0] == 203,
+        (jnp.ones_like(points_history_positions) * -1),
+        points_history_positions
+    )
+    points_history_positions = jnp.where(
+        obs.steps[0] == 506,
+        (jnp.ones_like(points_history_positions) * -1),
+        points_history_positions
+    )
+    
+    points_history = jnp.where(
+        obs.steps[0] == 102,
+        jnp.zeros_like(points_history),
+        points_history
+    )
+    points_history = jnp.where(
+        obs.steps[0] == 203,
+        jnp.zeros_like(points_history),
+        points_history
+    )
+    points_history = jnp.where(
+        obs.steps[0] == 506,
+        jnp.zeros_like(points_history),
+        points_history
+    )
+ 
     sensor_mask = obs.sensor_mask.transpose((0, 2, 1))
     updated_search_map = jnp.where(
         sensor_mask,
@@ -368,6 +386,9 @@ def create_representations(
         agent_positions,
         unit_energies_team / 400.0,
         unit_energies_team > 0, # mask energy depleted agents in ppo update
+        relic_nodes,
+        points_history_positions,
+        points_history,
     )
         
 def create_agent_representations(
@@ -384,16 +405,22 @@ def create_agent_representations(
     p1_points_gained,
     p0_prev_agent_positions,
     p1_prev_agent_positions,
+    p0_points_history_positions,
+    p1_points_history_positions,
+    p0_points_history,
+    p1_points_history,
 ):
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
         obs=p0_observations,
         temporal_states=p0_temporal_states,
-        discovered_relic_nodes=p0_discovered_relic_nodes,
+        relic_nodes=p0_discovered_relic_nodes,
         prev_agent_positions=p0_prev_agent_positions,
         points_map=p0_points_map,
         search_map=p0_search_map,
         points_gained=p0_points_gained,
+        points_history_positions=p0_points_history_positions,
+        points_history=p0_points_history,
         team_idx=0,
         opponent_idx=1,
     )
@@ -402,11 +429,13 @@ def create_agent_representations(
     p1_representations = create_representations(
         obs=p1_observations,
         temporal_states=p1_temporal_states,
-        discovered_relic_nodes=p1_discovered_relic_nodes,
+        relic_nodes=p1_discovered_relic_nodes,
         prev_agent_positions=p1_prev_agent_positions,
         points_map=p1_points_map,
         search_map=p1_search_map,
         points_gained=p1_points_gained,
+        points_history_positions=p1_points_history_positions,
+        points_history=p1_points_history,
         team_idx=1,
         opponent_idx=0,
     )

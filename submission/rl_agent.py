@@ -79,29 +79,34 @@ class Agent():
         self.search_map = jnp.zeros((1, 24, 24), dtype=jnp.float32)
         self.temporal_states = jnp.zeros((1, 6, 24, 24), dtype=jnp.float32)
         self.points_gained = 0
-        self.prev_agent_positions = jnp.ones((1, 16, 2), dtype=jnp.int32) * -1
-        self.points_gained_history = []
-        self.positions_explored_history = []
 
+        self.points_history_positions = (jnp.ones((101, 1, 16, 2), dtype=jnp.int32) * -1)
+        self.points_history = jnp.zeros((101, 1), dtype=jnp.int32)
+ 
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         observation = DotDict(reshape_observation(obs))
 
         relic_mask = observation.relic_nodes != -1
         relic_nodes_count_before = (self.discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
-        self.discovered_relic_nodes[relic_mask] = observation.relic_nodes[relic_mask]
+        self.discovered_relic_nodes = jnp.where(
+            relic_mask,
+            observation.relic_nodes, 
+            self.discovered_relic_nodes,
+        )
+        self.discovered_relic_nodes = reconcile_positions(self.discovered_relic_nodes)
         relic_nodes_count_after = (self.discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
 
         # reset points map if new relic node is found
         if (relic_nodes_count_after - relic_nodes_count_before)[0] > 0:
             self.points_map = jnp.maximum(self.points_map, 0)
-            self.points_gained_history = []
-            self.positions_explored_history = []
+            self.points_history = jnp.zeros((101, 1), dtype=jnp.int32)
+            self.points_history_positions = (jnp.ones((101, 1, 16, 2), dtype=jnp.int32) * -1)
 
         if step == 101 or step == 202:
-            self.points_gained_history = []
-            self.positions_explored_history = []
             self.points_map = jnp.maximum(self.points_map, 0)
+            self.points_history = jnp.zeros((101, 1), dtype=jnp.int32)
+            self.points_history_positions = (jnp.ones((101, 1, 16, 2), dtype=jnp.int32) * -1)
 
         team_points = obs['team_points'][self.team_id]
         self.points_gained = team_points - self.prev_team_points
@@ -116,12 +121,14 @@ class Agent():
         representations = create_representations(
             obs=observation,
             temporal_states=self.temporal_states,
-            discovered_relic_nodes=self.discovered_relic_nodes,
+            relic_nodes=self.discovered_relic_nodes,
             max_steps_in_match=100,
             prev_agent_positions=energy_agent_positions,
             points_map=self.points_map,
             search_map=self.search_map,
             points_gained=jnp.array([self.points_gained]),
+            points_history_positions=self.points_history_positions,
+            points_history=self.points_history,
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
         )
@@ -136,11 +143,17 @@ class Agent():
             agent_positions,
             agent_energies,
             _,
+            discovered_relic_nodes,
+            points_history_positions,
+            points_history,
         ) = representations
 
         self.points_map = points_map
         self.search_map = search_map
         self.temporal_states = temporal_states
+        self.discovered_relic_nodes = discovered_relic_nodes
+        self.points_history_positions = points_history_positions
+        self.points_history = points_history
 
         agent_observations = jnp.squeeze(agent_observations, axis=0)
         agent_episode_info = episode_info.repeat(16, axis=0)
@@ -196,46 +209,4 @@ class Agent():
 
         actions = actions.at[..., 1:].set(actions[..., 1:] - 8)
 
-
-        # updated_points_map = jnp.squeeze(self.points_map, axis=0)
-        # for i, history in enumerate(self.positions_explored_history):
-        #     updated_points_map = update_points_map(
-        #         updated_points_map,
-        #         history,
-        #         self.points_gained_history[i]
-        #     )
-        #     transformed_history = transform_coordinates(history)
-        #     transformed_history = jnp.where(
-        #         transformed_history == 24,
-        #         -1,
-        #         transformed_history
-        #     )
-        #     updated_points_map = update_points_map(
-        #         updated_points_map,
-        #         transformed_history,
-        #         self.points_gained_history[i]
-        #     )
-
-
-        # self.points_map = jnp.expand_dims(updated_points_map, axis=0)
-
-        if self.points_gained > 0:
-            self.points_gained_history.append(self.points_gained)
-            agent_positions = jnp.where(
-                observation.units.energy[0, self.team_id, :, None].repeat(2, axis=-1) > -1,
-                agent_positions,
-                -1
-            )
-
-            # Update points map
-            proximity_positions = filter_by_proximity(
-                agent_positions,
-                jnp.squeeze(reconcile_positions(self.discovered_relic_nodes)),
-            )
-
-            self.positions_explored_history.append(
-                mark_duplicates_single(proximity_positions)
-            )
-
-        
         return jnp.squeeze(actions, axis=0)

@@ -16,6 +16,7 @@ directions = jnp.array(
     dtype=jnp.int16,
 )
 
+@jax.jit
 def transform_observation(obs):
     # Horizontal flip across the last dimension (24, 24 grids)
     flipped = jnp.flip(obs, axis=2)
@@ -25,6 +26,7 @@ def transform_observation(obs):
     
     return rotated
 
+@jax.jit
 def vectorized_transform_actions(actions):
     # Create a JAX array that maps each action index to its new action
     # Index:      0  1  2  3  4 . 5
@@ -35,6 +37,7 @@ def vectorized_transform_actions(actions):
     transformed_actions = action_map[actions]
     return transformed_actions
 
+@jax.jit
 def mask_sap_range(logits_slice, cutoff_range):
     cols = logits_slice.shape[1]
     mask = jnp.arange(cols) < cutoff_range
@@ -49,6 +52,7 @@ mask_sap_range_vmap = jax.vmap(
     in_axes=(0, 0)
 )
 
+@jax.jit
 def mask_out_of_bounds(agent_positions):
     target_coods = jnp.arange(-8, 9)
     target_x = agent_positions.reshape(-1, 2)[:, 0][:, None] + target_coods[None, :]
@@ -58,6 +62,7 @@ def mask_out_of_bounds(agent_positions):
     target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
     return target_x, target_y
 
+@jax.jit
 def filter_targets_with_boolean_map(targets, boolean_map):
     """
     Filter target positions, replacing with (-1, -1) if boolean_map is True at that position.
@@ -76,6 +81,7 @@ def filter_targets_with_boolean_map(targets, boolean_map):
     return result
 
 
+@jax.jit
 def compute_collision_avoidance(ally_pos, ally_energy, enemy_pos, enemy_energy, directions):
     """
     Computes an action mask for allied agents given positions and energies.
@@ -371,6 +377,7 @@ def get_actions(
 
     return actions
 
+@jax.jit
 def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=8, choose_y=False, chosen_x=None,):
     """
     Generate attack masks for agents based on both x and y distances to targets.
@@ -458,6 +465,7 @@ generate_attack_masks_batch = jax.vmap(
     in_axes=(0, 0, 0, 0)
 )
 
+@jax.jit
 def generate_attack_masks_y(agent_positions, target_positions, x_range=8, y_range=8, chosen_x=None):
     """
     Generate attack masks for agents based on both x and y distances to targets.
