@@ -112,27 +112,31 @@ def make_train(config: Config):
         )
         p0_relic_nodes_after = (p0_new_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p0_relic_nodes_diff = p0_relic_nodes_after - p0_relic_nodes_before
+        p0_relic_diff_mask = p0_relic_nodes_diff > 0
+
         p0_points_map = jnp.where(
-            p0_relic_nodes_diff[:, None, None] > 0,
+            jnp.broadcast_to(
+                p0_relic_diff_mask[:, None, None],
+                p0_points_map.shape
+            ), 
             jnp.maximum(p0_points_map, 0),
             p0_points_map,
         )
 
-        mask = p0_relic_nodes_diff > 0
-        expanded_mask = mask[None, :, None, None]
-        full_mask = jnp.broadcast_to(
-            expanded_mask,
-            p0_points_history_positions.shape
-        )
-        
         p0_points_history_positions = jnp.where(
-            full_mask, 
+            jnp.broadcast_to(
+                p0_relic_diff_mask[None, :, None, None],
+                p0_points_history_positions.shape
+            ), 
             (jnp.ones_like(p0_points_history_positions) * -1),
             p0_points_history_positions
         )
 
         p0_points_history = jnp.where(
-            p0_relic_nodes_diff[None, :] > 0,
+            jnp.broadcast_to(
+                p0_relic_diff_mask[None, :],
+                p0_points_history.shape
+            ),
             jnp.zeros_like(p0_points_history),
             p0_points_history,
         )
@@ -147,27 +151,31 @@ def make_train(config: Config):
 
         p1_relic_nodes_after = (p1_new_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p1_relic_nodes_diff = p1_relic_nodes_after - p1_relic_nodes_before
+        p1_relic_diff_mask = p1_relic_nodes_diff > 0
+
         p1_points_map = jnp.where(
-            p1_relic_nodes_diff[:, None, None] > 0,
+            jnp.broadcast_to(
+                p1_relic_diff_mask[:, None, None],
+                p1_points_map.shape
+            ), 
             jnp.maximum(p1_points_map, 0),
             p1_points_map,
         )
 
-        mask = p1_relic_nodes_diff > 0
-        expanded_mask = mask[None, :, None, None]
-        full_mask = jnp.broadcast_to(
-            expanded_mask,
-            p1_points_history_positions.shape
-        )
-        
         p1_points_history_positions = jnp.where(
-            full_mask, 
+            jnp.broadcast_to(
+                p1_relic_diff_mask[None, :, None, None],
+                p1_points_history_positions.shape
+            ), 
             (jnp.ones_like(p1_points_history_positions) * -1),
             p1_points_history_positions
         )
 
         p1_points_history = jnp.where(
-            p1_relic_nodes_diff[None, :] > 0,
+            jnp.broadcast_to(
+                p1_relic_diff_mask[None, :],
+                p1_points_history.shape
+            ),
             jnp.zeros_like(p1_points_history),
             p1_points_history,
         )
