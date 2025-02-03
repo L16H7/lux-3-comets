@@ -473,3 +473,6 @@ def test_filter_by_proximity():
     ])
     
     assert jnp.array_equal(filtered_positions, expected_positions)
+
+
+### Write tests for update_points_map_with_relic_nodes

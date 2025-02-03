@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
-from points import update_points_map_with_relic_nodes
+from points import vmap_update_points_map_with_relic_nodes
 from utils import transform_coordinates
 
 
@@ -203,22 +203,10 @@ def create_representations(
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
     # Update points map
-    updated_points_map = update_points_map_with_relic_nodes(
-        points_map,
-        relic_nodes,
-        prev_agent_positions,
-        points_gained
-    )
-
     points_history_positions = points_history_positions.at[obs.match_steps[0]].set(prev_agent_positions)
     points_history = points_history.at[obs.match_steps[0]].set(points_gained)
 
-    vmap_update_points_map_with_relic_nodes = jax.vmap(
-        update_points_map_with_relic_nodes,
-        in_axes=(None, None, 0, 0)
-    )
-
-    history_points_map = updated_points_map
+    history_points_map = points_map
     history_points_map = vmap_update_points_map_with_relic_nodes(
         history_points_map,
         relic_nodes,

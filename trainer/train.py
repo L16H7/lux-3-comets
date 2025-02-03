@@ -64,10 +64,10 @@ def make_train(config: Config):
             p1_search_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.int32),
             p0_points_gained=jnp.zeros((n_envs)),
             p1_points_gained=jnp.zeros((n_envs)),
-            p0_prev_agent_positions=jnp.zeros((n_envs, 16, 2), dtype=jnp.int32),
-            p1_prev_agent_positions=jnp.zeros((n_envs, 16, 2), dtype=jnp.int32),
-            p0_points_history_positions=jnp.zeros((101, n_envs, 16, 2), dtype=jnp.int32),
-            p1_points_history_positions=jnp.zeros((101, n_envs, 16, 2), dtype=jnp.int32),
+            p0_prev_agent_positions=(jnp.ones((n_envs, 16, 2), dtype=jnp.int32) * -1),
+            p1_prev_agent_positions=(jnp.ones((n_envs, 16, 2), dtype=jnp.int32) * -1),
+            p0_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
+            p1_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
             p0_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
             p1_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
         )
@@ -698,10 +698,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)

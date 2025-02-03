@@ -174,3 +174,8 @@ def update_points_map_with_relic_nodes(points_map, relic_nodes, positions, point
     )
 
     return updated_points_map
+
+vmap_update_points_map_with_relic_nodes = jax.vmap(
+    update_points_map_with_relic_nodes,
+    in_axes=(None, None, 0, 0)
+)
