@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-from points import update_points_map_batch, update_points_map, mark_duplicates_batched, filter_by_proximity_batch
+from points import update_points_map_batch, mark_duplicates_batched, filter_by_proximity_batch, update_points_map_with_relic_nodes, update_points_map_with_relic_nodes_scan
 
 
 def test_update_points_map_batch():
@@ -475,4 +475,160 @@ def test_filter_by_proximity():
     assert jnp.array_equal(filtered_positions, expected_positions)
 
 
-### Write tests for update_points_map_with_relic_nodes
+def test_update_points_map_with_relic_nodes():
+    points_map = jnp.zeros((5, 5, 5))
+    positions = jnp.array([
+        [
+            [0, 0], [1, 1],
+        ],
+        [
+            [0, 1], [4, 3],
+        ],
+        [
+            [2, 2], [4, 0],
+        ],
+        [
+            [2, 2], [4, 0],
+        ],
+        [
+            [-1, -1], [-1, -1],
+        ],
+    ])
+    points_gained = jnp.array([3, 1, 2, 1, 5])   
+
+    relic_nodes = jnp.array([
+        [
+            [4, 4], [4, 3] 
+        ],
+        [
+            [0, 2], [0, 0], 
+        ],
+        [
+            [2, 2], [4, 0],
+        ],
+        [
+            [2, 2], [-1, -1],
+        ],
+        [
+            [-1, -1], [-1, -1],
+        ],
+    ])
+
+    updated_points_map = update_points_map_with_relic_nodes(
+        points_map=points_map,
+        relic_nodes=relic_nodes,
+        positions=positions,
+        points_gained=points_gained,
+    )
+
+    expected_points_map = jnp.array([
+        [
+            # should not update anything.
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
+        ],
+        [
+            # only [0, 1] is in proximity
+            # mirror is [3, 4]
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  1.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  1.0,  0.0]
+        ],
+        [
+            # two points in diagonal
+            [  0.0,  0.0,  0.0,  0.0,  1.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
+        ],
+        [
+            # two points in diagonal
+            [  0.0,  0.0,  0.0,  0.0,  0.5],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.5,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
+        ],
+        [
+            # should not update anything.
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
+        ],
+    ])
+
+    assert jnp.array_equal(updated_points_map, expected_points_map)
+
+def test_vmap_update_points_map_with_relic_nodes():
+    points_map = jnp.zeros((1, 5, 5))
+    points_history_positions = jnp.array([
+        [
+            [
+                [0, 1], [2, 2], [2, 2],
+            ],
+        ],
+        [
+            [
+                [2, 2], [2, 2], [1, 1],
+            ]
+        ],
+    ])
+
+    points_history = jnp.array([
+        [
+            [1]
+        ],
+        [
+            [0]
+        ]
+    ])
+
+    relic_nodes = jnp.array([
+        [
+            [-1, -1], [0, 0],
+        ]
+    ])
+
+    updated_points_map = update_points_map_with_relic_nodes_scan(
+        points_map,
+        relic_nodes,
+        points_history_positions,
+        points_history
+    )
+    expected_points_map = jnp.array([
+        [
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.5, -1.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0, -1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0, -1.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.5,  0.0]
+        ],
+    ])
+
+    assert jnp.array_equal(updated_points_map, expected_points_map)
+
+    updated_points_map2 = update_points_map_with_relic_nodes_scan(
+        updated_points_map,
+        relic_nodes,
+        points_history_positions,
+        points_history
+    )
+    expected_points_map2 = jnp.array([
+        [
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  1.0, -1.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0, -1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0, -1.0,  0.0],
+            [  0.0,  0.0,  0.0,  1.0,  0.0]
+        ],
+    ])
+
+    assert jnp.array_equal(updated_points_map2, expected_points_map2)

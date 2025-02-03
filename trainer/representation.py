@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
-from points import vmap_update_points_map_with_relic_nodes
+from points import update_points_map_with_relic_nodes_scan
 from utils import transform_coordinates
 
 

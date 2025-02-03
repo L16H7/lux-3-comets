@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from utils import transform_coordinates
+from utils import transform_coordinates, remove_duplicate_positions
 
 
 def filter_by_proximity(positions, relic_nodes, x_threshold=2, y_threshold=2):
@@ -157,25 +157,36 @@ update_points_map_batch = jax.jit(jax.vmap(update_points_map, in_axes=(0, 0, 0))
 
 
 def update_points_map_with_relic_nodes(points_map, relic_nodes, positions, points_gained):
+    width = points_map.shape[-1]
     proximity_positions = filter_by_proximity_batch(
         positions,
         relic_nodes
     )
     proximity_positions = mark_duplicates_batched(proximity_positions)
-    transformed_proximity_positions = transform_coordinates(proximity_positions)
+    transformed_proximity_positions = transform_coordinates(proximity_positions, width, width)
+    transformed_proximity_positions = jnp.where(
+        transformed_proximity_positions == width,
+        -1,
+        transformed_proximity_positions,
+    )
 
     updated_points_map = update_points_map_batch(
         points_map,
-        jnp.concatenate([
-            proximity_positions,
-            transformed_proximity_positions,
-        ], axis=1),
-        points_gained * 2,
+        proximity_positions,
+        points_gained,
+    )
+
+    updated_points_map = update_points_map_batch(
+        updated_points_map,
+        transformed_proximity_positions,
+        points_gained,
     )
 
     return updated_points_map
 
-vmap_update_points_map_with_relic_nodes = jax.vmap(
-    update_points_map_with_relic_nodes,
-    in_axes=(None, None, 0, 0)
-)
+def update_points_map_with_relic_nodes_scan(points_map, relic_nodes, positions, history):
+    def body(points_map, x):
+        positions, history = x
+        return update_points_map_with_relic_nodes(points_map, relic_nodes, positions, history), None
+
+    return jax.lax.scan(body, init=points_map, xs=(positions, history))[0]
