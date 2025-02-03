@@ -239,17 +239,17 @@ def create_representations(
 
     points_history_positions = jnp.where(
         obs.steps[0] == 102,
-        jnp.zeros_like(points_history_positions),
+        (jnp.ones_like(points_history_positions) * -1),
         points_history_positions
     )
     points_history_positions = jnp.where(
         obs.steps[0] == 203,
-        jnp.zeros_like(points_history_positions),
+        (jnp.ones_like(points_history_positions) * -1),
         points_history_positions
     )
     points_history_positions = jnp.where(
         obs.steps[0] == 506,
-        jnp.zeros_like(points_history_positions),
+        (jnp.ones_like(points_history_positions) * -1),
         points_history_positions
     )
     

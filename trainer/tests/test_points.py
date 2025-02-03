@@ -572,12 +572,22 @@ def test_vmap_update_points_map_with_relic_nodes():
     points_history_positions = jnp.array([
         [
             [
+                [-1, -1], [-1, -1], [-1, -1],
+            ],
+        ],
+        [
+            [
                 [0, 1], [2, 2], [2, 2],
             ],
         ],
         [
             [
                 [2, 2], [2, 2], [1, 1],
+            ]
+        ],
+        [
+            [
+                [-1, -1], [-1, -1], [-1, -1],
             ]
         ],
     ])
@@ -587,7 +597,13 @@ def test_vmap_update_points_map_with_relic_nodes():
             [1]
         ],
         [
+            [1]
+        ],
+        [
             [0]
+        ],
+        [
+            [3]
         ]
     ])
 
