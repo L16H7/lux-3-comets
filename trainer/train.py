@@ -162,7 +162,7 @@ def make_train(config: Config):
         
         p1_points_history_positions = jnp.where(
             full_mask, 
-            jnp.zeros_like(p1_points_history_positions),
+            (jnp.ones_like(p1_points_history_positions) * -1),
             p1_points_history_positions
         )
 
