@@ -161,7 +161,7 @@ def get_env_info(env_params):
 def create_representations(
     obs,
     temporal_states,
-    discovered_relic_nodes,
+    relic_nodes,
     prev_agent_positions,
     points_map,
     search_map,
@@ -179,8 +179,6 @@ def create_representations(
     unit_masks_opponent = obs.units_mask[:, opponent_idx, :]            # Shape: [batch_size, num_opponent_units]
     unit_positions_opponent = obs.units.position[:, opponent_idx, :, :] # Shape: [batch_size, num_opponent_units, 2]
     unit_energies_opponent = obs.units.energy[:, opponent_idx, :]       # Shape: [batch_size, num_opponent_units]
-
-    relic_nodes = reconcile_positions(discovered_relic_nodes)
 
     team_unit_maps, team_energy_maps = create_unit_maps(
         unit_positions=unit_positions_team,
@@ -388,7 +386,7 @@ def create_representations(
         agent_positions,
         unit_energies_team / 400.0,
         unit_energies_team > 0, # mask energy depleted agents in ppo update
-        discovered_relic_nodes,
+        relic_nodes,
         points_history_positions,
         points_history,
     )
@@ -416,7 +414,7 @@ def create_agent_representations(
     p0_representations = create_representations(
         obs=p0_observations,
         temporal_states=p0_temporal_states,
-        discovered_relic_nodes=p0_discovered_relic_nodes,
+        relic_nodes=p0_discovered_relic_nodes,
         prev_agent_positions=p0_prev_agent_positions,
         points_map=p0_points_map,
         search_map=p0_search_map,
@@ -431,7 +429,7 @@ def create_agent_representations(
     p1_representations = create_representations(
         obs=p1_observations,
         temporal_states=p1_temporal_states,
-        discovered_relic_nodes=p1_discovered_relic_nodes,
+        relic_nodes=p1_discovered_relic_nodes,
         prev_agent_positions=p1_prev_agent_positions,
         points_map=p1_points_map,
         search_map=p1_search_map,

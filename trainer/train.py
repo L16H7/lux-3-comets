@@ -29,7 +29,7 @@ from luxai_s3.params import EnvParams, env_params_ranges
 from make_states import make_states
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
-from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info
+from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info, reconcile_positions
 from model import Actor
 
 
@@ -110,6 +110,7 @@ def make_train(config: Config):
             next_observations['player_0'].relic_nodes, 
             p0_discovered_relic_nodes
         )
+        p0_new_discovered_relic_nodes = reconcile_positions(p0_new_discovered_relic_nodes)
         p0_relic_nodes_after = (p0_new_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p0_relic_nodes_diff = p0_relic_nodes_after - p0_relic_nodes_before
         p0_relic_diff_mask = p0_relic_nodes_diff > 0
@@ -149,6 +150,7 @@ def make_train(config: Config):
             p1_discovered_relic_nodes
         )
 
+        p1_new_discovered_relic_nodes = reconcile_positions(p1_new_discovered_relic_nodes)
         p1_relic_nodes_after = (p1_new_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p1_relic_nodes_diff = p1_relic_nodes_after - p1_relic_nodes_before
         p1_relic_diff_mask = p1_relic_nodes_diff > 0
