@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from utils import transform_coordinates, remove_duplicate_positions
+from utils import transform_coordinates
 
 
 def filter_by_proximity(positions, relic_nodes, x_threshold=2, y_threshold=2):

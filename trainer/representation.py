@@ -206,14 +206,19 @@ def create_representations(
     points_history_positions = points_history_positions.at[obs.match_steps[0]].set(prev_agent_positions)
     points_history = points_history.at[obs.match_steps[0]].set(points_gained)
 
-    history_points_map = points_map
-    history_points_map = vmap_update_points_map_with_relic_nodes(
-        history_points_map,
+    updated_points_map = update_points_map_with_relic_nodes_scan(
+        points_map,
         relic_nodes,
         points_history_positions,
         points_history
     )
-    updated_points_map = history_points_map[-1]
+    # Update twice to gain more information
+    updated_points_map = update_points_map_with_relic_nodes_scan(
+        updated_points_map,
+        relic_nodes,
+        points_history_positions,
+        points_history
+    )
     
     updated_points_map = jnp.where(
         obs.steps[0] == 102,
