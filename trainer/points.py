@@ -1,6 +1,8 @@
 import jax
 import jax.numpy as jnp
 
+from utils import transform_coordinates
+
 
 def filter_by_proximity(positions, relic_nodes, x_threshold=2, y_threshold=2):
     """
@@ -152,3 +154,23 @@ def update_points_map(points_map, positions, points_gained):
     return updated_map
 
 update_points_map_batch = jax.jit(jax.vmap(update_points_map, in_axes=(0, 0, 0)))
+
+
+def update_points_map_with_relic_nodes(points_map, relic_nodes, positions, points_gained):
+    proximity_positions = filter_by_proximity_batch(
+        positions,
+        relic_nodes
+    )
+    proximity_positions = mark_duplicates_batched(proximity_positions)
+    transformed_proximity_positions = transform_coordinates(proximity_positions)
+
+    updated_points_map = update_points_map_batch(
+        points_map,
+        jnp.concatenate([
+            proximity_positions,
+            transformed_proximity_positions,
+        ], axis=1),
+        points_gained * 2,
+    )
+
+    return updated_points_map

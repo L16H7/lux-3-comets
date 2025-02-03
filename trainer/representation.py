@@ -2,20 +2,13 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
-from points import update_points_map_batch, mark_duplicates_batched, filter_by_proximity_batch
+from points import update_points_map_with_relic_nodes
+from utils import transform_coordinates
 
 
 NEBULA_TILE = 1
 ASTEROID_TILE = 2
 
-def transform_coordinates(coordinates, map_width=24, map_height=24):
-    # Adjust for horizontal flip: (x, y) -> (MAP_WIDTH - 1 - x, y)
-    flipped_positions = jnp.stack([map_width - 1 - coordinates[..., 0], coordinates[..., 1]], axis=-1)
-    
-    # Adjust for 90-degree rotation clockwise: (MAP_WIDTH - 1 - x, y) -> (y, MAP_WIDTH - 1 - x)
-    rotated_positions = jnp.stack([map_height - 1 - flipped_positions[..., 1], flipped_positions[..., 0]], axis=-1)
-    
-    return rotated_positions
 
 def transform_observation_3dim(obs):
     # Horizontal flip across the last dimension (24, 24 grids)
@@ -210,48 +203,30 @@ def create_representations(
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
     # Update points map
-    proximity_positions = filter_by_proximity_batch(
+    updated_points_map = update_points_map_with_relic_nodes(
+        points_map,
+        relic_nodes,
         prev_agent_positions,
-        relic_nodes
+        points_gained
     )
-
-    prev_agent_positions = mark_duplicates_batched(proximity_positions)
 
     points_history_positions = points_history_positions.at[obs.match_steps[0]].set(prev_agent_positions)
     points_history = points_history.at[obs.match_steps[0]].set(points_gained)
 
-    updated_points_map = update_points_map_batch(
-        points_map,
-        prev_agent_positions,
-        points_gained,
+    vmap_update_points_map_with_relic_nodes = jax.vmap(
+        update_points_map_with_relic_nodes,
+        in_axes=(None, None, 0, 0)
     )
-
-    transformed_prev_agent_positions = transform_coordinates(prev_agent_positions)
-    updated_points_map = update_points_map_batch(
-        updated_points_map,
-        mark_duplicates_batched(transformed_prev_agent_positions),
-        points_gained,
-    )
-
-    vmap_update_points_map = jax.vmap(update_points_map_batch, in_axes=(None, 0, 0))
 
     history_points_map = updated_points_map
-    history_points_map = vmap_update_points_map(
+    history_points_map = vmap_update_points_map_with_relic_nodes(
         history_points_map,
+        relic_nodes,
         points_history_positions,
         points_history
     )
     updated_points_map = history_points_map[-1]
     
-    transformed_points_history_positions = transform_coordinates(points_history_positions)
-    history_points_map = updated_points_map
-    history_points_map = vmap_update_points_map(
-        history_points_map,
-        transformed_points_history_positions,
-        points_history
-    )
-    updated_points_map = history_points_map[-1]
- 
     updated_points_map = jnp.where(
         obs.steps[0] == 102,
         jnp.maximum(updated_points_map, 0),
