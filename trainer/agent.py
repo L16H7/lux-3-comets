@@ -59,13 +59,13 @@ def mask_out_of_bounds(agent_positions):
     target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
     return target_x, target_y
 
-def filter_targets_with_sensor(targets, sensor_map):
+def filter_targets_with_boolean_map(targets, boolean_map):
     """
-    Filter target positions, replacing with (-1, -1) if sensor is True at that position.
+    Filter target positions, replacing with (-1, -1) if boolean_map is True at that position.
     
     Args:
         target_positions (jnp.ndarray): Shape (n_envs, 16, 2) array of target positions
-        sensor_map (jnp.ndarray): Shape (n_envs, 24, 24) boolean array where True means sensor
+        boolean_mask (jnp.ndarray): Shape (n_envs, 24, 24) boolean array
         
     Returns:
         jnp.ndarray: Shape (n_envs, 16, 2) filtered target positions
@@ -73,7 +73,7 @@ def filter_targets_with_sensor(targets, sensor_map):
     x_indices, y_indices = targets[..., 0], targets[..., 1]
     
     # Get the boolean values from maps using advanced indexing
-    result = sensor_map[jnp.arange(sensor_map.shape[0])[:, None, None], x_indices, y_indices]
+    result = boolean_map[jnp.arange(boolean_map.shape[0])[:, None, None], y_indices, x_indices]
     return result
 
 
@@ -160,7 +160,16 @@ all_directions = jnp.array([
 
 
 # @jax.jit
-def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges, relic_nodes):
+def get_actions(
+    rng,
+    team_idx: int,
+    opponent_idx: int,
+    logits,
+    observations,
+    sap_ranges,
+    relic_nodes,
+    points_map,
+):
     n_envs = observations.units.position.shape[0]
     
     agent_positions = observations.units.position[:, team_idx, ..., None, :] 
@@ -267,13 +276,18 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         -1
     )
 
-    sensor_mask = observations.sensor_mask
+    sensor_mask = observations.sensor_mask.transpose(0, 2, 1)
     sensor_mask = sensor_mask if team_idx == 0 else transform_observation(sensor_mask)
 
-    relic_targets_mask = filter_targets_with_sensor(
+    relic_targets_mask = filter_targets_with_boolean_map(
         relic_targets,
         ~sensor_mask
     )
+    points_targets_mask = filter_targets_with_boolean_map(
+        relic_targets,
+        points_map == 1,
+    )
+    relic_targets_mask = relic_targets_mask & points_targets_mask
 
     relic_targets = jnp.where(
         relic_targets_mask[..., None].repeat(2, axis=-1),

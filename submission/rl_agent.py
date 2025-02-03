@@ -68,7 +68,7 @@ class Agent():
         orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
         self.params = orbax_checkpointer.restore(checkpoint_path)
 
-        self.rng = jax.random.PRNGKey(42)
+        self.rng = jax.random.PRNGKey(20)
         self.actor = Actor(n_actions=6)
 
         self.inference_fn = jax.jit(lambda x, x2: self.actor.apply(x, x2))
@@ -146,13 +146,13 @@ class Agent():
         agent_episode_info = episode_info.repeat(16, axis=0)
         agent_positions = agent_positions.reshape(-1, 2)
 
-        # if step == 123 and self.team_id == 0:
-        #     jnp.save('agent_1_team_0', agent_observations[5])
+        # if step == 42 and self.team_id == 0:
+        #     jnp.save('agent_1_team_0', agent_observations[0])
         #     jnp.save('team_0_points_map2', self.points_map)
         #     a = True
 
-        # if step == 123 and self.team_id == 1:
-        #     jnp.save('agent_1_team_1', agent_observations[5])
+        # if step == 42 and self.team_id == 1:
+        #     jnp.save('agent_1_team_1', agent_observations[0])
         #     jnp.save('team_1_points_map2', self.points_map)
         #     a = True
 
@@ -183,6 +183,7 @@ class Agent():
             observations=observation,
             sap_ranges=jnp.array([self.env_cfg["unit_sap_range"]]),
             relic_nodes=self.discovered_relic_nodes,
+            points_map=self.points_map,
         )
 
         transformed_targets = transform_coordinates(actions[..., 1:], 17, 17)
@@ -196,27 +197,27 @@ class Agent():
         actions = actions.at[..., 1:].set(actions[..., 1:] - 8)
 
 
-        updated_points_map = jnp.squeeze(self.points_map, axis=0)
-        for i, history in enumerate(self.positions_explored_history):
-            updated_points_map = update_points_map(
-                updated_points_map,
-                history,
-                self.points_gained_history[i]
-            )
-            transformed_history = transform_coordinates(history)
-            transformed_history = jnp.where(
-                transformed_history == 24,
-                -1,
-                transformed_history
-            )
-            updated_points_map = update_points_map(
-                updated_points_map,
-                transformed_history,
-                self.points_gained_history[i]
-            )
+        # updated_points_map = jnp.squeeze(self.points_map, axis=0)
+        # for i, history in enumerate(self.positions_explored_history):
+        #     updated_points_map = update_points_map(
+        #         updated_points_map,
+        #         history,
+        #         self.points_gained_history[i]
+        #     )
+        #     transformed_history = transform_coordinates(history)
+        #     transformed_history = jnp.where(
+        #         transformed_history == 24,
+        #         -1,
+        #         transformed_history
+        #     )
+        #     updated_points_map = update_points_map(
+        #         updated_points_map,
+        #         transformed_history,
+        #         self.points_gained_history[i]
+        #     )
 
 
-        self.points_map = jnp.expand_dims(updated_points_map, axis=0)
+        # self.points_map = jnp.expand_dims(updated_points_map, axis=0)
 
         if self.points_gained > 0:
             self.points_gained_history.append(self.points_gained)
