@@ -182,10 +182,14 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     ]
     valid_movements = in_bounds & (~is_asteroid)
 
+    agent_positions_for_collision = observations.units.position[:, team_idx, ...]
+    opponent_positions_for_collision = observations.units.position[:, opponent_idx, ...]
+    agent_positions_for_collision = agent_positions_for_collision if team_idx == 0 else transform_coordinates(agent_positions_for_collision)
+    opponent_positions_for_collision = opponent_positions_for_collision if team_idx == 0 else transform_coordinates(opponent_positions_for_collision)
     valid_collision_avoidance = compute_collision_avoidance(
-        transform_coordinates(observations.units.position[:, team_idx, ...]),
+        agent_positions_for_collision,
         observations.units.energy[:, team_idx, :],
-        transform_coordinates(observations.units.position[:, opponent_idx, ...]),
+        opponent_positions_for_collision,
         observations.units.energy[:, opponent_idx, :],
         all_directions,
     )
