@@ -26,17 +26,18 @@ def test_update_points_map_batch():
             [2, 4],
         ]
     ])
-    points_gained = jnp.array([0, 1, 2, 0])   
+    points_gained = jnp.array([3, 1, 2, 0])   
 
     updated_points_map = update_points_map_batch(points_map, positions, points_gained)
 
     expected_points_map = jnp.array([
         [
+            # should ignore [-1, -1] positions
             [  0.0,  0.0,  0.0,  0.0,  0.0],
             [  0.0,  0.0,  0.0,  0.0,  0.0],
             [  0.0,  0.0,  0.0,  0.0,  0.0],
             [  0.0,  0.0,  0.0,  0.0,  0.0],
-            [  0.0,  0.0,  0.0,  0.0, -1.0]
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
         ],
         [
             [  0.0,  0.0,  0.0,  0.0,  0.0],
@@ -71,7 +72,7 @@ def test_update_points_map_batch2():
             [  0.0,  0.0,  0.0,  0.0,  0.0],
             [  0.0,  0.0,  0.0, -1.0,  0.0],
             [  0.0,  0.0,  1.0,  0.0,  0.0],
-            [  0.0,  0.0,  0.0,  0.0, -1.0]
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
         ]
     ]).repeat(6, axis=0)
 
@@ -117,42 +118,42 @@ def test_update_points_map_batch2():
             [  0.0,  0.0,  0.0,  0.0,  0.0],
             [  0.0,  0.0,  0.0, -1.0,  0.0],
             [  0.0,  0.0,  1.0,  0.0,  0.0],
-            [  0.0,  0.0,  0.0,  0.0, -1.0]
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
         ],
         [
             [  0.0,  0.0,  1.0,  0.0,  0.5],
             [  0.0,  0.0,  0.0,  0.0,  0.5],
             [  0.0,  0.0,  0.0, -1.0,  0.0],
             [  0.0,  0.0,  1.0,  0.0,  0.0],
-            [  0.0,  0.0,  0.0,  0.0, -1.0]
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
         ],
         [
             [  0.0,  0.0,  1.0,  0.0, -1.0],
             [  0.0,  0.0,  0.0,  0.0, -1.0],
             [  0.0,  0.0,  0.0, -1.0,  0.0],
             [  0.0,  0.0,  1.0,  0.0,  0.0],
-            [  0.0,  0.0,  0.0,  0.0, -1.0]
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
         ],
         [
             [  0.0,  0.0,  1.0,  0.0,  1.0],
             [  0.0,  0.0,  0.0,  0.0,  1.0],
             [  0.0,  0.0,  0.0, -1.0,  0.0],
             [  0.0,  0.0,  1.0,  0.0,  0.0],
-            [  0.0,  0.0,  0.0,  0.0, -1.0]
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
         ],
         [
             [ -1.0,  0.0,  1.0,  0.0, -1.0],
             [  0.0,  0.0,  0.0,  0.0,  0.0],
             [  0.0,  0.0,  0.0, -1.0,  0.0],
             [  0.0,  0.0,  1.0,  0.0,  0.0],
-            [  0.0,  0.0,  0.0,  0.0, -1.0]
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
         ],
         [
             [  0.0,  0.0,  1.0,  0.0,  1.0],
             [  0.0,  0.0,  0.0,  0.0,  0.0],
             [  0.0,  0.0,  0.0, -1.0,  0.0],
             [  0.0,  0.0,  1.0,  0.0,  0.0],
-            [  0.0,  0.0,  0.0,  0.0, -1.0]
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
         ]
     ])
     assert jnp.allclose(updated_points_map, expected_points_map)
@@ -176,9 +177,9 @@ def test_update_points_map_batch3():
             [2, 0], [2, 0], [0, 2], [0, 2], [4, 1], [3, 3], [3, 4]
         ],
         [
-            # 3 at confirmed positive, 1 at confirmed negative, 3 unconfirmed, points gained = 4
+            # 3 at confirmed positive, 3 unconfirmed, points gained = 4
             # should update 0.3333 for last three points
-            [2, 0], [2, 3], [3, 2], [0, 2], [4, 1], [3, 3], [3, 4]
+            [2, 0], [2, 3], [-1, -1], [0, 2], [4, 1], [3, 3], [3, 4]
         ],
         [
             # 3 at confirmed positive, 1 at confirmed negative, 3 unconfirmed, points gained = 5
@@ -290,7 +291,6 @@ def test_update_points_map_batch4():
         points_gained
     )
 
-    print(updated_points_map)
     expected_points_map = jnp.array([
         [
             [  0.0,  0.0,  1.0,  0.0,  0.0],
@@ -375,9 +375,61 @@ def test_update_points_map_batch4():
     ])
 
     updated_points_map2 = update_points_map_batch(expected_points_map, mark_duplicates_batched(positions2), points_gained2)
-    print(updated_points_map2)
 
     assert jnp.allclose(updated_points_map2, expected_points_map2)
+
+def test_update_points_map_batch5():
+    # conflicting
+    points_map = jnp.array([
+        [
+            [  0.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0, -1.0,  0.0],
+            [  0.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0, -1.0]
+        ],
+        [
+            [  0.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0, -1.0,  0.0],
+            [  0.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
+        ]
+    ])
+
+    positions = jnp.array([
+        [
+            # 3 at confirmed positive, 2 at confirmed negative, 1 unconfirmed, points gained = 5
+            # 2 points gained for 1 unconfirmed. This should not happen. But we need to cap it at 1.
+            [2, 0], [2, 3], [3, 2], [2, 3], [-1, -1], [0, 0]
+        ],
+        [
+            # 2 at confirmed positive, 1 unconfirmed, points gained = 0
+            # 2 confirmed but no yield. Still we need to make [0, 0] confirmed negative
+            [2, 0], [2, 3], [-1, -1], [-1, -1], [-1, -1], [0, 0]
+        ],
+    ])
+    points_gained = jnp.array([5, 0])
+
+    updated_points_map = update_points_map_batch(points_map, positions, points_gained)
+
+    expected_points_map = jnp.array([
+        [
+            [  1.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0, -1.0,  0.0],
+            [  0.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0, -1.0]
+        ],
+        [
+            [ -1.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0, -1.0,  0.0],
+            [  0.0,  0.0,  1.0,  0.0,  0.0],
+            [  0.0,  0.0,  0.0,  0.0,  0.0]
+        ],
+    ])
+    assert jnp.allclose(updated_points_map, expected_points_map)
 
 
 def test_filter_by_proximity():

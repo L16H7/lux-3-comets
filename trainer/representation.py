@@ -220,8 +220,6 @@ def create_representations(
     points_history_positions = points_history_positions.at[obs.match_steps[0]].set(prev_agent_positions)
     points_history = points_history.at[obs.match_steps[0]].set(points_gained)
 
-    points_map = points_map.at[:, 0, 0].set(-1)
-    points_map = points_map.at[:, -1, -1].set(-1)
     updated_points_map = update_points_map_batch(
         points_map,
         prev_agent_positions,
