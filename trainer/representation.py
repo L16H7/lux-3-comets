@@ -168,7 +168,7 @@ def create_representations(
     points_gained,
     points_history_positions,
     points_history,
-    max_steps_in_match=100,
+    unit_move_cost,
     team_idx=0,
     opponent_idx=1,
 ):
@@ -200,8 +200,14 @@ def create_representations(
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
     nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
 
+    non_negative_energy_agent_positions = jnp.where(
+        unit_energies_team[..., None].repeat(2, axis=-1) > 0,
+        unit_positions_team,
+        -1
+    )
+
     # Update points map
-    points_history_positions = points_history_positions.at[obs.match_steps[0]].set(prev_agent_positions)
+    points_history_positions = points_history_positions.at[obs.match_steps[0]].set(non_negative_energy_agent_positions)
     points_history = points_history.at[obs.match_steps[0]].set(points_gained)
 
     updated_points_map = update_points_map_with_relic_nodes_scan(
@@ -327,11 +333,13 @@ def create_representations(
         updated_search_map
     )
 
+    energy_map = obs.map_features.energy - unit_move_cost[:, None, None]
     energy_map = jnp.where(
         obs.sensor_mask,
-        obs.map_features.energy,
+        energy_map,
         0
     )
+
     maps = [
         team_energy_maps / 800.0,
         opponent_energy_maps / 800.0,
@@ -350,7 +358,7 @@ def create_representations(
 
 
     match_steps = obs.match_steps[:, None] / 100.0
-    matches = jnp.minimum(obs.steps[:, None] // max_steps_in_match, 4) / 4.0
+    matches = jnp.minimum(obs.steps[:, None] // 100, 4) / 4.0
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
     team_points = team_points / 800.0
 
@@ -409,6 +417,7 @@ def create_agent_representations(
     p1_points_history_positions,
     p0_points_history,
     p1_points_history,
+    unit_move_cost,
 ):
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
@@ -421,6 +430,7 @@ def create_agent_representations(
         points_gained=p0_points_gained,
         points_history_positions=p0_points_history_positions,
         points_history=p0_points_history,
+        unit_move_cost=unit_move_cost,
         team_idx=0,
         opponent_idx=1,
     )
@@ -436,6 +446,7 @@ def create_agent_representations(
         points_gained=p1_points_gained,
         points_history_positions=p1_points_history_positions,
         points_history=p1_points_history,
+        unit_move_cost=unit_move_cost,
         team_idx=1,
         opponent_idx=0,
     )

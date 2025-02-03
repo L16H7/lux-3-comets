@@ -70,6 +70,7 @@ def make_train(config: Config):
             p1_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
             p0_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
             p1_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
+            unit_move_cost=meta_env_params.unit_move_cost,
         )
         return p0_representations, p1_representations, observations, states
 
@@ -231,6 +232,7 @@ def make_train(config: Config):
             p1_points_history_positions=p1_points_history_positions,
             p0_points_history=p0_points_history,
             p1_points_history=p1_points_history,
+            unit_move_cost=meta_env_params.unit_move_cost,
         )
         return p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, info
         
