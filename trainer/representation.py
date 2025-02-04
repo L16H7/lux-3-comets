@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import jax
 
 from constants import Constants
+from nebula import calculate_nebula_map
 from points import update_points_map_with_relic_nodes_scan
 from utils import transform_coordinates
 
@@ -198,7 +199,7 @@ def create_representations(
     )
 
     asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
-    nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0)
+    nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0).transpose((0, 2, 1))
 
     non_negative_energy_agent_positions = jnp.where(
         unit_energies_team[..., None].repeat(2, axis=-1) > -1,
@@ -341,13 +342,24 @@ def create_representations(
     )
     energy_map = energy_map.transpose((0, 2, 1))
 
+    sensor_maps = obs.sensor_mask.transpose((0, 2, 1))
+    calculate_nebula_map(
+        sensor_maps,
+        nebula_maps,
+        jnp.squeeze(prev_agent_energies, axis=-1),
+        unit_positions_team,
+        unit_energies_team,
+        unit_masks_team,
+        energy_map,
+    )
+
     maps = [
         team_energy_maps / 800.0,
         opponent_energy_maps / 800.0,
         asteroid_maps.transpose((0, 2, 1)),
         energy_map / 20.0,
-        nebula_maps.transpose((0, 2, 1)),
-        obs.sensor_mask.transpose((0, 2, 1)),
+        nebula_maps,
+        sensor_maps,
         relic_node_maps,
         updated_points_map,
         updated_search_map,
