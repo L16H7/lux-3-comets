@@ -237,7 +237,6 @@ def evaluate(
     runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
 
     nebula_energy_reduction_calculation_success_rate = (abs(runner_state[2][0][-1][:, 0]) == meta_env_params.nebula_tile_energy_reduction).sum() / n_envs
-    jax.debug.breakpoint()
 
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 502]), axis=0), info)
 
