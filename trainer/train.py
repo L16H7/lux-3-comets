@@ -71,6 +71,7 @@ def make_train(config: Config):
             p0_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
             p1_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
             unit_move_cost=meta_env_params.unit_move_cost,
+            nebula_info=jnp.zeros((n_envs, 2)), # [nebula_energy_deduction, is_updated]
         )
         return p0_representations, p1_representations, observations, states
 
@@ -94,6 +95,7 @@ def make_train(config: Config):
         p1_points_history_positions,
         p0_points_history,
         p1_points_history,
+        updated_nebula_info,
         meta_keys,
         meta_env_params,
     ):
@@ -221,6 +223,7 @@ def make_train(config: Config):
             p0_points_history=p0_points_history,
             p1_points_history=p1_points_history,
             unit_move_cost=meta_env_params.unit_move_cost,
+            nebula_info=updated_nebula_info,
         )
         return p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, info
         
@@ -280,6 +283,7 @@ def make_train(config: Config):
                         p0_discovered_relic_nodes,
                         p0_points_history_positions,
                         p0_points_history,
+                        updated_nebula_info,
                     ) = p0_representations
                     (
                         p1_states,
@@ -294,6 +298,7 @@ def make_train(config: Config):
                         p1_discovered_relic_nodes,
                         p1_points_history_positions,
                         p1_points_history,
+                        _,
                     ) = p1_representations
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
@@ -423,6 +428,7 @@ def make_train(config: Config):
                         p1_points_history_positions,
                         p0_points_history,
                         p1_points_history,
+                        updated_nebula_info,
                         meta_keys,
                         meta_env_params,
                     )
@@ -488,7 +494,7 @@ def make_train(config: Config):
                     _,
                     _,
                     p0_episode_info,
-                    _, _, _, _, _, _, _, _
+                    _, _, _, _, _, _, _, _, _
                 ) = p0_representations
 
                 (
@@ -496,7 +502,7 @@ def make_train(config: Config):
                     _,
                     _,
                     p1_episode_info,
-                    _, _, _, _, _, _, _, _
+                    _, _, _, _, _, _, _, _, _
                 ) = p1_representations
 
                 p0_combined_states = combined_states_info(

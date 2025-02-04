@@ -170,6 +170,7 @@ def create_representations(
     points_history_positions,
     points_history,
     unit_move_cost,
+    nebula_info,
     team_idx=0,
     opponent_idx=1,
 ):
@@ -343,9 +344,10 @@ def create_representations(
     energy_map = energy_map.transpose((0, 2, 1))
 
     sensor_maps = obs.sensor_mask.transpose((0, 2, 1))
-    calculate_nebula_map(
+    updated_nebula_info, scaled_nebula_map = calculate_nebula_map(
         sensor_maps,
         nebula_maps,
+        nebula_info,
         jnp.squeeze(prev_agent_energies, axis=-1),
         unit_positions_team,
         unit_energies_team,
@@ -410,6 +412,7 @@ def create_representations(
         relic_nodes,
         points_history_positions,
         points_history,
+        updated_nebula_info,
     )
         
 def create_agent_representations(
@@ -431,6 +434,7 @@ def create_agent_representations(
     p0_points_history,
     p1_points_history,
     unit_move_cost,
+    nebula_info,
 ):
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
@@ -444,6 +448,7 @@ def create_agent_representations(
         points_history_positions=p0_points_history_positions,
         points_history=p0_points_history,
         unit_move_cost=unit_move_cost,
+        nebula_info=nebula_info,
         team_idx=0,
         opponent_idx=1,
     )
@@ -460,6 +465,7 @@ def create_agent_representations(
         points_history_positions=p1_points_history_positions,
         points_history=p1_points_history,
         unit_move_cost=unit_move_cost,
+        nebula_info=nebula_info,
         team_idx=1,
         opponent_idx=0,
     )

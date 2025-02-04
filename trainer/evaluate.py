@@ -45,7 +45,8 @@ def evaluate(
             p0_units_mask,
             p0_discovered_relic_nodes,
             p0_points_history_positions,
-            p0_points_history
+            p0_points_history,
+            updated_nebula_info
         ) = p0_representations
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
@@ -95,7 +96,8 @@ def evaluate(
             p1_units_mask,
             p1_discovered_relic_nodes,
             p1_points_history_positions,
-            p1_points_history
+            p1_points_history,
+            _
         ) = p1_representations
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
@@ -173,6 +175,7 @@ def evaluate(
             p1_points_history_positions,
             p0_points_history,
             p1_points_history,
+            updated_nebula_info,
             meta_keys,
             meta_env_params,
         )
