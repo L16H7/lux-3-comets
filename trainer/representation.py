@@ -348,6 +348,7 @@ def create_representations(
         sensor_maps,
         nebula_maps,
         nebula_info,
+        points_history_positions[obs.match_steps[0] - 1],
         jnp.squeeze(prev_agent_energies, axis=-1),
         unit_positions_team,
         unit_energies_team,

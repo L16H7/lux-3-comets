@@ -234,7 +234,9 @@ def evaluate(
         states,
     )
 
-    runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
+    runner_state, info = jax.lax.scan(_env_step, runner_state, None, 101)
+
+    nebula_energy_reduction_calculation_success_rate = (abs(runner_state[2][0][-1][:, 0]) == meta_env_params.nebula_tile_energy_reduction).sum() / n_envs
 
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 502]), axis=0), info)
 
@@ -261,6 +263,7 @@ def evaluate(
         "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
         "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
         "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
+        "eval/nebula_energy_reduction_calculation_success_rate": nebula_energy_reduction_calculation_success_rate,
     }
 
     info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
