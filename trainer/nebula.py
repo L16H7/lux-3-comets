@@ -25,7 +25,7 @@ def calculate_nebula_map(
     non_base_agents_y = (agent_y > 0) & (agent_y < 23)
     non_base_agents = non_base_agents_x & non_base_agents_y
     sufficient_energy_agents = (prev_agent_energies > 25) & (agent_energies > 0)
-    moving_agents = (prev_agent_positions != agent_positions).sum(axis=-1) == 2
+    moving_agents = (prev_agent_positions != agent_positions).sum(axis=-1) == 1
     
     # Create the mask by indexing nebula_map with agent positions
     nebula_agent_mask = nebula_map[jnp.arange(nebula_map.shape[0])[:, None], agent_y, agent_x]
