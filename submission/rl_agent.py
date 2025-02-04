@@ -82,6 +82,8 @@ class Agent():
 
         self.points_history_positions = (jnp.ones((101, 1, 16, 2), dtype=jnp.int32) * -1)
         self.points_history = jnp.zeros((101, 1), dtype=jnp.int32)
+        self.nebula_info = jnp.zeros((1, 2))
+        self.prev_agent_energies = jnp.zeros((1, 16, 1))
  
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
@@ -112,23 +114,18 @@ class Agent():
         self.points_gained = team_points - self.prev_team_points
         self.prev_team_points = team_points
 
-        energy_agent_positions = jnp.where(
-            observation.units.energy[0, self.team_id, :, None].repeat(2, axis=-1) > -1,
-            observation.units.position[:, self.team_id, ...],
-            -1
-        )
-
         representations = create_representations(
             obs=observation,
             temporal_states=self.temporal_states,
             relic_nodes=self.discovered_relic_nodes,
-            prev_agent_energies=energy_agent_positions,
+            prev_agent_energies=self.prev_agent_energies,
             points_map=self.points_map,
             search_map=self.search_map,
             points_gained=jnp.array([self.points_gained]),
             points_history_positions=self.points_history_positions,
             points_history=self.points_history,
             unit_move_cost=jnp.array([self.env_cfg["unit_move_cost"]]),
+            nebula_info=self.nebula_info,
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
         )
@@ -146,6 +143,7 @@ class Agent():
             discovered_relic_nodes,
             points_history_positions,
             points_history,
+            updated_nebula_info,
         ) = representations
 
         self.points_map = points_map
@@ -154,6 +152,10 @@ class Agent():
         self.discovered_relic_nodes = discovered_relic_nodes
         self.points_history_positions = points_history_positions
         self.points_history = points_history
+        self.nebula_info = updated_nebula_info
+
+        self.prev_agent_energies = observation.units.energy[:, self.team_id, :, None]
+
 
         agent_observations = jnp.squeeze(agent_observations, axis=0)
         agent_episode_info = episode_info.repeat(16, axis=0)

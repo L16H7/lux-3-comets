@@ -199,9 +199,6 @@ def create_representations(
         relic_nodes_mask=relic_nodes[..., 0] != -1,
     )
 
-    asteroid_maps = jnp.where(obs.map_features.tile_type == ASTEROID_TILE, 1, 0)
-    nebula_maps = jnp.where(obs.map_features.tile_type == NEBULA_TILE, 1, 0).transpose((0, 2, 1))
-
     non_negative_energy_agent_positions = jnp.where(
         unit_energies_team[..., None].repeat(2, axis=-1) > -1,
         unit_positions_team,
@@ -342,6 +339,23 @@ def create_representations(
         0
     )
     energy_map = energy_map.transpose((0, 2, 1))
+    transformed_energy_map = transform_observation_3dim(energy_map)
+    energy_map = jnp.where(
+        transformed_energy_map != 0,
+        transformed_energy_map,
+        energy_map 
+    )
+
+    map_features_tile = obs.map_features.tile_type.transpose((0, 2, 1))
+    transformed_map_features_tile = transform_observation_3dim(map_features_tile)
+    map_features_tile = jnp.where(
+        transformed_map_features_tile > 0,
+        transformed_map_features_tile,
+        map_features_tile,
+    )
+
+    asteroid_maps = jnp.where(map_features_tile == ASTEROID_TILE, 1, 0)
+    nebula_maps = jnp.where(map_features_tile == NEBULA_TILE, 1, 0)
 
     sensor_maps = obs.sensor_mask.transpose((0, 2, 1))
     updated_nebula_info, scaled_nebula_map = calculate_nebula_map(
@@ -359,9 +373,9 @@ def create_representations(
     maps = [
         team_energy_maps / 800.0,
         opponent_energy_maps / 800.0,
-        asteroid_maps.transpose((0, 2, 1)),
+        asteroid_maps,
         energy_map / 20.0,
-        nebula_maps,
+        scaled_nebula_map,
         sensor_maps,
         relic_node_maps,
         updated_points_map,
