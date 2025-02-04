@@ -32,5 +32,7 @@ def calculate_nebula_map(
     nebula_energy_deduction = agent_energies - prev_agent_energies - energy_for_agents
     nebula_energy_deduction = nebula_energy_deduction * nebula_agent_mask * agent_mask
     nebula_energy_deduction = nebula_energy_deduction.sum(axis=-1) * nebula_agent_mask.sum(axis=-1)
+    nebula_energy_deduction_correction_mask = (nebula_energy_deduction >= -25) & (nebula_energy_deduction <= 0)
+
     jax.debug.breakpoint()
     return
