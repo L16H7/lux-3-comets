@@ -25,6 +25,7 @@ def make_states(config: Config):
         "unit_sap_range": jnp.zeros((BATCH,)),
         "unit_sensor_range": jnp.zeros((BATCH,)),
         "energies": jnp.zeros((BATCH,)),
+        "points_gained_history": jnp.zeros((BATCH, 4)),
     })
 
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(actor_network_params))
@@ -37,6 +38,7 @@ def make_states(config: Config):
         "matches": jnp.zeros((BATCH,)),
         "team_points": jnp.zeros((BATCH,)),
         "opponent_points": jnp.zeros((BATCH,)),
+        "points_gained_history": jnp.zeros((BATCH, 4)),
     })
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(critic_network_params))
     print(f"Number of critic parameters: {num_params:,}")

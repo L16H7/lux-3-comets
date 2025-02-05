@@ -69,6 +69,7 @@ def evaluate(
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
                 "energies": p0_agent_energies,
+                "points_gained_history": p0_agent_episode_info[:, 4:],
             }
         )
 
@@ -120,6 +121,7 @@ def evaluate(
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
                 "energies": p1_agent_energies,
+                "points_gained_history": p1_agent_episode_info[:, 4:],
             }
         )
 

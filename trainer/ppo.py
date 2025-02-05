@@ -81,7 +81,8 @@ def ppo_update(
                 "unit_sap_cost": transitions.env_information[:, 1],
                 "unit_sap_range": transitions.env_information[:, 2],
                 "unit_sensor_range": transitions.env_information[:, 3],
-                "energies": transitions.agent_energies
+                "energies": transitions.agent_energies,
+                "points_gained_history": transitions.agent_episode_info[:, 4:],
             }
         )
         logits1, logits2, logits3 = logits
@@ -143,6 +144,7 @@ def ppo_update(
                 "matches": transitions.episode_info[:, 1],
                 "team_points": transitions.episode_info[:, 2],
                 "opponent_points": transitions.episode_info[:, 3],
+                "points_gained_history": transitions.episode_info[:, 4:],
             }
         )
         values = jnp.squeeze(values.repeat(16, axis=0), axis=-1)

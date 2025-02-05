@@ -329,8 +329,13 @@ def get_actions(
         jnp.ones((1, n_envs * 16, 5)), # allow all movements
         target_x.sum(axis=-1).reshape(1, n_envs * 16, 1),
     ], axis=-1)
+
+    non_negative_energy_mask = jnp.concatenate([
+        jnp.ones((1, n_envs * 16, 1), dtype=jnp.bool), # allow only NO-OP
+        (observations.units.energy[:, team_idx, :].reshape(-1) > 0)[None, :, None].repeat(5, axis=-1),
+    ], axis=-1)
     
-    logits1_mask = valid_movements & (sap_mask > 0)
+    logits1_mask = valid_movements & (sap_mask > 0) & non_negative_energy_mask
 
     logits1, logits2, logits3 = logits
 

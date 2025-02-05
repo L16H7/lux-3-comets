@@ -167,8 +167,10 @@ def create_representations(
     points_map,
     search_map,
     points_gained,
+    opponent_points_gained,
     points_history_positions,
     points_history,
+    opponent_points_history,
     unit_move_cost,
     nebula_info,
     team_idx=0,
@@ -393,11 +395,19 @@ def create_representations(
 
 
     match_steps = obs.match_steps[:, None] / 100.0
-    matches = jnp.minimum(obs.steps[:, None] // 100, 4) / 4.0
+    matches = obs.steps[:, None] / 400.0
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
-    team_points = team_points / 800.0
+    team_points = team_points / 400.0
 
-    episode_info = jnp.concatenate((match_steps, matches, team_points), axis=1)
+    episode_info = jnp.concatenate([
+        match_steps,
+        matches,
+        team_points,
+        points_history[obs.match_steps[0] - 1][:, None] / 16.0,
+        opponent_points_history[obs.match_steps[0] - 1][:, None] / 16.0,
+        points_gained[:, None] / 16.0,
+        opponent_points_gained[:, None] / 16.0,
+    ], axis=-1)
 
     transformed_unit_positions = transform_coordinates(unit_positions_team)
     transformed_unit_positions = jnp.where(
@@ -467,8 +477,10 @@ def create_agent_representations(
         points_map=p0_points_map,
         search_map=p0_search_map,
         points_gained=p0_points_gained,
+        opponent_points_gained=p1_points_gained,
         points_history_positions=p0_points_history_positions,
         points_history=p0_points_history,
+        opponent_points_history=p1_points_history,
         unit_move_cost=unit_move_cost,
         nebula_info=nebula_info,
         team_idx=0,
@@ -484,8 +496,10 @@ def create_agent_representations(
         points_map=p1_points_map,
         search_map=p1_search_map,
         points_gained=p1_points_gained,
+        opponent_points_gained=p0_points_gained,
         points_history_positions=p1_points_history_positions,
         points_history=p1_points_history,
+        opponent_points_history=p0_points_history,
         unit_move_cost=unit_move_cost,
         nebula_info=nebula_info,
         team_idx=1,

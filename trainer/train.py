@@ -321,6 +321,7 @@ def make_train(config: Config):
                             "unit_sap_range": env_info[:, 2],
                             "unit_sensor_range": env_info[:, 3],
                             "energies": p0_energies,
+                            "points_gained_history": p0_agent_episode_info[:, 4:],
                         }
                     )
 
@@ -349,6 +350,7 @@ def make_train(config: Config):
                             "matches": p0_episode_info[:, 1],
                             "team_points": p0_episode_info[:, 2],
                             "opponent_points": p0_episode_info[:, 3],
+                            "points_gained_history": p0_episode_info[:, 4:],
                         }
                     )
 
@@ -372,6 +374,7 @@ def make_train(config: Config):
                             "unit_sap_range": env_info[:, 2],
                             "unit_sensor_range": env_info[:, 3],
                             "energies": p1_energies,
+                            "points_gained_history": p1_agent_episode_info[:, 4:],
                         }
                     )
 
@@ -398,6 +401,7 @@ def make_train(config: Config):
                             "matches": p1_episode_info[:, 1],
                             "team_points": p1_episode_info[:, 2],
                             "opponent_points": p1_episode_info[:, 3],
+                            "points_gained_history": p0_episode_info[:, 4:],
                         }
                     )
 
@@ -518,6 +522,7 @@ def make_train(config: Config):
                         "matches": p0_episode_info[:, 1],
                         "team_points": p0_episode_info[:, 2],
                         "opponent_points": p0_episode_info[:, 3],
+                        "points_gained_history": p0_episode_info[:, 4:],
                     }
                 )
 
@@ -534,6 +539,7 @@ def make_train(config: Config):
                         "matches": p1_episode_info[:, 1],
                         "team_points": p1_episode_info[:, 2],
                         "opponent_points": p1_episode_info[:, 3],
+                        "points_gained_history": p0_episode_info[:, 4:],
                     }
                 )
 

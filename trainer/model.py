@@ -96,6 +96,7 @@ class ActorInput(TypedDict):
     unit_sap_range: jax.Array
     unit_sensor_range: jax.Array
     energies: jax.Array
+    point_gained_history: jax.Array
  
 class Actor(nn.Module):
     n_actions: int = 6
@@ -149,13 +150,14 @@ class Actor(nn.Module):
             max_size=6
         )
 
-        info_input = jnp.stack([
-            actor_input['team_points'],
-            actor_input['opponent_points'],
-            actor_input['match_steps'],
-            actor_input['energies'].reshape(-1),
-            actor_input['unit_sap_cost'],
-            actor_input['unit_sap_range'],
+        info_input = jnp.concatenate([
+            actor_input['team_points'][:, None],
+            actor_input['opponent_points'][:, None],
+            actor_input['match_steps'][:, None],
+            actor_input['energies'].reshape(-1)[:, None],
+            actor_input['unit_sap_cost'][:, None],
+            actor_input['unit_sap_range'][:, None],
+            actor_input['points_gained_history']
         ], axis=-1)
 
         info_embeddings = nn.Sequential([
@@ -254,11 +256,12 @@ class Critic(nn.Module):
             critic_input['states'].transpose((0, 2, 3, 1))
         )
 
-        info_input = jnp.stack([
-            critic_input['team_points'],
-            critic_input['opponent_points'],
-            critic_input['match_steps'],
-            critic_input['matches'],
+        info_input = jnp.concatenate([
+            critic_input['team_points'][:, None],
+            critic_input['opponent_points'][:, None],
+            critic_input['match_steps'][:, None],
+            critic_input['matches'][:, None],
+            critic_input['points_gained_history'],
         ], axis=-1)
 
 
