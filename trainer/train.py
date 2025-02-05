@@ -353,6 +353,8 @@ def make_train(config: Config):
                             "team_points": p0_episode_info[:, 2],
                             "opponent_points": p0_episode_info[:, 3],
                             "points_gained_history": p0_episode_info[:, 4:],
+                            "unit_sap_cost": env_info[:, 1],
+                            "unit_sap_range": env_info[:, 2],
                         }
                     )
 
@@ -404,6 +406,8 @@ def make_train(config: Config):
                             "team_points": p1_episode_info[:, 2],
                             "opponent_points": p1_episode_info[:, 3],
                             "points_gained_history": p0_episode_info[:, 4:],
+                            "unit_sap_cost": env_info[:, 1],
+                            "unit_sap_range": env_info[:, 2],
                         }
                     )
 
@@ -525,6 +529,8 @@ def make_train(config: Config):
                         "team_points": p0_episode_info[:, 2],
                         "opponent_points": p0_episode_info[:, 3],
                         "points_gained_history": p0_episode_info[:, 4:],
+                        "unit_sap_cost": env_info[:, 1],
+                        "unit_sap_range": env_info[:, 2],
                     }
                 )
 
@@ -542,6 +548,8 @@ def make_train(config: Config):
                         "team_points": p1_episode_info[:, 2],
                         "opponent_points": p1_episode_info[:, 3],
                         "points_gained_history": p0_episode_info[:, 4:],
+                        "unit_sap_cost": env_info[:, 1],
+                        "unit_sap_range": env_info[:, 2],
                     }
                 )
 
@@ -714,10 +722,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)

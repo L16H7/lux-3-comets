@@ -108,7 +108,7 @@ class Actor(nn.Module):
     def __call__(self, actor_input: ActorInput):
         observation_encoder = nn.Sequential([
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(3, 3),
                 padding=0,
@@ -116,16 +116,15 @@ class Actor(nn.Module):
                 use_bias=False,
             ),
             nn.leaky_relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(2, 2),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
-            nn.LayerNorm(),
             nn.leaky_relu,
             nn.Conv(
                 features=128,
@@ -136,7 +135,34 @@ class Actor(nn.Module):
             ),
             nn.leaky_relu,
             ResidualBlock(128),
-            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Conv(
+                features=256,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding=0,
+                kernel_init=orthogonal(math.sqrt(2)),
+                use_bias=False
+            ),
+            nn.leaky_relu,
+            ResidualBlock(256),
+            nn.Conv(
+                features=512,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding=0,
+                kernel_init=orthogonal(math.sqrt(2)),
+                use_bias=False
+            ),
+            nn.leaky_relu,
+            nn.Conv(
+                features=512,
+                kernel_size=(1, 1),
+                strides=(1, 1),
+                padding=0,
+                kernel_init=orthogonal(math.sqrt(2)),
+                use_bias=False
+            ),
+            nn.leaky_relu,
             nn.Dense(512),
         ])
 
@@ -146,9 +172,9 @@ class Actor(nn.Module):
         )
 
         position_embeddings = get_2d_positional_embeddings(
-            actor_input['positions'] // 4,
+            actor_input['positions'],
             embedding_dim=32,
-            max_size=6
+            max_size=24,
         )
 
         info_input = jnp.concatenate([
@@ -175,7 +201,6 @@ class Actor(nn.Module):
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
-                nn.LayerNorm(),
                 nn.leaky_relu,
             ]
         )
@@ -183,15 +208,46 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             info_embeddings,
             position_embeddings,
-            observation_embeddings,
+            jnp.squeeze(observation_embeddings, axis=[1, 2]),
         ], axis=-1)
 
         x = actor(embeddings)
 
-        action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
+        action_head = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
+                nn.Dense(
+                    self.n_actions, kernel_init=orthogonal(0.01),
+                ),
+            ]
+        )
 
-        x_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
-        y_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
+        x_coordinate_head = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
+                nn.Dense(
+                    17, kernel_init=orthogonal(0.01),
+                ),
+            ]
+        )
+
+        y_coordinate_head = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
+                nn.Dense(
+                    17, kernel_init=orthogonal(0.01),
+                ),
+            ]
+        )
 
         logits1 = action_head(x)
         logits2 = x_coordinate_head(x)
@@ -205,11 +261,14 @@ class CriticInput(TypedDict):
     match_steps: jax.Array         # 4 phases each with 25 steps
     team_points: jax.Array
     opponent_points: jax.Array
+    points_gained_history: jax.Array
+    unit_sap_cost: jax.Array
+    unit_sap_range: jax.Array
  
 
 class Critic(nn.Module):
-    info_emb_dim: int = 96
-    hidden_dim: int = 256
+    info_emb_dim: int = 256
+    hidden_dim: int = 512
  
     @nn.compact
     def __call__(self, critic_input):
@@ -218,40 +277,44 @@ class Critic(nn.Module):
         state_encoder = nn.Sequential(
             [
                 nn.Conv(
-                    64,
-                    (3, 3),
+                    features=64,
+                    kernel_size=(3, 3),
                     strides=(2, 2),
-                    padding='SAME',
+                    padding=0,
                     kernel_init=orthogonal(math.sqrt(2)),
+                    use_bias=False,
                 ),
                 nn.leaky_relu,
+                ResidualBlock(64),
                 nn.Conv(
-                    64,
-                    (3, 3),
+                    features=128,
+                    kernel_size=(3, 3),
                     strides=(1, 1),
-                    padding='SAME',
+                    padding=0,
                     kernel_init=orthogonal(math.sqrt(2)),
+                    use_bias=False,
                 ),
                 nn.leaky_relu,
+                ResidualBlock(128),
                 nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
+                    features=256,
+                    kernel_size=(3, 3),
+                    strides=(1, 1),
+                    padding=0,
                     kernel_init=orthogonal(math.sqrt(2)),
                 ),
                 nn.leaky_relu,
+                ResidualBlock(256),
                 nn.Conv(
-                    128,
-                    (2, 2),
-                    strides=1,
-                    padding='SAME',
+                    features=512,
+                    kernel_size=(1, 1),
+                    strides=(1, 1),
+                    padding=0,
                     kernel_init=orthogonal(math.sqrt(2)),
+                    use_bias=False
                 ),
                 nn.leaky_relu,
-                lambda x: x.reshape((x.shape[0], -1)),
-                nn.Dense(256),
-                nn.leaky_relu,
+                nn.Dense(512),
             ]
         )
         state_embeddings = state_encoder(
@@ -264,6 +327,8 @@ class Critic(nn.Module):
             critic_input['match_steps'][:, None],
             critic_input['matches'][:, None],
             critic_input['points_gained_history'],
+            critic_input['unit_sap_cost'].reshape(-1, 16, 1)[:, 0],
+            critic_input['unit_sap_range'].reshape(-1, 16, 1)[:, 0],
         ], axis=-1)
 
 
@@ -273,7 +338,7 @@ class Critic(nn.Module):
         ])(info_input)
 
         embeddings = jnp.concat([
-            state_embeddings,
+            jnp.mean(state_embeddings, axis=[1, 2]),
             info_embeddings,
         ], axis=-1)
 
