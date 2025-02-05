@@ -100,15 +100,15 @@ class ActorInput(TypedDict):
  
 class Actor(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 96
-    hidden_dim: int = 256
+    info_emb_dim: int = 256
+    hidden_dim: int = 512
     position_emb_dim: int = 32
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
         observation_encoder = nn.Sequential([
             nn.Conv(
-                features=32,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(3, 3),
                 padding=0,
@@ -116,7 +116,7 @@ class Actor(nn.Module):
                 use_bias=False,
             ),
             nn.leaky_relu,
-            ResidualBlock(32),
+            ResidualBlock(64),
             nn.Conv(
                 features=64,
                 kernel_size=(3, 3),
@@ -125,16 +125,17 @@ class Actor(nn.Module):
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
+            nn.LayerNorm(),
             nn.leaky_relu,
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
             nn.leaky_relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(512),
         ])
@@ -174,6 +175,7 @@ class Actor(nn.Module):
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
+                nn.LayerNorm(),
                 nn.leaky_relu,
             ]
         )

@@ -714,10 +714,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
@@ -796,17 +796,17 @@ def train(config: Config):
 if __name__ == "__main__":
     config = Config(
         n_meta_steps=1,
-        n_actor_steps=8,
-        n_update_steps=1,
-        n_envs=4,
-        n_envs_per_device=4,
-        n_eval_envs=40,
-        n_minibatches=1,
+        n_actor_steps=16,
+        n_update_steps=32,
+        n_envs=96,
+        n_envs_per_device=96,
+        n_eval_envs=96,
+        n_minibatches=32,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
-        wandb_project="simplicity",
-        train_seed=45,
-        entropy_coeff=0.005,
+        wandb_project="Augmented",
+        train_seed=42,
+        entropy_coeff=0.01,
     )
     train(config=config)
