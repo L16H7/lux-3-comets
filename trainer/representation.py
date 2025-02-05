@@ -4,21 +4,12 @@ import jax
 from constants import Constants
 from nebula import calculate_nebula_map
 from points import update_points_map_with_relic_nodes_scan
-from utils import transform_coordinates
+from utils import transform_coordinates, transform_observation_3dim
 
 
 NEBULA_TILE = 1
 ASTEROID_TILE = 2
 
-
-def transform_observation_3dim(obs):
-    # Horizontal flip across the last dimension (24, 24 grids)
-    flipped = jnp.flip(obs, axis=2)
-    
-    # Rotate 90 degrees clockwise after flip, across the last two dimensions (24x24)
-    rotated = jnp.rot90(flipped, k=-1, axes=(1, 2))
-    
-    return rotated
 
 def transform_observation(obs):
     # Horizontal flip across the last dimension (24, 24 grids)
@@ -172,6 +163,7 @@ def create_representations(
     points_history,
     opponent_points_history,
     unit_move_cost,
+    sensor_range,
     nebula_info,
     team_idx=0,
     opponent_idx=1,
@@ -362,6 +354,7 @@ def create_representations(
     sensor_maps = obs.sensor_mask.transpose((0, 2, 1))
     updated_nebula_info, scaled_nebula_map = calculate_nebula_map(
         sensor_maps,
+        sensor_range,
         nebula_maps,
         nebula_info,
         points_history_positions[obs.match_steps[0] - 1],
@@ -466,6 +459,7 @@ def create_agent_representations(
     p0_points_history,
     p1_points_history,
     unit_move_cost,
+    sensor_range,
     nebula_info,
 ):
     p0_observations = observations["player_0"]
@@ -482,6 +476,7 @@ def create_agent_representations(
         points_history=p0_points_history,
         opponent_points_history=p1_points_history,
         unit_move_cost=unit_move_cost,
+        sensor_range=sensor_range,
         nebula_info=nebula_info,
         team_idx=0,
         opponent_idx=1,
@@ -501,6 +496,7 @@ def create_agent_representations(
         points_history=p1_points_history,
         opponent_points_history=p0_points_history,
         unit_move_cost=unit_move_cost,
+        sensor_range=sensor_range,
         nebula_info=nebula_info,
         team_idx=1,
         opponent_idx=0,

@@ -71,6 +71,7 @@ def make_train(config: Config):
             p0_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
             p1_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
             unit_move_cost=meta_env_params.unit_move_cost,
+            sensor_range=meta_env_params.unit_sensor_range,
             nebula_info=jnp.zeros((n_envs, 2)), # [nebula_energy_deduction, is_updated]
         )
         return p0_representations, p1_representations, observations, states
@@ -223,6 +224,7 @@ def make_train(config: Config):
             p0_points_history=p0_points_history,
             p1_points_history=p1_points_history,
             unit_move_cost=meta_env_params.unit_move_cost,
+            sensor_range=meta_env_params.unit_sensor_range,
             nebula_info=updated_nebula_info,
         )
         return p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, info
