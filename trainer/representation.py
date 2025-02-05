@@ -139,16 +139,16 @@ def create_agent_patches(state_representation, unit_positions_team):
 def get_env_info(env_params):
     unit_move_cost = jnp.expand_dims(
         env_params.unit_move_cost, axis=-1
-    ).repeat(16, axis=1) / 8.0
-    unit_sap_cost = (jnp.expand_dims(
+    ).repeat(16, axis=1) * 0.125
+    unit_sap_cost = jnp.expand_dims(
         env_params.unit_sap_cost, axis=-1
-    ).repeat(16, axis=1) - 30.0) / 20.0
+    ).repeat(16, axis=1) * 0.05
     unit_sap_range = jnp.expand_dims(
         env_params.unit_sap_range, axis=-1
-    ).repeat(16, axis=1) / 8.0
+    ).repeat(16, axis=1) * 0.125
     unit_sensor_range = jnp.expand_dims(
         env_params.unit_sensor_range, axis=-1
-    ).repeat(16, axis=1) / 8.0
+    ).repeat(16, axis=1) * 0.125
 
     env_info = jnp.concatenate([
         unit_move_cost[..., None],
@@ -354,7 +354,7 @@ def create_representations(
         map_features_tile,
     )
 
-    asteroid_maps = jnp.where(map_features_tile == ASTEROID_TILE, 1, 0)
+    asteroid_maps = jnp.where(map_features_tile == ASTEROID_TILE, 1, 0) * -2
     nebula_maps = jnp.where(map_features_tile == NEBULA_TILE, 1, 0)
 
     sensor_maps = obs.sensor_mask.transpose((0, 2, 1))
@@ -370,18 +370,23 @@ def create_representations(
         energy_map,
     )
 
-    maps = [
-        team_energy_maps / 800.0,
-        opponent_energy_maps / 800.0,
+    combined_asteroid_nebula = jnp.where(
+        asteroid_maps != 0,
         asteroid_maps,
-        energy_map / 20.0,
         scaled_nebula_map,
+    )
+
+    maps = [
+        combined_asteroid_nebula,
+        team_energy_maps * 0.0025,
+        opponent_energy_maps * 0.0025,
+        team_unit_maps * 0.25,
+        opponent_unit_maps * 0.25,
+        energy_map * 0.05,
         sensor_maps,
         relic_node_maps,
         updated_points_map,
         updated_search_map,
-        team_unit_maps / 4.0,
-        opponent_unit_maps / 4.0,
     ]
     state_representation = jnp.stack(maps, axis=1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
@@ -413,6 +418,8 @@ def create_representations(
         temporal_states[:, 3:, ...],
         state_representation[:, :3, ...],
     ], axis=1)
+    
+    energy_gained = unit_energies_team - jnp.maximum(jnp.squeeze(prev_agent_energies, axis=-1), 0)
 
     return (
         state_representation,
@@ -422,7 +429,7 @@ def create_representations(
         updated_points_map,
         updated_search_map,
         agent_positions,
-        unit_energies_team / 400.0,
+        energy_gained * 0.02,
         unit_energies_team > 0, # mask energy depleted agents in ppo update
         relic_nodes,
         points_history_positions,
@@ -489,21 +496,18 @@ def create_agent_representations(
 def combined_states_info(team_states, opponent_states):
     opponent_states = transform_observation(opponent_states.copy())
     combined_states = jnp.stack([
-        team_states[:, 0, ...], 
-        opponent_states[:, 0, ...],
+        team_states[:, 1, ...], # team energy
+        opponent_states[:, 1, ...], # opponent energy
+        team_states[:, 3, ...], # team units
+        opponent_states[:, 3, ...], # opponent units
         # energy
-        jnp.where(team_states[:, 3, ...] != 0, team_states[:, 3, ...], opponent_states[:, 3, ...]),
-        # asteroid
-        jnp.where(team_states[:, 2, ...] != 0, team_states[:, 2, ...], opponent_states[:, 2, ...]),
-        # nebula
-        jnp.where(team_states[:, 4, ...] != 0, team_states[:, 4, ...], opponent_states[:, 4, ...]),
-        team_states[:, 6, ...], # relic
-        opponent_states[:, 6, ...], # relic
-        team_states[:, 7, ...], # point map
-        opponent_states[:, 7, ...], # point map
-        team_states[:, 8, ...], # search_map
-        team_states[:, 9, ...], # team units
-        opponent_states[:, 9, ...] # opponent units
+        jnp.where(team_states[:, 5, ...] != 0, team_states[:, 5, ...], opponent_states[:, 5, ...]),
+        # asteroid & nebula
+        jnp.where(team_states[:, 0, ...] != 0, team_states[:, 0, ...], opponent_states[:, 0, ...]),
+        team_states[:, 7, ...], # relic
+        opponent_states[:, 7, ...], # relic
+        team_states[:, 8, ...], # point map
+        opponent_states[:, 8, ...], # point map
     ], axis=1)
 
     return combined_states

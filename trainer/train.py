@@ -303,7 +303,7 @@ def make_train(config: Config):
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
                     p0_agent_states = p0_states.repeat(config.n_agents, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p0_agent_observations = p0_agent_observations.reshape(-1, 17, 47, 47) 
+                    p0_agent_observations = p0_agent_observations.reshape(-1, 16, 47, 47) 
                     p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
                     p0_logits = actor_train_state.apply_fn(
@@ -354,7 +354,7 @@ def make_train(config: Config):
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
                     p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p1_agent_observations = p1_agent_observations.reshape(-1, 17, 47, 47)
+                    p1_agent_observations = p1_agent_observations.reshape(-1, 16, 47, 47)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
                     p1_logits = actor_train_state.apply_fn(
@@ -788,17 +788,17 @@ def train(config: Config):
 if __name__ == "__main__":
     config = Config(
         n_meta_steps=1,
-        n_actor_steps=16,
-        n_update_steps=32,
-        n_envs=96,
-        n_envs_per_device=96,
-        n_eval_envs=96,
-        n_minibatches=32,
+        n_actor_steps=8,
+        n_update_steps=1,
+        n_envs=4,
+        n_envs_per_device=4,
+        n_eval_envs=40,
+        n_minibatches=1,
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
         wandb_project="simplicity",
-        train_seed=42,
+        train_seed=45,
         entropy_coeff=0.005,
     )
     train(config=config)
