@@ -43,7 +43,6 @@ def make_states(config: Config):
     }
     critic_network_params = critic.init(rng, critic_input)
     print(critic.tabulate(rng, critic_input))
-    jax.debug.breakpoint()
 
     actor_tx = optax.chain(
         optax.clip_by_global_norm(config.max_grad_norm),
