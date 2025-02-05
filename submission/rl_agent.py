@@ -84,6 +84,10 @@ class Agent():
         self.points_history = jnp.zeros((101, 1), dtype=jnp.int32)
         self.nebula_info = jnp.zeros((1, 2))
         self.prev_agent_energies = jnp.zeros((1, 16, 1))
+
+        self.prev_opponent_points = 0
+        self.opponent_points_gained = 0
+        self.prev_opponent_points_gained = 0
  
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
@@ -114,6 +118,11 @@ class Agent():
         self.points_gained = team_points - self.prev_team_points
         self.prev_team_points = team_points
 
+        self.prev_opponent_points_gained = self.opponent_points_gained
+        opponent_points = obs['team_points'][self.opponent_team_id]
+        self.opponent_points_gained = opponent_points - self.prev_opponent_points
+        self.prev_opponent_points = opponent_points
+
         representations = create_representations(
             obs=observation,
             temporal_states=self.temporal_states,
@@ -122,16 +131,19 @@ class Agent():
             points_map=self.points_map,
             search_map=self.search_map,
             points_gained=jnp.array([self.points_gained]),
+            opponent_points_gained=jnp.array([self.opponent_points_gained]),
             points_history_positions=self.points_history_positions,
             points_history=self.points_history,
+            prev_opponent_points_gained=jnp.array([self.prev_opponent_points_gained]),
             unit_move_cost=jnp.array([self.env_cfg["unit_move_cost"]]),
+            sensor_range=jnp.array([self.env_cfg["unit_sensor_range"]]),
             nebula_info=self.nebula_info,
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
         )
         
         (
-            _,
+            states,
             temporal_states,
             agent_observations,
             episode_info,
@@ -185,6 +197,7 @@ class Agent():
                 "unit_sap_range": self.unit_sap_range,
                 "unit_sensor_range": self.unit_sensor_range,
                 "energies": agent_energies,
+                "points_gained_history": agent_episode_info[:, 4:],
             }
         )
 
