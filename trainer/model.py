@@ -314,6 +314,7 @@ class Critic(nn.Module):
                     use_bias=False
                 ),
                 nn.leaky_relu,
+                lambda x: x.reshape(x.shape[0], -1),
                 nn.Dense(512),
             ]
         )
@@ -338,7 +339,7 @@ class Critic(nn.Module):
         ])(info_input)
 
         embeddings = jnp.concat([
-            jnp.mean(state_embeddings, axis=[1, 2]),
+            state_embeddings,
             info_embeddings,
         ], axis=-1)
 
