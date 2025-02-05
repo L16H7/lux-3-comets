@@ -1,9 +1,13 @@
 import jax
 import jax.numpy as jnp
 
+from utils import transform_observation_3dim
 
+
+@jax.jit
 def calculate_nebula_map(
     sensor_map,
+    sensor_range,
     nebula_map,
     nebula_info,
     prev_agent_positions,
@@ -58,6 +62,56 @@ def calculate_nebula_map(
 
     updated_nebula_energy_reduction = updated_nebula_info[:, 0]
 
+    calculated_sensor_map = construct_calculated_sensor_map(
+        agent_positions,
+        sensor_range,
+    )
+    augmented_nebula_map = calculated_sensor_map & ~sensor_map
+    transformed_augmented_nebula_map = transform_observation_3dim(augmented_nebula_map)
+    augmented_nebula_map = jnp.where(
+        transformed_augmented_nebula_map != 0,
+        transformed_augmented_nebula_map,
+        augmented_nebula_map,
+    )
+
+    nebula_map = jnp.where(
+        augmented_nebula_map != 0,
+        augmented_nebula_map,
+        nebula_map,
+    )
     updated_nebula_map = nebula_map * ((updated_nebula_energy_reduction - 1) * 0.05)[:, None, None]
 
     return updated_nebula_info, updated_nebula_map
+
+
+@jax.jit
+def construct_calculated_sensor_map(unit_positions, unit_sensor_range, map_size=24):
+    n_envs, n_units, _ = unit_positions.shape
+    
+    # Mask invalid unit positions
+    valid_mask = jnp.any(unit_positions != -1, axis=-1)
+    
+    # Calculate sensor grid bounds
+    x_min = jnp.maximum(0, unit_positions[:, :, 0] - unit_sensor_range[:, None])
+    x_max = jnp.minimum(map_size, unit_positions[:, :, 0] + unit_sensor_range[:, None] + 1)
+    y_min = jnp.maximum(0, unit_positions[:, :, 1] - unit_sensor_range[:, None])
+    y_max = jnp.minimum(map_size, unit_positions[:, :, 1] + unit_sensor_range[:, None] + 1)
+    
+    # Replace bounds for invalid units with invalid values
+    x_min = jnp.where(valid_mask, x_min, map_size)
+    x_max = jnp.where(valid_mask, x_max, 0)
+    y_min = jnp.where(valid_mask, y_min, map_size)
+    y_max = jnp.where(valid_mask, y_max, 0)
+    
+    # Create indices for visible areas
+    x_idx = jnp.arange(map_size)[None, None, :]
+    y_idx = jnp.arange(map_size)[None, None, :]
+    
+    # Mask visible areas
+    visible_mask_x = (x_idx >= x_min[:, :, None]) & (x_idx < x_max[:, :, None])
+    visible_mask_y = (y_idx >= y_min[:, :, None]) & (y_idx < y_max[:, :, None])
+    
+    # Combine masks
+    visible_mask = jnp.any((visible_mask_x[:, :, None, :] & visible_mask_y[:, :, :, None]), axis=1)
+    
+    return visible_mask
