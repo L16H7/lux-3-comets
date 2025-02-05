@@ -125,7 +125,6 @@ class Actor(nn.Module):
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
-            nn.LayerNorm(),
             nn.leaky_relu,
             nn.Conv(
                 features=128,
@@ -175,7 +174,6 @@ class Actor(nn.Module):
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
-                nn.LayerNorm(),
                 nn.leaky_relu,
             ]
         )
