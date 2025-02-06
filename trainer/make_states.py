@@ -26,6 +26,7 @@ def make_states(config: Config):
         "unit_sensor_range": jnp.zeros((BATCH,)),
         "energies": jnp.zeros((BATCH,)),
         "points_gained_history": jnp.zeros((BATCH, 4)),
+        "units_mask": jnp.zeros((BATCH,)),
     }
     actor_network_params = actor.init(rng, actor_input)
     print(actor.tabulate(rng, actor_input))

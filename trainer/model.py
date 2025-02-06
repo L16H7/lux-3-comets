@@ -165,16 +165,11 @@ class Actor(nn.Module):
             nn.leaky_relu,
         ])(info_input)
 
-        actor = nn.Sequential(
+        agent_encoder = nn.Sequential(
             [
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
-                nn.leaky_relu,
-                nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
-                ),
-                nn.leaky_relu,
             ]
         )
 
@@ -184,47 +179,74 @@ class Actor(nn.Module):
             observation_embeddings,
         ], axis=-1)
 
-        x = actor(embeddings)
+        x = agent_encoder(embeddings)
 
-        action_head = nn.Sequential(
+        attention_is_all_you_need = nn.SelfAttention(
+            kernel_init=nn.initializers.xavier_uniform(),
+            broadcast_dropout=False,
+            num_heads=8,
+        )
+
+        units_mask = actor_input["units_mask"].reshape((-1, 16))
+        # Create attention mask: (n_envs, num_heads, qv length, k length)
+        attention_mask = jnp.expand_dims(units_mask, axis=1)  # (n_envs, 1, n_agents)
+        attention_mask = jnp.expand_dims(attention_mask, axis=2)  # (n_envs, 1, 1, n_agents)
+        attention_mask = jnp.tile(attention_mask, (1, 8, 16, 1))  # (n_envs, num_heads, qv length, k length)
+
+        attention = attention_is_all_you_need(
+            inputs_q=x.reshape(-1, 16, self.hidden_dim),
+            mask=attention_mask,
+        )
+        shared_action_encoder = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+            ]
+        )
+        shared_action_embeddings = shared_action_encoder(attention.reshape(-1, 16 * self.hidden_dim))
+        shared_action_head = nn.Sequential(
             [
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.leaky_relu,
                 nn.Dense(
-                    self.n_actions, kernel_init=orthogonal(0.01),
+                    self.n_actions * 16, kernel_init=orthogonal(0.01),
                 ),
             ]
         )
+        shared_logits1 = shared_action_head(shared_action_embeddings)
 
-        x_coordinate_head = nn.Sequential(
+        shared_x_coordinate_head = nn.Sequential(
             [
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.leaky_relu,
                 nn.Dense(
-                    17, kernel_init=orthogonal(0.01),
+                    17 * 16, kernel_init=orthogonal(0.01),
                 ),
             ]
         )
+        shared_logits2 = shared_x_coordinate_head(shared_action_embeddings)
 
-        y_coordinate_head = nn.Sequential(
+        shared_y_coordinate_head = nn.Sequential(
             [
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.leaky_relu,
                 nn.Dense(
-                    17, kernel_init=orthogonal(0.01),
+                    17 * 16, kernel_init=orthogonal(0.01),
                 ),
             ]
         )
+        shared_logits3 = shared_y_coordinate_head(shared_action_embeddings)
 
-        logits1 = action_head(x)
-        logits2 = x_coordinate_head(x)
-        logits3 = y_coordinate_head(x)
+        logits1 = shared_logits1.reshape(-1, 6)
+        logits2 = shared_logits2.reshape(-1, 17)
+        logits3 = shared_logits3.reshape(-1, 17)
 
         return logits1, logits2, logits3
 

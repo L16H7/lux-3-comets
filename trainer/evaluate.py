@@ -70,6 +70,7 @@ def evaluate(
                 "unit_sensor_range": env_info[:, 3],
                 "energies": p0_agent_energies,
                 "points_gained_history": p0_agent_episode_info[:, 4:],
+                "units_mask": p0_units_mask.reshape(-1),
             }
         )
 
@@ -122,6 +123,7 @@ def evaluate(
                 "unit_sensor_range": env_info[:, 3],
                 "energies": p1_agent_energies,
                 "points_gained_history": p1_agent_episode_info[:, 4:],
+                "units_mask": p1_units_mask.reshape(-1),
             }
         )
 

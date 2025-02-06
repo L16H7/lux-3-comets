@@ -83,6 +83,7 @@ def ppo_update(
                 "unit_sensor_range": transitions.env_information[:, 3],
                 "energies": transitions.agent_energies,
                 "points_gained_history": transitions.agent_episode_info[:, 4:],
+                "units_mask": transitions.units_mask,
             }
         )
         logits1, logits2, logits3 = logits
