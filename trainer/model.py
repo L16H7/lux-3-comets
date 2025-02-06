@@ -293,6 +293,8 @@ class Critic(nn.Module):
             critic_input['match_steps'][:, None],
             critic_input['matches'][:, None],
             critic_input['points_gained_history'],
+            critic_input['unit_sap_cost'].reshape(-1, 16, 1)[:, 0],
+            critic_input['unit_sap_range'].reshape(-1, 16, 1)[:, 0],
         ], axis=-1)
 
 
