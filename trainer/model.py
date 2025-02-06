@@ -108,17 +108,17 @@ class Actor(nn.Module):
     def __call__(self, actor_input: ActorInput):
         observation_encoder = nn.Sequential([
             nn.Conv(
-                features=128,
-                kernel_size=(5, 5),
+                features=64,
+                kernel_size=(3, 3),
                 strides=(3, 3),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False,
             ),
             nn.leaky_relu,
-            ResidualBlock(128),
+            ResidualBlock(64),
             nn.Conv(
-                features=256,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(2, 2),
                 padding=0,
@@ -126,24 +126,24 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.leaky_relu,
-            ResidualBlock(256),
             nn.Conv(
-                features=512,
+                features=128,
                 kernel_size=(3, 3),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
             nn.leaky_relu,
-            ResidualBlock(512),
+            ResidualBlock(128),
             nn.Conv(
-                features=64,
-                kernel_size=(1, 1),
-                strides=(1, 1),
+                features=128,
+                kernel_size=(3, 3),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True,
+                use_bias=False
             ),
+            nn.leaky_relu,
+            ResidualBlock(128),
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(512),
         ])
