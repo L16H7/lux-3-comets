@@ -145,9 +145,9 @@ class Actor(nn.Module):
         )
 
         position_embeddings = get_2d_positional_embeddings(
-            actor_input['positions'] // 4,
+            actor_input['positions'],
             embedding_dim=32,
-            max_size=6
+            max_size=24,
         )
 
         info_input = jnp.concatenate([
@@ -186,10 +186,41 @@ class Actor(nn.Module):
 
         x = actor(embeddings)
 
-        action_head = nn.Dense(self.n_actions, kernel_init=orthogonal(0.01))
+        action_head = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
+                nn.Dense(
+                    self.n_actions, kernel_init=orthogonal(0.01),
+                ),
+            ]
+        )
 
-        x_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
-        y_coordinate_head = nn.Dense(17, kernel_init=orthogonal(0.01))
+        x_coordinate_head = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
+                nn.Dense(
+                    17, kernel_init=orthogonal(0.01),
+                ),
+            ]
+        )
+
+        y_coordinate_head = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.leaky_relu,
+                nn.Dense(
+                    17, kernel_init=orthogonal(0.01),
+                ),
+            ]
+        )
 
         logits1 = action_head(x)
         logits2 = x_coordinate_head(x)
@@ -206,8 +237,8 @@ class CriticInput(TypedDict):
  
 
 class Critic(nn.Module):
-    info_emb_dim: int = 96
-    hidden_dim: int = 256
+    info_emb_dim: int = 128
+    hidden_dim: int = 512
  
     @nn.compact
     def __call__(self, critic_input):
@@ -248,7 +279,7 @@ class Critic(nn.Module):
                 ),
                 nn.leaky_relu,
                 lambda x: x.reshape((x.shape[0], -1)),
-                nn.Dense(256),
+                nn.Dense(512),
                 nn.leaky_relu,
             ]
         )
