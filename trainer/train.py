@@ -403,7 +403,7 @@ def make_train(config: Config):
                             "matches": p1_episode_info[:, 1],
                             "team_points": p1_episode_info[:, 2],
                             "opponent_points": p1_episode_info[:, 3],
-                            "points_gained_history": p0_episode_info[:, 4:],
+                            "points_gained_history": p1_episode_info[:, 4:],
                         }
                     )
 
@@ -541,7 +541,7 @@ def make_train(config: Config):
                         "matches": p1_episode_info[:, 1],
                         "team_points": p1_episode_info[:, 2],
                         "opponent_points": p1_episode_info[:, 3],
-                        "points_gained_history": p0_episode_info[:, 4:],
+                        "points_gained_history": p1_episode_info[:, 4:],
                     }
                 )
 

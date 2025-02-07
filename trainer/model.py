@@ -145,9 +145,9 @@ class Actor(nn.Module):
         )
 
         position_embeddings = get_2d_positional_embeddings(
-            actor_input['positions'] // 4,
+            actor_input['positions'],
             embedding_dim=32,
-            max_size=6
+            max_size=24
         )
 
         info_input = jnp.concatenate([
