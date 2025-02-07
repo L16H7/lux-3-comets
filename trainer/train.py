@@ -551,6 +551,8 @@ def make_train(config: Config):
                     config.gamma,
                     config.gae_lambda
                 )
+                advantages = jax.lax.stop_gradient(advantages)
+                targets = jax.lax.stop_gradient(targets)
 
                 def _update_epoch(update_state, _):
                     def _update_minibatch(train_state, batch_info):
