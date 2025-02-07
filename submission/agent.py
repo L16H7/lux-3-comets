@@ -16,6 +16,7 @@ directions = jnp.array(
     dtype=jnp.int16,
 )
 
+@jax.jit
 def transform_observation(obs):
     # Horizontal flip across the last dimension (24, 24 grids)
     flipped = jnp.flip(obs, axis=2)
@@ -25,6 +26,7 @@ def transform_observation(obs):
     
     return rotated
 
+@jax.jit
 def vectorized_transform_actions(actions):
     # Create a JAX array that maps each action index to its new action
     # Index:      0  1  2  3  4 . 5
@@ -35,6 +37,7 @@ def vectorized_transform_actions(actions):
     transformed_actions = action_map[actions]
     return transformed_actions
 
+@jax.jit
 def mask_sap_range(logits_slice, cutoff_range):
     cols = logits_slice.shape[1]
     mask = jnp.arange(cols) < cutoff_range
@@ -49,6 +52,7 @@ mask_sap_range_vmap = jax.vmap(
     in_axes=(0, 0)
 )
 
+@jax.jit
 def mask_out_of_bounds(agent_positions):
     target_coods = jnp.arange(-8, 9)
     target_x = agent_positions.reshape(-1, 2)[:, 0][:, None] + target_coods[None, :]
@@ -58,13 +62,14 @@ def mask_out_of_bounds(agent_positions):
     target_y = (target_y >= 0) & (target_y < Constants.MAP_HEIGHT)
     return target_x, target_y
 
-def filter_targets_with_sensor(targets, sensor_map):
+@jax.jit
+def filter_targets_with_boolean_map(targets, boolean_map):
     """
-    Filter target positions, replacing with (-1, -1) if sensor is True at that position.
+    Filter target positions, replacing with (-1, -1) if boolean_map is True at that position.
     
     Args:
         target_positions (jnp.ndarray): Shape (n_envs, 16, 2) array of target positions
-        sensor_map (jnp.ndarray): Shape (n_envs, 24, 24) boolean array where True means sensor
+        boolean_mask (jnp.ndarray): Shape (n_envs, 24, 24) boolean array
         
     Returns:
         jnp.ndarray: Shape (n_envs, 16, 2) filtered target positions
@@ -72,10 +77,11 @@ def filter_targets_with_sensor(targets, sensor_map):
     x_indices, y_indices = targets[..., 0], targets[..., 1]
     
     # Get the boolean values from maps using advanced indexing
-    result = sensor_map[jnp.arange(sensor_map.shape[0])[:, None, None], x_indices, y_indices]
+    result = boolean_map[jnp.arange(boolean_map.shape[0])[:, None, None], y_indices, x_indices]
     return result
 
 
+@jax.jit
 def compute_collision_avoidance(ally_pos, ally_energy, enemy_pos, enemy_energy, directions):
     """
     Computes an action mask for allied agents given positions and energies.
@@ -159,7 +165,16 @@ all_directions = jnp.array([
 
 
 # @jax.jit
-def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap_ranges, relic_nodes):
+def get_actions(
+    rng,
+    team_idx: int,
+    opponent_idx: int,
+    logits,
+    observations,
+    sap_ranges,
+    relic_nodes,
+    points_map,
+):
     n_envs = observations.units.position.shape[0]
     
     agent_positions = observations.units.position[:, team_idx, ..., None, :] 
@@ -182,10 +197,14 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
     ]
     valid_movements = in_bounds & (~is_asteroid)
 
+    agent_positions_for_collision = observations.units.position[:, team_idx, ...]
+    opponent_positions_for_collision = observations.units.position[:, opponent_idx, ...]
+    agent_positions_for_collision = agent_positions_for_collision if team_idx == 0 else transform_coordinates(agent_positions_for_collision)
+    opponent_positions_for_collision = opponent_positions_for_collision if team_idx == 0 else transform_coordinates(opponent_positions_for_collision)
     valid_collision_avoidance = compute_collision_avoidance(
-        transform_coordinates(observations.units.position[:, team_idx, ...]),
+        agent_positions_for_collision,
         observations.units.energy[:, team_idx, :],
-        transform_coordinates(observations.units.position[:, opponent_idx, ...]),
+        opponent_positions_for_collision,
         observations.units.energy[:, opponent_idx, :],
         all_directions,
     )
@@ -262,13 +281,18 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         -1
     )
 
-    sensor_mask = observations.sensor_mask
+    sensor_mask = observations.sensor_mask.transpose(0, 2, 1)
     sensor_mask = sensor_mask if team_idx == 0 else transform_observation(sensor_mask)
 
-    relic_targets_mask = filter_targets_with_sensor(
+    relic_targets_mask = filter_targets_with_boolean_map(
         relic_targets,
         ~sensor_mask
     )
+    points_targets_mask = filter_targets_with_boolean_map(
+        relic_targets,
+        points_map == 1,
+    )
+    relic_targets_mask = relic_targets_mask & points_targets_mask
 
     relic_targets = jnp.where(
         relic_targets_mask[..., None].repeat(2, axis=-1),
@@ -304,14 +328,19 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
         valid_collision_avoidance,
         jnp.expand_dims(valid_collision_avoidance.sum(axis=-1) == 5, axis=-1) # if you have to run, don't sap
     ], axis=-1)
-    valid_movements = valid_movements & valid_collision_avoidance
+    valid_movements = valid_movements & valid_collision_avoidance.reshape(1, -1, 6)
 
     sap_mask = jnp.concatenate([
         jnp.ones((1, n_envs * 16, 5)), # allow all movements
         target_x.sum(axis=-1).reshape(1, n_envs * 16, 1),
     ], axis=-1)
+
+    non_negative_energy_mask = jnp.concatenate([
+        jnp.ones((1, n_envs * 16, 1), dtype=jnp.bool), # allow only NO-OP
+        (observations.units.energy[:, team_idx, :].reshape(-1) > 0)[None, :, None].repeat(5, axis=-1),
+    ], axis=-1)
     
-    logits1_mask = valid_movements & (sap_mask > 0)
+    logits1_mask = valid_movements & (sap_mask > 0) & non_negative_energy_mask
 
     logits1, logits2, logits3 = logits
 
@@ -353,6 +382,7 @@ def get_actions(rng, team_idx: int, opponent_idx: int, logits, observations, sap
 
     return actions
 
+@jax.jit
 def generate_attack_masks(agent_positions, target_positions, x_range=8, y_range=8, choose_y=False, chosen_x=None,):
     """
     Generate attack masks for agents based on both x and y distances to targets.
@@ -440,6 +470,7 @@ generate_attack_masks_batch = jax.vmap(
     in_axes=(0, 0, 0, 0)
 )
 
+@jax.jit
 def generate_attack_masks_y(agent_positions, target_positions, x_range=8, y_range=8, chosen_x=None):
     """
     Generate attack masks for agents based on both x and y distances to targets.

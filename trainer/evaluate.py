@@ -45,12 +45,13 @@ def evaluate(
             p0_units_mask,
             p0_discovered_relic_nodes,
             p0_points_history_positions,
-            p0_points_history
+            p0_points_history,
+            updated_nebula_info
         ) = p0_representations
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
         p0_agent_states = p0_states.repeat(16, axis=0)
-        p0_agent_observations = p0_agent_observations.reshape(-1, 17, 47, 47)
+        p0_agent_observations = p0_agent_observations.reshape(-1, 16, 47, 47)
         p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
         p0_logits = actor_train_state.apply_fn(
@@ -68,6 +69,7 @@ def evaluate(
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
                 "energies": p0_agent_energies,
+                "points_gained_history": p0_agent_episode_info[:, 4:],
             }
         )
 
@@ -80,6 +82,7 @@ def evaluate(
             observations=observations['player_0'],
             sap_ranges=meta_env_params.unit_sap_range,
             relic_nodes=p0_discovered_relic_nodes,
+            points_map=p0_points_map,
         )
 
         (
@@ -94,12 +97,13 @@ def evaluate(
             p1_units_mask,
             p1_discovered_relic_nodes,
             p1_points_history_positions,
-            p1_points_history
+            p1_points_history,
+            _
         ) = p1_representations
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
         p1_agent_states = p1_states.repeat(16, axis=0)
-        p1_agent_observations = p1_agent_observations.reshape(-1, 17, 47, 47)
+        p1_agent_observations = p1_agent_observations.reshape(-1, 16, 47, 47)
         p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
         p1_logits = actor_train_state.apply_fn(
@@ -117,6 +121,7 @@ def evaluate(
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
                 "energies": p1_agent_energies,
+                "points_gained_history": p1_agent_episode_info[:, 4:],
             }
         )
 
@@ -128,6 +133,7 @@ def evaluate(
             observations=observations['player_1'],
             sap_ranges=meta_env_params.unit_sap_range,
             relic_nodes=p1_discovered_relic_nodes,
+            points_map=p1_points_map,
         )
 
         transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
@@ -171,6 +177,7 @@ def evaluate(
             p1_points_history_positions,
             p0_points_history,
             p1_points_history,
+            updated_nebula_info,
             meta_keys,
             meta_env_params,
         )
@@ -231,6 +238,8 @@ def evaluate(
 
     runner_state, info = jax.lax.scan(_env_step, runner_state, None, 505)
 
+    nebula_energy_reduction_calculation_success_rate = (abs(runner_state[2][0][-1][:, 0]) == meta_env_params.nebula_tile_energy_reduction).sum() / n_envs
+
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 502]), axis=0), info)
 
     info_ = {
@@ -256,6 +265,7 @@ def evaluate(
         "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
         "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
         "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
+        "eval/nebula_energy_reduction_calculation_success_rate": nebula_energy_reduction_calculation_success_rate,
     }
 
     info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}

@@ -29,7 +29,7 @@ from luxai_s3.params import EnvParams, env_params_ranges
 from make_states import make_states
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
-from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info
+from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info, reconcile_positions
 from model import Actor
 
 
@@ -64,12 +64,15 @@ def make_train(config: Config):
             p1_search_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.int32),
             p0_points_gained=jnp.zeros((n_envs)),
             p1_points_gained=jnp.zeros((n_envs)),
-            p0_prev_agent_positions=jnp.zeros((n_envs, 16, 2), dtype=jnp.int32),
-            p1_prev_agent_positions=jnp.zeros((n_envs, 16, 2), dtype=jnp.int32),
-            p0_points_history_positions=jnp.zeros((101, n_envs, 16, 2), dtype=jnp.int32),
-            p1_points_history_positions=jnp.zeros((101, n_envs, 16, 2), dtype=jnp.int32),
+            p0_prev_agent_energies=states.units.energy[:, 0, ...],
+            p1_prev_agent_energies=states.units.energy[:, 1, ...],
+            p0_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
+            p1_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
             p0_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
             p1_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
+            unit_move_cost=meta_env_params.unit_move_cost,
+            sensor_range=meta_env_params.unit_sensor_range,
+            nebula_info=jnp.zeros((n_envs, 2)), # [nebula_energy_deduction, is_updated]
         )
         return p0_representations, p1_representations, observations, states
 
@@ -93,6 +96,7 @@ def make_train(config: Config):
         p1_points_history_positions,
         p0_points_history,
         p1_points_history,
+        updated_nebula_info,
         meta_keys,
         meta_env_params,
     ):
@@ -110,29 +114,34 @@ def make_train(config: Config):
             next_observations['player_0'].relic_nodes, 
             p0_discovered_relic_nodes
         )
+        p0_new_discovered_relic_nodes = reconcile_positions(p0_new_discovered_relic_nodes)
         p0_relic_nodes_after = (p0_new_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p0_relic_nodes_diff = p0_relic_nodes_after - p0_relic_nodes_before
+        p0_relic_diff_mask = p0_relic_nodes_diff > 0
+
         p0_points_map = jnp.where(
-            p0_relic_nodes_diff[:, None, None] > 0,
+            jnp.broadcast_to(
+                p0_relic_diff_mask[:, None, None],
+                p0_points_map.shape
+            ), 
             jnp.maximum(p0_points_map, 0),
             p0_points_map,
         )
 
-        mask = p0_relic_nodes_diff > 0
-        expanded_mask = mask[None, :, None, None]
-        full_mask = jnp.broadcast_to(
-            expanded_mask,
-            p0_points_history_positions.shape
-        )
-        
         p0_points_history_positions = jnp.where(
-            full_mask, 
-            jnp.zeros_like(p0_points_history_positions),
+            jnp.broadcast_to(
+                p0_relic_diff_mask[None, :, None, None],
+                p0_points_history_positions.shape
+            ), 
+            (jnp.ones_like(p0_points_history_positions) * -1),
             p0_points_history_positions
         )
 
         p0_points_history = jnp.where(
-            p0_relic_nodes_diff[None, :] > 0,
+            jnp.broadcast_to(
+                p0_relic_diff_mask[None, :],
+                p0_points_history.shape
+            ),
             jnp.zeros_like(p0_points_history),
             p0_points_history,
         )
@@ -145,29 +154,34 @@ def make_train(config: Config):
             p1_discovered_relic_nodes
         )
 
+        p1_new_discovered_relic_nodes = reconcile_positions(p1_new_discovered_relic_nodes)
         p1_relic_nodes_after = (p1_new_discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         p1_relic_nodes_diff = p1_relic_nodes_after - p1_relic_nodes_before
+        p1_relic_diff_mask = p1_relic_nodes_diff > 0
+
         p1_points_map = jnp.where(
-            p1_relic_nodes_diff[:, None, None] > 0,
+            jnp.broadcast_to(
+                p1_relic_diff_mask[:, None, None],
+                p1_points_map.shape
+            ), 
             jnp.maximum(p1_points_map, 0),
             p1_points_map,
         )
 
-        mask = p1_relic_nodes_diff > 0
-        expanded_mask = mask[None, :, None, None]
-        full_mask = jnp.broadcast_to(
-            expanded_mask,
-            p1_points_history_positions.shape
-        )
-        
         p1_points_history_positions = jnp.where(
-            full_mask, 
-            jnp.zeros_like(p1_points_history_positions),
+            jnp.broadcast_to(
+                p1_relic_diff_mask[None, :, None, None],
+                p1_points_history_positions.shape
+            ), 
+            (jnp.ones_like(p1_points_history_positions) * -1),
             p1_points_history_positions
         )
 
         p1_points_history = jnp.where(
-            p1_relic_nodes_diff[None, :] > 0,
+            jnp.broadcast_to(
+                p1_relic_diff_mask[None, :],
+                p1_points_history.shape
+            ),
             jnp.zeros_like(p1_points_history),
             p1_points_history,
         )
@@ -191,18 +205,6 @@ def make_train(config: Config):
             "p1_net_energy_of_sap_loss": envinfo["net_energy_of_sap_loss"][:, 1].mean(),
         }
 
-        p0_agent_positions = jnp.where(
-            next_observations['player_0'].units.energy[:, 0, :, None].repeat(2, axis=-1) > -1,
-            next_observations['player_0'].units.position[:, 0, ...],
-            -1
-        )
-
-        p1_agent_positions = jnp.where(
-            next_observations['player_1'].units.energy[:, 1, :, None].repeat(2, axis=-1) > -1,
-            next_observations['player_1'].units.position[:, 1, ...],
-            -1
-        )
-
         p0_next_representations, p1_next_representations = create_agent_representations(
             observations=next_observations,
             p0_temporal_states=p0_temporal_states,
@@ -215,12 +217,15 @@ def make_train(config: Config):
             p1_search_map=p1_search_map,
             p0_points_gained=envinfo["points_gained"][..., 0],
             p1_points_gained=envinfo["points_gained"][..., 1],
-            p0_prev_agent_positions=p0_agent_positions,
-            p1_prev_agent_positions=p1_agent_positions,
+            p0_prev_agent_energies=states.units.energy[:, 0, ...],
+            p1_prev_agent_energies=states.units.energy[:, 1, ...],
             p0_points_history_positions=p0_points_history_positions,
             p1_points_history_positions=p1_points_history_positions,
             p0_points_history=p0_points_history,
             p1_points_history=p1_points_history,
+            unit_move_cost=meta_env_params.unit_move_cost,
+            sensor_range=meta_env_params.unit_sensor_range,
+            nebula_info=updated_nebula_info,
         )
         return p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, info
         
@@ -280,6 +285,7 @@ def make_train(config: Config):
                         p0_discovered_relic_nodes,
                         p0_points_history_positions,
                         p0_points_history,
+                        updated_nebula_info,
                     ) = p0_representations
                     (
                         p1_states,
@@ -294,11 +300,12 @@ def make_train(config: Config):
                         p1_discovered_relic_nodes,
                         p1_points_history_positions,
                         p1_points_history,
+                        _,
                     ) = p1_representations
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
                     p0_agent_states = p0_states.repeat(config.n_agents, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p0_agent_observations = p0_agent_observations.reshape(-1, 17, 47, 47) 
+                    p0_agent_observations = p0_agent_observations.reshape(-1, 16, 47, 47) 
                     p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
                     p0_logits = actor_train_state.apply_fn(
@@ -316,6 +323,7 @@ def make_train(config: Config):
                             "unit_sap_range": env_info[:, 2],
                             "unit_sensor_range": env_info[:, 3],
                             "energies": p0_energies,
+                            "points_gained_history": p0_agent_episode_info[:, 4:],
                         }
                     )
 
@@ -328,6 +336,7 @@ def make_train(config: Config):
                         observations=observations['player_0'],
                         sap_ranges=meta_env_params.unit_sap_range,
                         relic_nodes=p0_discovered_relic_nodes,
+                        points_map=p0_points_map,
                     )
 
                     p0_combined_states = combined_states_info(
@@ -343,12 +352,13 @@ def make_train(config: Config):
                             "matches": p0_episode_info[:, 1],
                             "team_points": p0_episode_info[:, 2],
                             "opponent_points": p0_episode_info[:, 3],
+                            "points_gained_history": p0_episode_info[:, 4:],
                         }
                     )
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
                     p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p1_agent_observations = p1_agent_observations.reshape(-1, 17, 47, 47)
+                    p1_agent_observations = p1_agent_observations.reshape(-1, 16, 47, 47)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
                     p1_logits = actor_train_state.apply_fn(
@@ -366,6 +376,7 @@ def make_train(config: Config):
                             "unit_sap_range": env_info[:, 2],
                             "unit_sensor_range": env_info[:, 3],
                             "energies": p1_energies,
+                            "points_gained_history": p1_agent_episode_info[:, 4:],
                         }
                     )
 
@@ -377,6 +388,7 @@ def make_train(config: Config):
                         observations=observations['player_1'],
                         sap_ranges=meta_env_params.unit_sap_range,
                         relic_nodes=p1_discovered_relic_nodes,
+                        points_map=p1_points_map,
                     )
 
                     p1_combined_states = combined_states_info(
@@ -391,6 +403,7 @@ def make_train(config: Config):
                             "matches": p1_episode_info[:, 1],
                             "team_points": p1_episode_info[:, 2],
                             "opponent_points": p1_episode_info[:, 3],
+                            "points_gained_history": p0_episode_info[:, 4:],
                         }
                     )
 
@@ -421,6 +434,7 @@ def make_train(config: Config):
                         p1_points_history_positions,
                         p0_points_history,
                         p1_points_history,
+                        updated_nebula_info,
                         meta_keys,
                         meta_env_params,
                     )
@@ -486,7 +500,7 @@ def make_train(config: Config):
                     _,
                     _,
                     p0_episode_info,
-                    _, _, _, _, _, _, _, _
+                    _, _, _, _, _, _, _, _, _
                 ) = p0_representations
 
                 (
@@ -494,7 +508,7 @@ def make_train(config: Config):
                     _,
                     _,
                     p1_episode_info,
-                    _, _, _, _, _, _, _, _
+                    _, _, _, _, _, _, _, _, _
                 ) = p1_representations
 
                 p0_combined_states = combined_states_info(
@@ -510,6 +524,7 @@ def make_train(config: Config):
                         "matches": p0_episode_info[:, 1],
                         "team_points": p0_episode_info[:, 2],
                         "opponent_points": p0_episode_info[:, 3],
+                        "points_gained_history": p0_episode_info[:, 4:],
                     }
                 )
 
@@ -526,6 +541,7 @@ def make_train(config: Config):
                         "matches": p1_episode_info[:, 1],
                         "team_points": p1_episode_info[:, 2],
                         "opponent_points": p1_episode_info[:, 3],
+                        "points_gained_history": p0_episode_info[:, 4:],
                     }
                 )
 
@@ -789,8 +805,8 @@ if __name__ == "__main__":
         n_epochs=1,
         actor_learning_rate=3e-4,
         critic_learning_rate=3e-4,
-        wandb_project="simplicity",
+        wandb_project="Augmented",
         train_seed=42,
-        entropy_coeff=0.005,
+        entropy_coeff=0.01,
     )
     train(config=config)
