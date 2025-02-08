@@ -212,7 +212,7 @@ def create_representations(
     match_1_update_points_map_criteria = (obs.steps < 101) & ((relic_nodes[..., 0] != -1).sum(axis=-1) == 2)
     match_2_update_points_map_criteria = (obs.steps >= 101) & (obs.steps < 202) & ((relic_nodes[..., 0] != -1).sum(axis=-1) == 4)
     match_3_update_points_map_criteria = (obs.steps >= 202) & ((relic_nodes[..., 0] != -1).sum(axis=-1) == 6)
-    general_update_criteria = (obs.steps > 303)
+    general_update_criteria = (obs.steps > 252) | ((obs.steps > 151) & obs.steps < 202)
     update_points_map_criteria = match_1_update_points_map_criteria | match_2_update_points_map_criteria | match_3_update_points_map_criteria | general_update_criteria
 
     updated_points_map = jnp.where(
