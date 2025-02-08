@@ -209,13 +209,6 @@ def create_representations(
         points_history_positions,
         points_history
     )
-    # Update twice to gain more information
-    updated_points_map = update_points_map_with_relic_nodes_scan(
-        updated_points_map,
-        relic_nodes,
-        points_history_positions,
-        points_history
-    )
     
     updated_points_map = jnp.where(
         obs.steps[0] == 102,
@@ -228,12 +221,6 @@ def create_representations(
         updated_points_map
     )
 
-    updated_points_map = jnp.where(
-        obs.steps[0] == 506,
-        jnp.zeros_like(updated_points_map),
-        updated_points_map
-    )
-
     points_history_positions = jnp.where(
         obs.steps[0] == 102,
         (jnp.ones_like(points_history_positions) * -1),
@@ -241,11 +228,6 @@ def create_representations(
     )
     points_history_positions = jnp.where(
         obs.steps[0] == 203,
-        (jnp.ones_like(points_history_positions) * -1),
-        points_history_positions
-    )
-    points_history_positions = jnp.where(
-        obs.steps[0] == 506,
         (jnp.ones_like(points_history_positions) * -1),
         points_history_positions
     )
@@ -257,11 +239,6 @@ def create_representations(
     )
     points_history = jnp.where(
         obs.steps[0] == 203,
-        jnp.zeros_like(points_history),
-        points_history
-    )
-    points_history = jnp.where(
-        obs.steps[0] == 506,
         jnp.zeros_like(points_history),
         points_history
     )
