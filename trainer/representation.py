@@ -209,12 +209,19 @@ def create_representations(
         points_history_positions,
         points_history
     )
-    # Update twice to gain more information
-    updated_points_map = update_points_map_with_relic_nodes_scan(
+    match_1_update_points_map_criteria = (obs.steps < 101) & ((relic_nodes[..., 0] != -1).sum(axis=-1) == 2)
+    match_2_update_points_map_criteria = (obs.steps >= 101) & (obs.steps < 202) & ((relic_nodes[..., 0] != -1).sum(axis=-1) == 4)
+    match_3_update_points_map_criteria = (obs.steps >= 202) & ((relic_nodes[..., 0] != -1).sum(axis=-1) == 6)
+    general_update_criteria = obs.steps > 303
+    update_points_map_criteria = match_1_update_points_map_criteria | match_2_update_points_map_criteria | match_3_update_points_map_criteria | general_update_criteria
+
+    updated_points_map = jnp.where(
+        (jnp.broadcast_to(
+            update_points_map_criteria[:, None, None],
+            points_map.shape,
+        ) | (updated_points_map != -1)),
         updated_points_map,
-        relic_nodes,
-        points_history_positions,
-        points_history
+        points_map,
     )
     
     updated_points_map = jnp.where(
@@ -228,12 +235,6 @@ def create_representations(
         updated_points_map
     )
 
-    updated_points_map = jnp.where(
-        obs.steps[0] == 506,
-        jnp.zeros_like(updated_points_map),
-        updated_points_map
-    )
-
     points_history_positions = jnp.where(
         obs.steps[0] == 102,
         (jnp.ones_like(points_history_positions) * -1),
@@ -241,11 +242,6 @@ def create_representations(
     )
     points_history_positions = jnp.where(
         obs.steps[0] == 203,
-        (jnp.ones_like(points_history_positions) * -1),
-        points_history_positions
-    )
-    points_history_positions = jnp.where(
-        obs.steps[0] == 506,
         (jnp.ones_like(points_history_positions) * -1),
         points_history_positions
     )
@@ -257,11 +253,6 @@ def create_representations(
     )
     points_history = jnp.where(
         obs.steps[0] == 203,
-        jnp.zeros_like(points_history),
-        points_history
-    )
-    points_history = jnp.where(
-        obs.steps[0] == 506,
         jnp.zeros_like(points_history),
         points_history
     )

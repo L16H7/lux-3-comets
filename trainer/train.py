@@ -403,7 +403,7 @@ def make_train(config: Config):
                             "matches": p1_episode_info[:, 1],
                             "team_points": p1_episode_info[:, 2],
                             "opponent_points": p1_episode_info[:, 3],
-                            "points_gained_history": p0_episode_info[:, 4:],
+                            "points_gained_history": p1_episode_info[:, 4:],
                         }
                     )
 
@@ -453,8 +453,8 @@ def make_train(config: Config):
                         episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),
                         agent_episode_info=jnp.concat([p0_agent_episode_info, p1_agent_episode_info], axis=0),
                         actions=jnp.concat([p0_actions.reshape(-1, 3), p1_actions.reshape(-1, 3)], axis=0),
-                        log_probs=jnp.concat([p0_log_probs, p1_log_probs], axis=0),
-                        values=jnp.concat([p0_values, p1_values], axis=0),
+                        log_probs=jnp.concat([jax.lax.stop_gradient(p0_log_probs), jax.lax.stop_gradient(p1_log_probs)], axis=0),
+                        values=jnp.concat([jax.lax.stop_gradient(p0_values), jax.lax.stop_gradient(p1_values)], axis=0),
                         agent_positions=jnp.concat([p0_agent_positions, p1_agent_positions], axis=0),
                         agent_energies=jnp.concat([p0_energies, p1_energies], axis=0),
                         rewards=jnp.concat([p0_rewards, p1_rewards], axis=0),
@@ -541,7 +541,7 @@ def make_train(config: Config):
                         "matches": p1_episode_info[:, 1],
                         "team_points": p1_episode_info[:, 2],
                         "opponent_points": p1_episode_info[:, 3],
-                        "points_gained_history": p0_episode_info[:, 4:],
+                        "points_gained_history": p1_episode_info[:, 4:],
                     }
                 )
 
@@ -551,6 +551,8 @@ def make_train(config: Config):
                     config.gamma,
                     config.gae_lambda
                 )
+                advantages = jax.lax.stop_gradient(advantages)
+                targets = jax.lax.stop_gradient(targets)
 
                 def _update_epoch(update_state, _):
                     def _update_minibatch(train_state, batch_info):
@@ -795,16 +797,16 @@ def train(config: Config):
 
 if __name__ == "__main__":
     config = Config(
-        n_meta_steps=1,
-        n_actor_steps=16,
-        n_update_steps=32,
-        n_envs=96,
-        n_envs_per_device=96,
-        n_eval_envs=96,
-        n_minibatches=32,
+        n_meta_steps=20,
+        n_actor_steps=14,
+        n_update_steps=36,
+        n_envs=64,
+        n_envs_per_device=64,
+        n_eval_envs=64,
+        n_minibatches=16,
         n_epochs=1,
-        actor_learning_rate=3e-4,
-        critic_learning_rate=3e-4,
+        actor_learning_rate=8e-5,
+        critic_learning_rate=1e-4,
         wandb_project="Augmented",
         train_seed=42,
         entropy_coeff=0.01,
