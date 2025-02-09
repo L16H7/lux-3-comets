@@ -83,6 +83,49 @@ class ResidualBlock(nn.Module):
         y += residual
         return nn.relu(y)
 
+
+class AttentionBlock(nn.Module):
+    features: int
+    num_heads: int
+    kernel_size: Tuple[int, int] = (3, 3)
+    strides: Tuple[int, int] = (1, 1)
+    
+    @nn.compact
+    def __call__(self, x):
+        B, H, W, C = x.shape
+        residual = x
+        
+        # Reshape input to sequence: (B, H*W, C)
+        x_seq = x.reshape(B, H * W, C)
+        
+        # Multi-head attention projections
+        head_dim = self.features // self.num_heads
+        scale = head_dim ** -0.5
+        
+        # Linear projections
+        qkv = nn.Dense(features=3 * self.features)(x_seq)
+        qkv = qkv.reshape(B, -1, 3, self.num_heads, head_dim)
+        qkv = jnp.transpose(qkv, (2, 0, 3, 1, 4))
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        
+        # Scaled dot-product attention
+        attn = (q @ jnp.transpose(k, (0, 1, 3, 2))) * scale
+        attn = nn.softmax(attn, axis=-1)
+        
+        # Combine attention with values
+        x = (attn @ v).transpose(0, 2, 1, 3)
+        x = x.reshape(B, H * W, self.features)
+        
+        # Project back to original dimension
+        x = nn.Dense(features=C)(x)
+        
+        # Reshape back to spatial dimensions
+        x = x.reshape(B, H, W, C)
+        
+        # Add residual connection
+        return x + residual
+
+
 class ActorInput(TypedDict):
     positions: jax.Array
     states: jax.Array
@@ -100,15 +143,15 @@ class ActorInput(TypedDict):
  
 class Actor(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 256
-    hidden_dim: int = 512
-    position_emb_dim: int = 32
+    info_emb_dim: int = 512
+    hidden_dim: int = 1024
+    position_emb_dim: int = 64
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
         observation_encoder = nn.Sequential([
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(4, 4),
                 strides=(2, 2),
                 padding=0,
@@ -116,9 +159,10 @@ class Actor(nn.Module):
                 use_bias=False,
             ),
             nn.relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
+            AttentionBlock(features=128, num_heads=8),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(2, 2),
                 padding=0,
@@ -126,8 +170,10 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
+            ResidualBlock(128),
+            AttentionBlock(features=128, num_heads=8),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding=0,
@@ -135,9 +181,10 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
+            AttentionBlock(features=128, num_heads=8),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding=0,
@@ -145,9 +192,9 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
             lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(512),
+            nn.Dense(1024),
             nn.relu,
         ])
 
@@ -158,7 +205,7 @@ class Actor(nn.Module):
 
         position_embeddings = get_2d_positional_embeddings(
             actor_input['positions'],
-            embedding_dim=32,
+            embedding_dim=self.position_emb_dim,
             max_size=24
         )
 
@@ -181,6 +228,12 @@ class Actor(nn.Module):
             nn.relu,
         ])(info_input)
 
+        embeddings = jnp.concat([
+            info_embeddings,
+            position_embeddings,
+            observation_embeddings,
+        ], axis=-1)
+
         actor = nn.Sequential(
             [
                 nn.Dense(
@@ -193,12 +246,6 @@ class Actor(nn.Module):
                 nn.relu,
             ]
         )
-
-        embeddings = jnp.concat([
-            info_embeddings,
-            position_embeddings,
-            observation_embeddings,
-        ], axis=-1)
 
         x = actor(embeddings)
 
@@ -262,7 +309,7 @@ class Critic(nn.Module):
 
         state_encoder = nn.Sequential([
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(4, 4),
                 strides=(2, 2),
                 padding='SAME',
@@ -270,9 +317,10 @@ class Critic(nn.Module):
                 use_bias=False,
             ),
             nn.relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
+            AttentionBlock(features=128, num_heads=8),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(2, 2),
                 padding='SAME',
@@ -280,8 +328,10 @@ class Critic(nn.Module):
                 use_bias=False
             ),
             nn.relu,
+            ResidualBlock(128),
+            AttentionBlock(features=128, num_heads=8),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding='SAME',
@@ -289,9 +339,10 @@ class Critic(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
+            AttentionBlock(features=128, num_heads=8),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding='SAME',
@@ -299,7 +350,7 @@ class Critic(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(512),
         ])
