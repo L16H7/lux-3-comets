@@ -497,6 +497,7 @@ def create_agent_representations(
 def combined_states_info(team_states, opponent_states):
     opponent_states = transform_observation(opponent_states.copy())
     combined_states = jnp.stack([
+        # add temporal states
         team_states[:, 1, ...], # team energy
         opponent_states[:, 1, ...], # opponent energy
         team_states[:, 3, ...], # team units
@@ -509,6 +510,7 @@ def combined_states_info(team_states, opponent_states):
         opponent_states[:, 7, ...], # relic
         team_states[:, 8, ...], # point map
         opponent_states[:, 8, ...], # point map
+        # add search map
     ], axis=1)
 
     return combined_states
