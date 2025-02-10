@@ -308,25 +308,68 @@ def make_train(config: Config):
                     p0_agent_observations = p0_agent_observations.reshape(-1, 16, 47, 47) 
                     p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
-                    p0_logits = actor_train_state.apply_fn(
+                    p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
+                    p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
+                    p1_agent_observations = p1_agent_observations.reshape(-1, 16, 47, 47)
+                    p1_agent_positions = p1_agent_positions.reshape(-1, 2)
+
+                    logits = actor_train_state.apply_fn(
                         actor_train_state.params,
                         {
-                            "states": p0_agent_states,
-                            "observations": p0_agent_observations,
-                            "positions": p0_agent_positions,
-                            "match_steps": p0_agent_episode_info[:, 0],
-                            "matches": p0_agent_episode_info[:, 1],
-                            "team_points": p0_agent_episode_info[:, 2],
-                            "opponent_points": p0_agent_episode_info[:, 3],
-                            "unit_move_cost": env_info[:, 0],
-                            "unit_sap_cost": env_info[:, 1],
-                            "unit_sap_range": env_info[:, 2],
-                            "unit_sensor_range": env_info[:, 3],
-                            "energies": p0_energies,
-                            "points_gained_history": p0_agent_episode_info[:, 4:],
+                            "states": jnp.concatenate([
+                                p0_agent_states,
+                                p1_agent_states,
+                            ], axis=0),
+                            "observations": jnp.concatenate([
+                                p0_agent_observations,
+                                p1_agent_observations,
+                            ], axis=0),
+                            "positions": jnp.concatenate([
+                                p0_agent_positions,
+                                p1_agent_positions,
+                            ], axis=0),
+                            "match_steps": jnp.concatenate([
+                                p0_agent_episode_info[:, 0],
+                                p1_agent_episode_info[:, 0],
+                            ], axis=0),
+                            "matches": jnp.concatenate([
+                                p0_agent_episode_info[:, 1],
+                                p1_agent_episode_info[:, 1],
+                            ], axis=0),
+                            "team_points": jnp.concatenate([
+                                p0_agent_episode_info[:, 2],
+                                p1_agent_episode_info[:, 2],
+                            ], axis=0),
+                            "opponent_points": jnp.concatenate([
+                                p0_agent_episode_info[:, 3],
+                                p1_agent_episode_info[:, 3],
+                            ], axis=0),
+                            "unit_move_cost": env_info[:, 0].repeat(2, axis=0),
+                            "unit_sap_cost": env_info[:, 1].repeat(2, axis=0),
+                            "unit_sap_range": env_info[:, 2].repeat(2, axis=0),
+                            "unit_sensor_range": env_info[:, 3].repeat(2, axis=0),
+                            "energies": jnp.concatenate([
+                                p0_energies,
+                                p1_energies,
+                            ], axis=0),
+                            "points_gained_history": jnp.concatenate([
+                                p0_agent_episode_info[:, 4:],
+                                p1_agent_episode_info[:, 4:],
+                            ], axis=0),
                         }
                     )
 
+                    p0_logits = (
+                        logits[0][:config.n_envs_per_device * 16],
+                        logits[1][:config.n_envs_per_device * 16],
+                        logits[2][:config.n_envs_per_device * 16],
+                    )
+                    p1_logits = (
+                        logits[0][config.n_envs_per_device * 16:],
+                        logits[1][config.n_envs_per_device * 16:],
+                        logits[2][config.n_envs_per_device * 16:],
+                    )
+ 
                     rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
                     p0_actions, p0_log_probs, p0_logits_mask = get_actions(
                         rng=p0_action_rng,
@@ -356,29 +399,7 @@ def make_train(config: Config):
                         }
                     )
 
-                    p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
-                    p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p1_agent_observations = p1_agent_observations.reshape(-1, 16, 47, 47)
-                    p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
-                    p1_logits = actor_train_state.apply_fn(
-                        actor_train_state.params,
-                        {
-                            "states": p1_agent_states,
-                            "observations": p1_agent_observations,
-                            "positions": p1_agent_positions,
-                            "match_steps": p1_agent_episode_info[:, 0],
-                            "matches": p1_agent_episode_info[:, 1],
-                            "team_points": p1_agent_episode_info[:, 2],
-                            "opponent_points": p1_agent_episode_info[:, 3],
-                            "unit_move_cost": env_info[:, 0],
-                            "unit_sap_cost": env_info[:, 1],
-                            "unit_sap_range": env_info[:, 2],
-                            "unit_sensor_range": env_info[:, 3],
-                            "energies": p1_energies,
-                            "points_gained_history": p1_agent_episode_info[:, 4:],
-                        }
-                    )
 
                     p1_actions, p1_log_probs, p1_logits_mask = get_actions(
                         rng=p1_action_rng,
