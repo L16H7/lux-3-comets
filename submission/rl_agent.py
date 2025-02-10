@@ -94,14 +94,14 @@ class Agent():
         observation = DotDict(reshape_observation(obs))
 
         relic_mask = observation.relic_nodes != -1
-        relic_nodes_count_before = (self.discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        relic_nodes_count_before = (self.discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         self.discovered_relic_nodes = jnp.where(
             relic_mask,
             observation.relic_nodes, 
             self.discovered_relic_nodes,
         )
         self.discovered_relic_nodes = reconcile_positions(self.discovered_relic_nodes)
-        relic_nodes_count_after = (self.discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        relic_nodes_count_after = (self.discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
 
         # reset points map if new relic node is found
         if (relic_nodes_count_after - relic_nodes_count_before)[0] > 0:
