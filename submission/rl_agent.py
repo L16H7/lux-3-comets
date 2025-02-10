@@ -59,10 +59,10 @@ class Agent():
         self.opponent_team_id = 1 if self.team_id == 0 else 0
         self.env_cfg = env_cfg
 
-        self.unit_move_cost = jnp.array(env_cfg["unit_move_cost"]).repeat(16) / 8.0
-        self.unit_sap_cost = (jnp.array(env_cfg["unit_sap_cost"]).repeat(16) - 30.0) / 20.0
-        self.unit_sap_range = jnp.array(env_cfg["unit_sap_range"]).repeat(16) / 8.0
-        self.unit_sensor_range = jnp.array(env_cfg["unit_sensor_range"]).repeat(16) / 8.0
+        self.unit_move_cost = jnp.array(env_cfg["unit_move_cost"]).repeat(16) * 0.125
+        self.unit_sap_cost = jnp.array(env_cfg["unit_sap_cost"]).repeat(16) * 0.05
+        self.unit_sap_range = jnp.array(env_cfg["unit_sap_range"]).repeat(16) * 0.125
+        self.unit_sensor_range = jnp.array(env_cfg["unit_sensor_range"]).repeat(16) * 0.125
 
         checkpoint_path = os.path.join(script_dir, 'checkpoint')
         orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
@@ -94,14 +94,14 @@ class Agent():
         observation = DotDict(reshape_observation(obs))
 
         relic_mask = observation.relic_nodes != -1
-        relic_nodes_count_before = (self.discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        relic_nodes_count_before = (self.discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
         self.discovered_relic_nodes = jnp.where(
             relic_mask,
             observation.relic_nodes, 
             self.discovered_relic_nodes,
         )
         self.discovered_relic_nodes = reconcile_positions(self.discovered_relic_nodes)
-        relic_nodes_count_after = (self.discovered_relic_nodes[..., 0] > 0).sum(axis=-1)
+        relic_nodes_count_after = (self.discovered_relic_nodes[..., 0] > -1).sum(axis=-1)
 
         # reset points map if new relic node is found
         if (relic_nodes_count_after - relic_nodes_count_before)[0] > 0:
