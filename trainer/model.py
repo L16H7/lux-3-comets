@@ -115,44 +115,17 @@ class ActorInput(TypedDict):
  
 class Actor(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 512
-    hidden_dim: int = 1024
+    info_emb_dim: int = 256
+    hidden_dim: int = 512
     position_emb_dim: int = 64
-    patch_emb_dim: int = 768
+    patch_emb_dim: int = 512
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
         observation_encoder = nn.Sequential([
             nn.Conv(
-                features=128,
-                kernel_size=(4, 4),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=False,
-            ),
-            nn.relu,
-            nn.Conv(
-                features=256,
-                kernel_size=(4, 4),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=False,
-            ),
-            nn.relu,
-            nn.Conv(
-                features=512,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=False,
-            ),
-            nn.relu,
-            nn.Conv(
                 features=self.patch_emb_dim,
-                kernel_size=(3, 3),
+                kernel_size=(4, 4),
                 strides=(3, 3),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
