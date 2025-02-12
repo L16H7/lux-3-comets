@@ -812,5 +812,7 @@ if __name__ == "__main__":
         wandb_project="Augmented",
         train_seed=42,
         entropy_coeff=0.01,
+        gae_lambda=0.98,
+        gamma=0.995,
     )
     train(config=config)
