@@ -176,8 +176,10 @@ class Actor(nn.Module):
         x = x + pos_embed[None, ...]
 
         transformer_block = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
+        # transformer_block2 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
 
         x = transformer_block(x)
+        # x = transformer_block2(x)
 
         cls_x = x[:, 0]
 
@@ -211,7 +213,6 @@ class Actor(nn.Module):
             position_embeddings,
             cls_x,
         ], axis=-1)
-        import pdb; pdb.set_trace()
 
         actor = nn.Sequential(
             [
