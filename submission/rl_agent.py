@@ -71,7 +71,7 @@ class Agent():
         self.rng = jax.random.PRNGKey(20)
         self.actor = Actor(n_actions=6)
 
-        self.inference_fn = jax.jit(lambda x, x2: self.actor.apply(x, x2))
+        self.inference_fn = jax.jit(lambda x, x2: self.actor.apply(x, x2, rngs=self.rng))
 
         self.discovered_relic_nodes = np.ones((1, 6, 2), dtype=jnp.int32) * -1
         self.prev_team_points = 0
@@ -178,10 +178,10 @@ class Agent():
         #     jnp.save('team_0_points_map2', self.points_map)
         #     a = True
 
-        # if step == 42 and self.team_id == 1:
+        if step > 70 and self.team_id == 1:
         #     jnp.save('agent_1_team_1', agent_observations[0])
         #     jnp.save('team_1_points_map2', self.points_map)
-        #     a = True
+            a = True
 
         logits = self.inference_fn(
             { "params": self.params },
@@ -198,7 +198,7 @@ class Agent():
                 "unit_sensor_range": self.unit_sensor_range,
                 "energies": agent_energies,
                 "points_gained_history": agent_episode_info[:, 4:],
-            }
+            },
         )
 
         self.rng, action_rng = jax.random.split(self.rng)
