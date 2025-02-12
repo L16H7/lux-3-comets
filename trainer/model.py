@@ -124,13 +124,22 @@ class Actor(nn.Module):
     def __call__(self, actor_input: ActorInput):
         observation_encoder = nn.Sequential([
             nn.Conv(
-                features=self.patch_emb_dim,
+                features=self.patch_emb_dim // 2,
                 kernel_size=(4, 4),
                 strides=(3, 3),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False,
             ),
+            nn.relu,
+            nn.Conv(
+                features=self.patch_emb_dim,
+                kernel_size=(3, 3),
+                strides=(2, 2),
+                padding=0,
+                kernel_init=orthogonal(math.sqrt(2)),
+                use_bias=False,
+            )
         ])
 
         BATCH = actor_input['observations'].shape[0]
