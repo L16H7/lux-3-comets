@@ -354,7 +354,8 @@ def make_train(config: Config):
                             "team_points": p0_episode_info[:, 2],
                             "opponent_points": p0_episode_info[:, 3],
                             "points_gained_history": p0_episode_info[:, 4:],
-                        }
+                        },
+                        rngs={ "dropout": rng },
                     )
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
@@ -407,7 +408,8 @@ def make_train(config: Config):
                             "team_points": p1_episode_info[:, 2],
                             "opponent_points": p1_episode_info[:, 3],
                             "points_gained_history": p1_episode_info[:, 4:],
-                        }
+                        },
+                        rngs={ "dropout": rng },
                     )
 
                     transformed_targets = transform_coordinates(p1_actions[..., 1:], 17, 17)
@@ -528,7 +530,8 @@ def make_train(config: Config):
                         "team_points": p0_episode_info[:, 2],
                         "opponent_points": p0_episode_info[:, 3],
                         "points_gained_history": p0_episode_info[:, 4:],
-                    }
+                    },
+                    rngs={ "dropout": rng },
                 )
 
                 p1_combined_states = combined_states_info(
@@ -545,7 +548,8 @@ def make_train(config: Config):
                         "team_points": p1_episode_info[:, 2],
                         "opponent_points": p1_episode_info[:, 3],
                         "points_gained_history": p1_episode_info[:, 4:],
-                    }
+                    },
+                    rngs={ "dropout": rng },
                 )
 
                 advantages, targets = calculate_gae(
@@ -718,10 +722,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)

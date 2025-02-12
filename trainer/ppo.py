@@ -147,7 +147,8 @@ def ppo_update(
                 "team_points": transitions.episode_info[:, 2],
                 "opponent_points": transitions.episode_info[:, 3],
                 "points_gained_history": transitions.episode_info[:, 4:],
-            }
+            },
+            rngs={ "dropout": rng },
         )
         values = jnp.squeeze(values.repeat(16, axis=0), axis=-1)
 

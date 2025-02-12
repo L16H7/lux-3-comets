@@ -190,6 +190,7 @@ class Actor(nn.Module):
                 self.hidden_dim, kernel_init=orthogonal(2),
             ),
             nn.relu,
+            nn.Dropout(rate=0.15, deterministic=False),
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
             nn.relu,
         ])(info_input)
@@ -206,6 +207,7 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
+                nn.Dropout(rate=0.15, deterministic=False),
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
@@ -221,6 +223,7 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
+                nn.Dropout(rate=0.15, deterministic=False),
                 nn.Dense(
                     self.n_actions, kernel_init=orthogonal(0.01),
                 ),
@@ -233,6 +236,7 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
+                nn.Dropout(rate=0.15, deterministic=False),
                 nn.Dense(
                     17, kernel_init=orthogonal(0.01),
                 ),
@@ -245,6 +249,7 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
+                nn.Dropout(rate=0.15, deterministic=False),
                 nn.Dense(
                     17, kernel_init=orthogonal(0.01),
                 ),
@@ -369,6 +374,7 @@ class Critic(nn.Module):
         info_embeddings = nn.Sequential([
             nn.Dense(self.hidden_dim, kernel_init=orthogonal(math.sqrt(2))),
             nn.relu,
+            nn.Dropout(rate=0.2, deterministic=False),
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
             nn.relu,
         ])(info_input)
@@ -384,6 +390,7 @@ class Critic(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
+                nn.Dropout(rate=0.2, deterministic=False),
                 nn.Dense(1, kernel_init=orthogonal(1.0)),
             ]
         )
