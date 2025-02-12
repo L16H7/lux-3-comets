@@ -799,12 +799,12 @@ def train(config: Config):
 
 if __name__ == "__main__":
     config = Config(
-        n_meta_steps=20,
+        n_meta_steps=1,
         n_actor_steps=14,
         n_update_steps=36,
-        n_envs=64,
-        n_envs_per_device=64,
-        n_eval_envs=64,
+        n_envs=32,
+        n_envs_per_device=32,
+        n_eval_envs=32,
         n_minibatches=16,
         n_epochs=1,
         actor_learning_rate=8e-5,
