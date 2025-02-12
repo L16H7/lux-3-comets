@@ -258,6 +258,42 @@ class Actor(nn.Module):
         return logits1, logits2, logits3
 
 
+class ResidualBlock(nn.Module):
+    features: int
+    kernel_size: Tuple[int, int] = (3, 3)
+    strides: Tuple[int, int] = (1, 1)
+    reduction_ratio: int = 16  # Reduction ratio for SE block
+    
+    @nn.compact
+    def __call__(self, x):
+        residual = x
+        
+        # Main convolution path
+        y = nn.Conv(self.features, self.kernel_size, self.strides, 
+                   padding="SAME", use_bias=False)(x)
+        y = nn.relu(y)
+        y = nn.Conv(self.features, self.kernel_size, self.strides, 
+                   padding="SAME", use_bias=False)(y)
+        
+        # Squeeze and Excitation block
+        # Squeeze: Global average pooling
+        se = jnp.mean(y, axis=(1, 2), keepdims=True)  # Shape: (B, 1, 1, C)
+        
+        # Excitation: Two FC layers with reduction
+        se_features = max(self.features // self.reduction_ratio, 1)
+        se = nn.Conv(se_features, (1, 1), use_bias=True)(se)  # First FC
+        se = nn.relu(se)
+        se = nn.Conv(self.features, (1, 1), use_bias=True)(se)  # Second FC
+        se = nn.sigmoid(se)
+        
+        # Scale the original features
+        y = y * se
+        
+        # Add residual connection
+        y += residual
+        return nn.relu(y)
+    
+
 class CriticInput(TypedDict):
     states: jax.Array
     match_steps: jax.Array         # 4 phases each with 25 steps
@@ -275,7 +311,7 @@ class Critic(nn.Module):
 
         state_encoder = nn.Sequential([
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(4, 4),
                 strides=(2, 2),
                 padding='SAME',
@@ -283,8 +319,9 @@ class Critic(nn.Module):
                 use_bias=False,
             ),
             nn.relu,
+            ResidualBlock(64),
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(2, 2),
                 padding='SAME',
@@ -293,7 +330,7 @@ class Critic(nn.Module):
             ),
             nn.relu,
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding='SAME',
@@ -301,8 +338,9 @@ class Critic(nn.Module):
                 use_bias=False
             ),
             nn.relu,
+            ResidualBlock(64),
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding='SAME',
@@ -310,6 +348,7 @@ class Critic(nn.Module):
                 use_bias=False
             ),
             nn.relu,
+            ResidualBlock(64),
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(512),
         ])
