@@ -49,6 +49,7 @@ def calculate_gae(
     return advantages, advantages + transitions.values
 
 def ppo_update(
+    rng,
     actor_train_state: TrainState,
     critic_train_state: TrainState,
     transitions: Transition,
@@ -83,7 +84,8 @@ def ppo_update(
                 "unit_sensor_range": transitions.env_information[:, 3],
                 "energies": transitions.agent_energies,
                 "points_gained_history": transitions.agent_episode_info[:, 4:],
-            }
+            },
+            rngs={ "dropout": rng }
         )
         logits1, logits2, logits3 = logits
         
@@ -198,8 +200,6 @@ def ppo_update(
         "adv_mean": adv_mean,
         "adv_std": adv_std,
         "loss": loss,
-        "actor_resblock_mean": grads_mean[0]['params']['ResidualBlock_0']['Conv_0']['kernel'],
-        "actor_resblock_std": grads_std[0]['params']['ResidualBlock_0']['Conv_0']['kernel'],
         "actor_dense6_mean": grads_mean[0]['params']['Dense_6']['kernel'],
         "actor_dense6_std": grads_std[0]['params']['Dense_6']['kernel'],
     }

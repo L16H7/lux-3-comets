@@ -324,7 +324,8 @@ def make_train(config: Config):
                             "unit_sensor_range": env_info[:, 3],
                             "energies": p0_energies,
                             "points_gained_history": p0_agent_episode_info[:, 4:],
-                        }
+                        },
+                        rngs={"dropout": rng},
                     )
 
                     rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
@@ -377,7 +378,9 @@ def make_train(config: Config):
                             "unit_sensor_range": env_info[:, 3],
                             "energies": p1_energies,
                             "points_gained_history": p1_agent_episode_info[:, 4:],
-                        }
+
+                        },
+                        rngs={ "dropout": rng },
                     )
 
                     p1_actions, p1_log_probs, p1_logits_mask = get_actions(
@@ -556,9 +559,10 @@ def make_train(config: Config):
 
                 def _update_epoch(update_state, _):
                     def _update_minibatch(train_state, batch_info):
-                        actor_train_state, critic_train_state = train_state
+                        rng, actor_train_state, critic_train_state = train_state
                         transitions, advantages, targets = batch_info
                         updated_actor_train_state, updated_critic_train_state, minibatch_info = ppo_update(
+                            rng=rng,
                             actor_train_state=actor_train_state,
                             critic_train_state=critic_train_state,
                             transitions=transitions,
@@ -568,7 +572,7 @@ def make_train(config: Config):
                             vf_coef=config.value_coeff,
                             ent_coef=config.entropy_coeff,
                         )
-                        return (updated_actor_train_state, updated_critic_train_state), minibatch_info
+                        return (rng, updated_actor_train_state, updated_critic_train_state), minibatch_info
 
                     (
                         rng,
@@ -600,9 +604,9 @@ def make_train(config: Config):
                         lambda x: jnp.take(x, permutation, axis=0), minibatches
                     )
 
-                    (updated_actor_train_state, updated_critic_train_state), loss_info = jax.lax.scan(
+                    (rng, updated_actor_train_state, updated_critic_train_state), loss_info = jax.lax.scan(
                         _update_minibatch,
-                        (actor_train_states, critic_train_states),
+                        (rng, actor_train_states, critic_train_states),
                         shuffled_minibatches
                     ) 
 
@@ -639,8 +643,6 @@ def make_train(config: Config):
                     "adv_std": loss_info["adv_std"],
                     "value_mean": loss_info["value_mean"],
                     "value_std": loss_info["value_std"],
-                    "actor_resblock_mean": loss_info["actor_resblock_mean"],
-                    "actor_resblock_std": loss_info["actor_resblock_std"],
                     "actor_dense6_mean": loss_info["actor_dense6_mean"],
                     "actor_dense6_std": loss_info["actor_dense6_std"],
                     "reward_mean": transitions.rewards.mean(),

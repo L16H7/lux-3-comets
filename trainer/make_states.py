@@ -1,18 +1,24 @@
 import jax
 import orbax.checkpoint
 import optax
-from flax.training.train_state import TrainState
+from flax.training import train_state
 import jax.numpy as jnp
 
 from config import Config
 from model import Actor, Critic
 
+class TrainState(train_state.TrainState):
+        key: jax.Array
 
 def make_states(config: Config):
     rng = jax.random.PRNGKey(config.train_seed)
+    rng, dropout_rng = jax.random.split(rng)
     actor = Actor(n_actions=6)
     BATCH = 16
-    actor_network_params = actor.init(rng, {
+    actor_network_params = actor.init({
+            "params": rng,
+            "dropout": dropout_rng,
+        }, {
         "states": jnp.zeros((BATCH, 11, 24, 24)),
         "observations": jnp.zeros((BATCH, 16, 47, 47)),
         "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
@@ -65,16 +71,17 @@ def make_states(config: Config):
     '''
     ### ------------------------------- ###
 
-
     actor_train_state = TrainState.create(
         apply_fn=actor.apply,
         params=actor_network_params,
         tx=actor_tx,
+        key=rng,
     )
     critic_train_state = TrainState.create(
         apply_fn=critic.apply,
         params=critic_network_params,
         tx=critic_tx,
+        key=rng,
     )
 
     return actor_train_state, critic_train_state

@@ -70,7 +70,8 @@ def evaluate(
                 "unit_sensor_range": env_info[:, 3],
                 "energies": p0_agent_energies,
                 "points_gained_history": p0_agent_episode_info[:, 4:],
-            }
+            },
+            rngs={ "dropout": rng }
         )
 
         rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
@@ -122,7 +123,8 @@ def evaluate(
                 "unit_sensor_range": env_info[:, 3],
                 "energies": p1_agent_energies,
                 "points_gained_history": p1_agent_episode_info[:, 4:],
-            }
+            },
+            rngs={ "dropout": rng }
         )
 
         p1_actions, _, _ = get_actions(
