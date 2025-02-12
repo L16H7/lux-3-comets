@@ -149,10 +149,18 @@ class Actor(nn.Module):
         x = x + pos_embed[None, ...]
 
         transformer_block = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
-        # transformer_block2 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
+        transformer_block2 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
+        transformer_block3 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
+        transformer_block4 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
+        transformer_block5 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
+        transformer_block6 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
 
         x = transformer_block(x)
-        # x = transformer_block2(x)
+        x = transformer_block2(x)
+        x = transformer_block3(x)
+        x = transformer_block4(x)
+        x = transformer_block5(x)
+        x = transformer_block6(x)
 
         cls_x = x[:, 0]
 
