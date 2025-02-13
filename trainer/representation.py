@@ -366,8 +366,8 @@ def create_representations(
         combined_asteroid_nebula,
         team_energy_maps * 0.0025,
         opponent_energy_maps * 0.0025,
-        team_unit_maps * 0.4,
-        opponent_unit_maps * 0.4,
+        team_unit_maps * 0.25,
+        opponent_unit_maps * 0.25,
         energy_map * 0.05,
         sensor_maps,
         relic_node_maps,
@@ -378,19 +378,19 @@ def create_representations(
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
 
-    match_steps = obs.match_steps[:, None] * 0.01
-    matches = obs.steps[:, None] * 0.0025
+    match_steps = obs.match_steps[:, None] / 100.0
+    matches = obs.steps[:, None] / 400.0
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
-    team_points = team_points * 0.0025
+    team_points = team_points / 400.0
 
     episode_info = jnp.concatenate([
         match_steps,
         matches,
         team_points,
-        points_history[obs.match_steps[0] - 1][:, None] * 0.125,
-        opponent_points_history[obs.match_steps[0] - 1][:, None] * 0.125,
-        points_gained[:, None] * 0.125,
-        opponent_points_gained[:, None] * 0.125,
+        points_history[obs.match_steps[0] - 1][:, None] / 16.0,
+        opponent_points_history[obs.match_steps[0] - 1][:, None] / 16.0,
+        points_gained[:, None] / 16.0,
+        opponent_points_gained[:, None] / 16.0,
     ], axis=-1)
 
     transformed_unit_positions = transform_coordinates(unit_positions_team)
