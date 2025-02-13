@@ -26,7 +26,7 @@ def calculate_nebula_map(
 
     non_base_agents_x = (agent_x > 0) & (agent_x < 23)
     non_base_agents_y = (agent_y > 0) & (agent_y < 23)
-    non_base_agents = non_base_agents_x & non_base_agents_y
+    non_base_agents = non_base_agents_x | non_base_agents_y
     sufficient_energy_agents = (prev_agent_energies > 25) & (agent_energies > 0)
     moving_agents = (prev_agent_positions != agent_positions).sum(axis=-1) == 1
     
