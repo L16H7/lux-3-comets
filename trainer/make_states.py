@@ -50,7 +50,6 @@ def make_states(config: Config):
     })
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(critic_network_params))
     print(f"Number of critic parameters: {num_params:,}")
-    import pdb; pdb.set_trace()
 
     actor_tx = optax.chain(
         optax.clip_by_global_norm(config.max_grad_norm),
