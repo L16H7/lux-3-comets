@@ -107,8 +107,8 @@ def evaluate(
         p1_agent_observations = p1_agent_observations.reshape(-1, 16, 47, 47)
         p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
-        p1_logits = actor_train_state.apply_fn(
-            actor_train_state.params,
+        p1_logits = opponent_state.apply_fn(
+            opponent_state.params,
             {
                 "states": p1_agent_states,
                 "observations": p1_agent_observations,
@@ -124,7 +124,6 @@ def evaluate(
                 "energies": p1_agent_energies,
                 "points_gained_history": p1_agent_episode_info[:, 4:],
             },
-            rngs={ "dropout": rng }
         )
 
         p1_actions, _, _ = get_actions(
