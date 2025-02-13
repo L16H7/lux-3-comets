@@ -235,6 +235,7 @@ def make_train(config: Config):
         rng: jax.Array,
         actor_train_state: TrainState,
         critic_train_state: TrainState,
+        opponent_train_state: TrainState,
     ):
         N_TOTAL_AGENTS = config.n_envs * config.n_agents
 
@@ -685,7 +686,7 @@ def make_train(config: Config):
                 eval_meta_keys,
                 eval_meta_env_params,
                 updated_runner_state.actor_train_state,
-                updated_runner_state.actor_train_state,
+                opponent_train_state,
                 config.n_eval_envs,
                 config.n_agents,
                 v_reset,
@@ -727,6 +728,21 @@ def train(config: Config):
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
 
+    checkpoint_path = ''
+    orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+    opponent_params = orbax_checkpointer.restore(checkpoint_path)
+    actor = Actor()
+    actor_tx = optax.chain(
+        optax.clip_by_global_norm(config.max_grad_norm),
+        optax.adamw(config.actor_learning_rate),
+    )
+    opponent_state = TrainState.create(
+        apply_fn=actor.apply,
+        params=opponent_params,
+        tx=actor_tx,
+    )
+    opponent_state = replicate(opponent_state, jax.local_devices())
+
     print("Compiling...")
     t = time()
     train_fn = make_train(
@@ -736,7 +752,7 @@ def train(config: Config):
         train_device_rngs,
         actor_train_state,
         critic_train_state,
-        # opponent_state,
+        opponent_state,
     ).compile()
 
     elapsed_time = time() - t
@@ -745,9 +761,9 @@ def train(config: Config):
     print("Training...")
 
     loop = 0
-    total_transitions = 0
-    meta_step = 0
-    update_step = 0
+    total_transitions = 618096640
+    meta_step = 19180
+    update_step = 11047680
     while True:
         rng, train_rng, _, _ = jax.random.split(rng, num=4)
         train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())

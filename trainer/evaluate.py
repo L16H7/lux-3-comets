@@ -14,7 +14,7 @@ def evaluate(
     meta_keys,
     meta_env_params,
     actor_train_state,
-    opponent_state,
+    opponent_train_state,
     n_envs,
     n_agents,
     v_reset,
@@ -106,8 +106,8 @@ def evaluate(
         p1_agent_observations = p1_agent_observations.reshape(-1, 16, 47, 47)
         p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
-        p1_logits = actor_train_state.apply_fn(
-            actor_train_state.params,
+        p1_logits = opponent_train_state.apply_fn(
+            opponent_train_state.params,
             {
                 "states": p1_agent_states,
                 "observations": p1_agent_observations,
