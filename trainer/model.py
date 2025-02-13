@@ -143,8 +143,8 @@ class ActorInput(TypedDict):
  
 class Actor(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 512
-    hidden_dim: int = 1024
+    info_emb_dim: int = 256
+    hidden_dim: int = 512
     position_emb_dim: int = 64
  
     @nn.compact
@@ -162,7 +162,7 @@ class Actor(nn.Module):
             ResidualBlock(128),
             AttentionBlock(features=128, num_heads=8),
             nn.Conv(
-                features=128,
+                features=256,
                 kernel_size=(3, 3),
                 strides=(2, 2),
                 padding=0,
@@ -170,39 +170,28 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(128),
-            AttentionBlock(features=128, num_heads=8),
-            nn.Conv(
-                features=128,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=False
-            ),
-            nn.relu,
-            ResidualBlock(128),
-            AttentionBlock(features=128, num_heads=8),
-            nn.Conv(
-                features=128,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True
-            ),
-            nn.relu,
-            ResidualBlock(128),
+            ResidualBlock(256),
+            AttentionBlock(features=256, num_heads=8),
             nn.Conv(
                 features=512,
-                kernel_size=(6, 6),
+                kernel_size=(3, 3),
                 strides=(1, 1),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=True
             ),
             nn.relu,
-            nn.Dense(1024),
+            ResidualBlock(512),
+            nn.Conv(
+                features=512,
+                kernel_size=(8, 8),
+                strides=(1, 1),
+                padding=0,
+                kernel_init=orthogonal(math.sqrt(2)),
+                use_bias=True
+            ),
+            nn.relu,
+            nn.Dense(512),
         ])
 
 
