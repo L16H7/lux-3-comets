@@ -118,7 +118,8 @@ class Actor(nn.Module):
     info_emb_dim: int = 256
     hidden_dim: int = 512
     position_emb_dim: int = 64
-    patch_emb_dim: int = 512
+    patch_emb_dim: int = 256
+    n_heads: int = 4
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
@@ -157,10 +158,10 @@ class Actor(nn.Module):
         pos_embed = sinusoidal_positional_encoding(SEQ + 1, self.patch_emb_dim)
         x = x + pos_embed[None, ...]
 
-        transformer_block = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
-        transformer_block2 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
-        transformer_block3 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
-        transformer_block4 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=8, drop_p=0.2)
+        transformer_block = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
+        transformer_block2 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
+        transformer_block3 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
+        transformer_block4 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
 
         x = transformer_block(x)
         x = transformer_block2(x)
