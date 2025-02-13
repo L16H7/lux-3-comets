@@ -48,10 +48,34 @@ def calculate_gae(
     # advantages and values (Q)
     return advantages, advantages + transitions.values
 
+
+def calculate_kl_divergence(
+    logits_current: jnp.ndarray,
+    logits_teacher: jnp.ndarray
+) -> jnp.ndarray:
+    """
+    Calculate KL divergence between current policy and teacher policy.
+    
+    Args:
+        logits_current: Current policy logits shape (batch_size, num_actions)
+        logits_teacher: Teacher policy logits shape (batch_size, num_actions)
+    Returns:
+        KL divergence loss (scalar)
+    """
+    # Convert logits to probabilities
+    probs_current = jax.nn.softmax(logits_current)
+    probs_teacher = jax.nn.softmax(logits_teacher)
+    
+    # Calculate KL divergence
+    kl_div = jnp.sum(probs_teacher * (jnp.log(probs_teacher + 1e-8) - jnp.log(probs_current + 1e-8)), axis=-1)
+    return jnp.mean(kl_div)
+
+
 def ppo_update(
     rng,
     actor_train_state: TrainState,
     critic_train_state: TrainState,
+    teacher_train_state: TrainState,
     transitions: Transition,
     advantages: jax.Array,
     targets: jax.Array,
@@ -88,7 +112,33 @@ def ppo_update(
             rngs={ "dropout": rng }
         )
         logits1, logits2, logits3 = logits
-        
+
+        teacher_logits = teacher_train_state.apply_fn(
+            teacher_train_state.params,
+            {
+                "states": transitions.agent_states,
+                "observations": transitions.observations,
+                "positions": transitions.agent_positions,
+                "match_steps": transitions.agent_episode_info[:, 0],
+                "matches": transitions.agent_episode_info[:, 1],
+                "team_points": transitions.agent_episode_info[:, 2],
+                "opponent_points": transitions.agent_episode_info[:, 3],
+                "unit_move_cost": transitions.env_information[:, 0],
+                "unit_sap_cost": transitions.env_information[:, 1],
+                "unit_sap_range": transitions.env_information[:, 2],
+                "unit_sensor_range": transitions.env_information[:, 3],
+                "energies": transitions.agent_energies,
+                "points_gained_history": transitions.agent_episode_info[:, 4:],
+            },
+            rngs={ "dropout": rng }
+        )
+        teacher_logits1, teacher_logits2, teacher_logits3 = teacher_logits
+        kl_divergence = calculate_kl_divergence(
+            logits_current=logits1,
+            logits_teacher=teacher_logits1,
+        )
+        kl_loss = 0.5 * kl_divergence
+ 
         large_negative = -1e9
         masked_logits1 = jnp.where(
             transitions.logits1_mask,
@@ -158,7 +208,7 @@ def ppo_update(
         value_loss_clipped = jnp.square(value_pred_clipped - targets)
         value_loss = 0.5 * jnp.maximum(value_loss, value_loss_clipped).mean()
 
-        loss = actor_loss + vf_coef * value_loss - ent_coef * entropy_loss
+        loss = actor_loss + vf_coef * value_loss - ent_coef * entropy_loss + kl_loss
 
         explained_var = 1 - jnp.var(values - targets) / (jnp.var(targets) + 1e-8)
         approx_kl = ((ratio - 1.0) - log_ratio).sum() / active_units # http://joschu.net/blog/kl-approx.html
@@ -173,6 +223,7 @@ def ppo_update(
             "value_loss": value_loss,
             "actor_loss": actor_loss,
             "entropy": entropy_loss,
+            "kl_loss": kl_loss,
         }
 
         return loss, update_info

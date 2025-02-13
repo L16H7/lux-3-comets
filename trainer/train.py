@@ -235,6 +235,7 @@ def make_train(config: Config):
         rng: jax.Array,
         actor_train_state: TrainState,
         critic_train_state: TrainState,
+        teacher_train_state: TrainState,
     ):
         N_TOTAL_AGENTS = config.n_envs * config.n_agents
 
@@ -569,6 +570,7 @@ def make_train(config: Config):
                             rng=rng,
                             actor_train_state=actor_train_state,
                             critic_train_state=critic_train_state,
+                            teacher_train_state=teacher_train_state,
                             transitions=transitions,
                             advantages=advantages,
                             targets=targets,
@@ -643,6 +645,7 @@ def make_train(config: Config):
                     "approx_kl": loss_info["approx_kl"],
                     "clip_frac": loss_info["clip_frac"],
                     "explained_var": loss_info["explained_var"],
+                    "kl_loss": loss_info["kl_loss"],
                     "adv_mean": loss_info["adv_mean"],
                     "adv_std": loss_info["adv_std"],
                     "value_mean": loss_info["value_mean"],
@@ -733,6 +736,9 @@ def train(config: Config):
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
 
+    teacher_state, _ = make_states(config=config)
+    teacher_state = replicate(teacher_state, jax.local_devices())
+
     print("Compiling...")
     t = time()
     train_fn = make_train(
@@ -742,7 +748,7 @@ def train(config: Config):
         train_device_rngs,
         actor_train_state,
         critic_train_state,
-        # opponent_state,
+        teacher_state,
     ).compile()
 
     elapsed_time = time() - t
@@ -764,7 +770,7 @@ def train(config: Config):
                 train_device_rngs,
                 actor_train_state,
                 critic_train_state,
-                # opponent_state
+                teacher_state,
             )
         )
         elapsed_time = time() - t
