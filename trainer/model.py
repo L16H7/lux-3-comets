@@ -189,13 +189,20 @@ class Actor(nn.Module):
                 strides=(1, 1),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=False
+                use_bias=True
             ),
             nn.relu,
             ResidualBlock(128),
-            lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(1024),
+            nn.Conv(
+                features=512,
+                kernel_size=(6, 6),
+                strides=(1, 1),
+                padding=0,
+                kernel_init=orthogonal(math.sqrt(2)),
+                use_bias=True
+            ),
             nn.relu,
+            nn.Dense(1024),
         ])
 
 
@@ -231,7 +238,7 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             info_embeddings,
             position_embeddings,
-            observation_embeddings,
+            jnp.squeeze(observation_embeddings, axis=[1, 2]),
         ], axis=-1)
 
         actor = nn.Sequential(
