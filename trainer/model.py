@@ -115,11 +115,11 @@ class ActorInput(TypedDict):
  
 class Actor(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 256
-    hidden_dim: int = 512
+    info_emb_dim: int = 386
+    hidden_dim: int = 768
     position_emb_dim: int = 64
-    patch_emb_dim: int = 256
-    n_heads: int = 4
+    patch_emb_dim: int = 512
+    n_heads: int = 8
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):

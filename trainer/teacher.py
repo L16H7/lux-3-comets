@@ -346,7 +346,7 @@ class Critic(nn.Module):
         return values
 
 def make_teacher_state():
-    checkpoint_path = ''
+    checkpoint_path = '/root/13000_actor'
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     teacher_params = orbax_checkpointer.restore(checkpoint_path)
 
