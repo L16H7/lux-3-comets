@@ -132,10 +132,10 @@ def ppo_update(
             },
             rngs={ "dropout": rng }
         )
-        teacher_logits1, teacher_logits2, teacher_logits3 = teacher_logits
+        teacher_logits1, _, _ = teacher_logits
         kl_divergence = calculate_kl_divergence(
             logits_current=logits1,
-            logits_teacher=teacher_logits1,
+            logits_teacher=jax.lax.stop_gradient(teacher_logits1),
         )
         kl_loss = 0.5 * kl_divergence
  
