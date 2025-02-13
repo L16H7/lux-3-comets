@@ -30,7 +30,7 @@ from make_states import make_states
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
 from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info, reconcile_positions
-from model import Actor
+from teacher import make_teacher_state
 
 
 class RunnerState(NamedTuple):
@@ -725,10 +725,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
@@ -736,7 +736,7 @@ def train(config: Config):
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
 
-    teacher_state, _ = make_states(config=config)
+    teacher_state = make_teacher_state()
     teacher_state = replicate(teacher_state, jax.local_devices())
 
     print("Compiling...")
