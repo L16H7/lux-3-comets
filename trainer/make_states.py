@@ -15,10 +15,7 @@ def make_states(config: Config):
     rng, dropout_rng = jax.random.split(rng)
     actor = Actor(n_actions=6)
     BATCH = 16
-    actor_network_params = actor.init({
-            "params": rng,
-            "dropout": dropout_rng,
-        }, {
+    actor_input = {
         "states": jnp.zeros((BATCH, 11, 24, 24)),
         "observations": jnp.zeros((BATCH, 16, 47, 47)),
         "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
@@ -32,10 +29,15 @@ def make_states(config: Config):
         "unit_sensor_range": jnp.zeros((BATCH,)),
         "energies": jnp.zeros((BATCH,)),
         "points_gained_history": jnp.zeros((BATCH, 4)),
-    })
+    }
+    actor_network_params = actor.init({
+        "params": rng,
+        "dropout": dropout_rng,
+    }, actor_input)
 
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(actor_network_params))
     print(f"Number of actor parameters: {num_params:,}")
+    print(actor.tabulate(rng, actor_input))
 
     critic = Critic()
     critic_network_params = critic.init(rng, {
@@ -48,6 +50,7 @@ def make_states(config: Config):
     })
     num_params = sum(x.size for x in jax.tree_util.tree_leaves(critic_network_params))
     print(f"Number of critic parameters: {num_params:,}")
+    import pdb; pdb.set_trace()
 
     actor_tx = optax.chain(
         optax.clip_by_global_norm(config.max_grad_norm),
