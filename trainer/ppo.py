@@ -16,7 +16,8 @@ class Transition(NamedTuple):
     values: jnp.ndarray
     units_mask: jnp.ndarray
     agent_positions: jnp.ndarray
-    agent_energies: jnp.ndarray
+    energies: jnp.ndarray
+    energies_gained: jnp.ndarray
     rewards: jnp.ndarray
     dones: jnp.ndarray
     logits1_mask: jnp.ndarray
@@ -106,7 +107,8 @@ def ppo_update(
                 "unit_sap_cost": transitions.env_information[:, 1],
                 "unit_sap_range": transitions.env_information[:, 2],
                 "unit_sensor_range": transitions.env_information[:, 3],
-                "energies": transitions.agent_energies,
+                "energies": transitions.energies,
+                "energies_gained": transitions.energies_gained,
                 "points_gained_history": transitions.agent_episode_info[:, 4:],
             },
             rngs={ "dropout": rng }
@@ -127,7 +129,8 @@ def ppo_update(
                 "unit_sap_cost": transitions.env_information[:, 1],
                 "unit_sap_range": transitions.env_information[:, 2],
                 "unit_sensor_range": transitions.env_information[:, 3],
-                "energies": transitions.agent_energies,
+                "energies": transitions.energies_gained,
+                "energies_gained": transitions.energies_gained,
                 "points_gained_history": transitions.agent_episode_info[:, 4:],
             },
             rngs={ "dropout": rng }

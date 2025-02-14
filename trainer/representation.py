@@ -424,6 +424,7 @@ def create_representations(
         updated_points_map,
         updated_search_map,
         agent_positions,
+        unit_energies_team,
         energy_gained * 0.02,
         unit_energies_team > 0, # mask energy depleted agents in ppo update
         relic_nodes,

@@ -282,6 +282,7 @@ def make_train(config: Config):
                         p0_search_map,
                         p0_agent_positions,
                         p0_energies,
+                        p0_energies_gained,
                         p0_units_mask,
                         p0_discovered_relic_nodes,
                         p0_points_history_positions,
@@ -297,6 +298,7 @@ def make_train(config: Config):
                         p1_search_map,
                         p1_agent_positions,
                         p1_energies,
+                        p1_energies_gained,
                         p1_units_mask,
                         p1_discovered_relic_nodes,
                         p1_points_history_positions,
@@ -324,6 +326,7 @@ def make_train(config: Config):
                             "unit_sap_range": env_info[:, 2],
                             "unit_sensor_range": env_info[:, 3],
                             "energies": p0_energies,
+                            "energies_gained": p0_energies_gained,
                             "points_gained_history": p0_agent_episode_info[:, 4:],
                         },
                         rngs={"dropout": rng},
@@ -379,6 +382,7 @@ def make_train(config: Config):
                             "unit_sap_range": env_info[:, 2],
                             "unit_sensor_range": env_info[:, 3],
                             "energies": p1_energies,
+                            "energies_gained": p1_energies_gained,
                             "points_gained_history": p1_agent_episode_info[:, 4:],
 
                         },
@@ -462,7 +466,8 @@ def make_train(config: Config):
                         log_probs=jnp.concat([jax.lax.stop_gradient(p0_log_probs), jax.lax.stop_gradient(p1_log_probs)], axis=0),
                         values=jnp.concat([jax.lax.stop_gradient(p0_values), jax.lax.stop_gradient(p1_values)], axis=0),
                         agent_positions=jnp.concat([p0_agent_positions, p1_agent_positions], axis=0),
-                        agent_energies=jnp.concat([p0_energies, p1_energies], axis=0),
+                        energies=jnp.concat([p0_energies, p1_energies], axis=0),
+                        energies_gained=jnp.concat([p0_energies_gained, p1_energies_gained], axis=0),
                         rewards=jnp.concat([p0_rewards, p1_rewards], axis=0),
                         dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(2 * config.n_agents),
                         units_mask=jnp.concat([p0_units_mask.reshape(-1), p1_units_mask.reshape(-1)], axis=0),
@@ -506,7 +511,7 @@ def make_train(config: Config):
                     _,
                     _,
                     p0_episode_info,
-                    _, _, _, _, _, _, _, _, _
+                    _, _, _, _, _, _, _, _, _, _
                 ) = p0_representations
 
                 (
@@ -514,7 +519,7 @@ def make_train(config: Config):
                     _,
                     _,
                     p1_episode_info,
-                    _, _, _, _, _, _, _, _, _
+                    _, _, _, _, _, _, _, _, _, _
                 ) = p1_representations
 
                 p0_combined_states = combined_states_info(
@@ -725,10 +730,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    run = wandb.init(
-        project=config.wandb_project,
-        config={**asdict(config)}
-    )
+    # run = wandb.init(
+    #     project=config.wandb_project,
+    #     config={**asdict(config)}
+    # )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
@@ -736,8 +741,8 @@ def train(config: Config):
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
 
-    teacher_state = make_teacher_state()
-    teacher_state = replicate(teacher_state, jax.local_devices())
+    # teacher_state = make_teacher_state()
+    # teacher_state = replicate(teacher_state, jax.local_devices())
 
     print("Compiling...")
     t = time()
@@ -748,7 +753,7 @@ def train(config: Config):
         train_device_rngs,
         actor_train_state,
         critic_train_state,
-        teacher_state,
+        actor_train_state,
     ).compile()
 
     elapsed_time = time() - t

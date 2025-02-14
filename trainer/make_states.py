@@ -28,6 +28,7 @@ def make_states(config: Config):
         "unit_sap_range": jnp.zeros((BATCH,)),
         "unit_sensor_range": jnp.zeros((BATCH,)),
         "energies": jnp.zeros((BATCH,)),
+        "energies_gained": jnp.zeros((BATCH,)),
         "points_gained_history": jnp.zeros((BATCH, 4)),
     }
     actor_network_params = actor.init({

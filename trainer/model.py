@@ -111,6 +111,7 @@ class ActorInput(TypedDict):
     unit_sap_range: jax.Array
     unit_sensor_range: jax.Array
     energies: jax.Array
+    energies_gained: jax.Array
     point_gained_history: jax.Array
  
 class Actor(nn.Module):
@@ -181,6 +182,7 @@ class Actor(nn.Module):
             actor_input['opponent_points'][:, None],
             actor_input['match_steps'][:, None],
             actor_input['energies'].reshape(-1)[:, None],
+            actor_input['energies_gained'].reshape(-1)[:, None],
             actor_input['unit_sap_cost'][:, None],
             actor_input['unit_sap_range'][:, None],
             actor_input['points_gained_history']

@@ -41,7 +41,8 @@ def evaluate(
             p0_points_map,
             p0_search_map,
             p0_agent_positions,
-            p0_agent_energies,
+            p0_energies,
+            p0_energies_gained,
             p0_units_mask,
             p0_discovered_relic_nodes,
             p0_points_history_positions,
@@ -68,7 +69,8 @@ def evaluate(
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
-                "energies": p0_agent_energies,
+                "energies": p0_energies,
+                "energies_gained": p0_energies_gained,
                 "points_gained_history": p0_agent_episode_info[:, 4:],
             },
             rngs={ "dropout": rng }
@@ -94,7 +96,8 @@ def evaluate(
             p1_points_map,
             p1_search_map,
             p1_agent_positions,
-            p1_agent_energies,
+            p1_energies,
+            p1_energies_gained,
             p1_units_mask,
             p1_discovered_relic_nodes,
             p1_points_history_positions,
@@ -121,9 +124,11 @@ def evaluate(
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
-                "energies": p1_agent_energies,
+                "energies": p1_energies_gained,
+                "energies_gained": p1_energies_gained,
                 "points_gained_history": p1_agent_episode_info[:, 4:],
             },
+            rngs={ "dropout": rng }
         )
 
         p1_actions, _, _ = get_actions(
