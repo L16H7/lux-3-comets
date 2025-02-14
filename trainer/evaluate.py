@@ -21,8 +21,6 @@ def evaluate(
     v_reset,
     v_step,
 ):
-    N_TOTAL_AGENTS = n_envs * n_agents
-
     env_info = get_env_info(meta_env_params) if label != Constants.TEACHER_LABEL else teacher_get_env_info(meta_env_params)
 
     def _env_step(runner_state, _):

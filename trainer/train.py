@@ -64,8 +64,8 @@ def make_train(config: Config):
             p1_search_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.int32),
             p0_points_gained=jnp.zeros((n_envs)),
             p1_points_gained=jnp.zeros((n_envs)),
-            p0_prev_agent_energies=states.units.energy[:, 0, ...],
-            p1_prev_agent_energies=states.units.energy[:, 1, ...],
+            p0_prev_agent_energies=jnp.zeros_like(states.units.energy[:, 0, ...]),
+            p1_prev_agent_energies=jnp.zeros_like(states.units.energy[:, 1, ...]),
             p0_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
             p1_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
             p0_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
@@ -247,8 +247,6 @@ def make_train(config: Config):
         critic_train_state: TrainState,
         teacher_train_state: TrainState,
     ):
-        N_TOTAL_AGENTS = config.n_envs * config.n_agents
-
         def _meta_step(meta_state, _):
             def sample_params(rng_key):
                 randomized_game_params = dict()
@@ -775,10 +773,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
@@ -860,12 +858,12 @@ def train(config: Config):
 if __name__ == "__main__":
     config = Config(
         n_meta_steps=1,
-        n_actor_steps=8,
-        n_update_steps=1,
-        n_envs=4,
-        n_envs_per_device=4,
-        n_eval_envs=4,
-        n_minibatches=1,
+        n_actor_steps=14,
+        n_update_steps=36,
+        n_envs=64,
+        n_envs_per_device=64,
+        n_eval_envs=64,
+        n_minibatches=32,
         n_epochs=1,
         actor_learning_rate=8e-5,
         critic_learning_rate=1e-4,
