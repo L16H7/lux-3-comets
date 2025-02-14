@@ -167,7 +167,7 @@ def evaluate(
         p0_sapped_units_mask = p0_actions[..., 0] == 5
         p1_sapped_units_mask = p1_actions[..., 0] == 5
 
-        p0_next_representations, p1_next_representations, next_observations, next_states, rewards, _, _, info = v_step(
+        p0_next_representations, p1_next_representations, next_observations, next_states, rewards, _, _, info, _, _ = v_step(
             states,
             OrderedDict({
                 "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
@@ -238,7 +238,7 @@ def evaluate(
         }
         return runner_state, info
 
-    p0_representations, p1_representations, observations, states = v_reset(meta_keys, meta_env_params)
+    p0_representations, p1_representations, observations, states, _, _ = v_reset(meta_keys, meta_env_params)
 
     runner_state = (
         rng,

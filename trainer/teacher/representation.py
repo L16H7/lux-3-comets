@@ -161,7 +161,7 @@ def create_representations(
     opponent_points_gained,
     points_history_positions,
     points_history,
-    prev_opponent_points_gained,
+    opponent_points_history,
     unit_move_cost,
     sensor_range,
     nebula_info,
@@ -389,7 +389,7 @@ def create_representations(
         matches,
         team_points,
         points_history[obs.match_steps[0] - 1][:, None] / 16.0,
-        prev_opponent_points_gained[:, None] / 16.0,
+        opponent_points_history[obs.match_steps[0] - 1][:, None] / 16.0,
         points_gained[:, None] / 16.0,
         opponent_points_gained[:, None] / 16.0,
     ], axis=-1)
@@ -513,3 +513,4 @@ def combined_states_info(team_states, opponent_states):
     ], axis=1)
 
     return combined_states
+    
