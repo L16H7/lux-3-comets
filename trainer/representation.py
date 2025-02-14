@@ -531,6 +531,8 @@ def combined_states_info(
         opponent_states[:, 8, ...], # point map
         team_states[:, 9, ...], # search map
         opponent_states[:, 9, ...], # search map
+        team_states[:, 10, ...], # sapped unit map
+        opponent_states[:, 10, ...], # sapped unit map
     ], axis=-1)
 
     return combined_states
