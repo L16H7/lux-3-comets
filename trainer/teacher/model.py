@@ -346,30 +346,30 @@ class Critic(nn.Module):
         return values
 
 def make_teacher_state():
-    # checkpoint_path = '/root/13000_actor'
-    # orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
-    # teacher_params = orbax_checkpointer.restore(checkpoint_path)
+    checkpoint_path = '/root/19000_actor'
+    orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+    teacher_params = orbax_checkpointer.restore(checkpoint_path)
 
     actor = Actor()
 
     # DEVELOPMENT #
-    BATCH = 1
-    rng = jax.random.PRNGKey(42)
-    teacher_params = actor.init(rng, {
-        "states": jnp.zeros((BATCH, 11, 24, 24)),
-        "observations": jnp.zeros((BATCH, 16, 47, 47)),
-        "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
-        "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
-        "positions": jnp.zeros((BATCH, 2), dtype=jnp.int32),
-        "team_points": jnp.zeros((BATCH,)),
-        "opponent_points": jnp.zeros((BATCH,)),
-        "unit_move_cost": jnp.zeros((BATCH,)),
-        "unit_sap_cost": jnp.zeros((BATCH,)),
-        "unit_sap_range": jnp.zeros((BATCH,)),
-        "unit_sensor_range": jnp.zeros((BATCH,)),
-        "energies": jnp.zeros((BATCH,)),
-        "points_gained_history": jnp.zeros((BATCH, 4)),
-    })
+    # BATCH = 1
+    # rng = jax.random.PRNGKey(42)
+    # teacher_params = actor.init(rng, {
+    #     "states": jnp.zeros((BATCH, 11, 24, 24)),
+    #     "observations": jnp.zeros((BATCH, 16, 47, 47)),
+    #     "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
+    #     "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
+    #     "positions": jnp.zeros((BATCH, 2), dtype=jnp.int32),
+    #     "team_points": jnp.zeros((BATCH,)),
+    #     "opponent_points": jnp.zeros((BATCH,)),
+    #     "unit_move_cost": jnp.zeros((BATCH,)),
+    #     "unit_sap_cost": jnp.zeros((BATCH,)),
+    #     "unit_sap_range": jnp.zeros((BATCH,)),
+    #     "unit_sensor_range": jnp.zeros((BATCH,)),
+    #     "energies": jnp.zeros((BATCH,)),
+    #     "points_gained_history": jnp.zeros((BATCH, 4)),
+    # })
     # DEVELOPMENT #
 
     actor_tx = optax.chain(
