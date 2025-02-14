@@ -73,6 +73,8 @@ def make_train(config: Config):
             unit_move_cost=meta_env_params.unit_move_cost,
             sensor_range=meta_env_params.unit_sensor_range,
             nebula_info=jnp.zeros((n_envs, 2)), # [nebula_energy_deduction, is_updated]
+            p0_sapped_units_mask=jnp.zeros((n_envs, 16)),
+            p1_sapped_units_mask=jnp.zeros((n_envs, 16)),
         )
         return p0_representations, p1_representations, observations, states
 
@@ -97,6 +99,8 @@ def make_train(config: Config):
         p0_points_history,
         p1_points_history,
         updated_nebula_info,
+        p0_sapped_units_mask,
+        p1_sapped_units_mask,
         meta_keys,
         meta_env_params,
     ):
@@ -226,6 +230,8 @@ def make_train(config: Config):
             unit_move_cost=meta_env_params.unit_move_cost,
             sensor_range=meta_env_params.unit_sensor_range,
             nebula_info=updated_nebula_info,
+            p0_sapped_units_mask=p0_sapped_units_mask,
+            p1_sapped_units_mask=p1_sapped_units_mask,
         )
         return p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, info
         
@@ -308,7 +314,7 @@ def make_train(config: Config):
 
                     p0_agent_episode_info = p0_episode_info.repeat(config.n_agents, axis=0)
                     p0_agent_states = p0_states.repeat(config.n_agents, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p0_agent_observations = p0_agent_observations.reshape(-1, 18, 47, 47) 
+                    p0_agent_observations = p0_agent_observations.reshape(-1, 19, 47, 47) 
                     p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
                     p0_logits = actor_train_state.apply_fn(
@@ -366,7 +372,7 @@ def make_train(config: Config):
 
                     p1_agent_episode_info = p1_episode_info.repeat(config.n_agents, axis=0)
                     p1_agent_states = p1_states.repeat(16, axis=0) # N_TOTAL_AGENTS, 10, 24, 24
-                    p1_agent_observations = p1_agent_observations.reshape(-1, 18, 47, 47)
+                    p1_agent_observations = p1_agent_observations.reshape(-1, 19, 47, 47)
                     p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
                     p1_logits = actor_train_state.apply_fn(
@@ -428,6 +434,8 @@ def make_train(config: Config):
                     transformed_p1_actions = transformed_p1_actions.at[..., 1].set(transformed_targets[..., 0])
                     transformed_p1_actions = transformed_p1_actions.at[..., 2].set(transformed_targets[..., 1])
 
+                    p0_sapped_units_mask = p0_actions[..., 0] == 5
+                    p1_sapped_units_mask = p1_actions[..., 0] == 5
                     p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, _ = v_step(
                         states,
                         OrderedDict({
@@ -449,6 +457,8 @@ def make_train(config: Config):
                         p0_points_history,
                         p1_points_history,
                         updated_nebula_info,
+                        p0_sapped_units_mask,
+                        p1_sapped_units_mask,
                         meta_keys,
                         meta_env_params,
                     )

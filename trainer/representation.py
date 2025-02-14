@@ -63,6 +63,7 @@ def create_unit_maps(
     unit_positions,
     unit_masks,
     unit_energy,
+    sapped_unit_masks,
 ):
     n_envs, n_units, _ = unit_positions.shape
     unit_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.int32)
@@ -77,9 +78,10 @@ def create_unit_maps(
     unit_y_positions = unit_positions_flat[:, 1].astype(jnp.int32)
     
     unit_maps = unit_maps.at[env_indices, unit_y_positions, unit_x_positions].add(unit_masks_flat.astype(jnp.int32))
+    sapped_unit_maps = unit_maps.at[env_indices, unit_y_positions, unit_x_positions].add(sapped_unit_masks.reshape(-1).astype(jnp.int32))
     unit_energy_maps = unit_energy_maps.at[env_indices, unit_y_positions, unit_x_positions].add(unit_energy_flat * unit_masks_flat.astype(jnp.int32))
 
-    return unit_maps, unit_energy_maps
+    return unit_maps, unit_energy_maps, sapped_unit_maps
 
 # @profile
 def create_agent_patches(state_representation, unit_positions_team):
@@ -165,6 +167,7 @@ def create_representations(
     unit_move_cost,
     sensor_range,
     nebula_info,
+    sapped_units_mask,
     team_idx=0,
     opponent_idx=1,
 ):
@@ -176,16 +179,18 @@ def create_representations(
     unit_positions_opponent = obs.units.position[:, opponent_idx, :, :] # Shape: [batch_size, num_opponent_units, 2]
     unit_energies_opponent = obs.units.energy[:, opponent_idx, :]       # Shape: [batch_size, num_opponent_units]
 
-    team_unit_maps, team_energy_maps = create_unit_maps(
+    team_unit_maps, team_energy_maps, team_sapped_unit_maps = create_unit_maps(
         unit_positions=unit_positions_team,
         unit_energy=unit_energies_team,
         unit_masks=unit_masks_team,
+        sapped_unit_masks=sapped_units_mask,
     )
 
-    opponent_unit_maps, opponent_energy_maps = create_unit_maps(
+    opponent_unit_maps, opponent_energy_maps, _ = create_unit_maps(
         unit_positions=unit_positions_opponent,
         unit_energy=unit_energies_opponent,
         unit_masks=unit_masks_opponent,
+        sapped_unit_masks=jnp.zeros_like(unit_masks_opponent), # we don't know if they sapped
     )
 
     relic_node_maps = create_relic_nodes_maps(
@@ -374,6 +379,7 @@ def create_representations(
         relic_node_maps,
         updated_points_map,
         updated_search_map,
+        team_sapped_unit_maps,
     ]
     state_representation = jnp.stack(maps, axis=1)
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
@@ -454,6 +460,8 @@ def create_agent_representations(
     unit_move_cost,
     sensor_range,
     nebula_info,
+    p0_sapped_units_mask,
+    p1_sapped_units_mask,
 ):
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
@@ -471,6 +479,7 @@ def create_agent_representations(
         unit_move_cost=unit_move_cost,
         sensor_range=sensor_range,
         nebula_info=nebula_info,
+        sapped_units_mask=p0_sapped_units_mask,
         team_idx=0,
         opponent_idx=1,
     )
@@ -491,6 +500,7 @@ def create_agent_representations(
         unit_move_cost=unit_move_cost,
         sensor_range=sensor_range,
         nebula_info=nebula_info,
+        sapped_units_mask=p1_sapped_units_mask,
         team_idx=1,
         opponent_idx=0,
     )

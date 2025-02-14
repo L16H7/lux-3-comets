@@ -17,7 +17,7 @@ def make_states(config: Config):
     BATCH = 16
     actor_input = {
         "states": jnp.zeros((BATCH, 11, 24, 24)),
-        "observations": jnp.zeros((BATCH, 18, 47, 47)),
+        "observations": jnp.zeros((BATCH, 19, 47, 47)),
         "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
         "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
         "positions": jnp.zeros((BATCH, 2), dtype=jnp.int32),
