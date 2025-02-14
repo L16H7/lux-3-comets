@@ -130,16 +130,16 @@ def create_agent_patches(state_representation, unit_positions_team):
 def get_env_info(env_params):
     unit_move_cost = jnp.expand_dims(
         env_params.unit_move_cost, axis=-1
-    ).repeat(16, axis=1) * 0.125
+    ).repeat(16, axis=1) / 4
     unit_sap_cost = jnp.expand_dims(
         env_params.unit_sap_cost, axis=-1
-    ).repeat(16, axis=1) * 0.05
+    ).repeat(16, axis=1) / 40
     unit_sap_range = jnp.expand_dims(
-        env_params.unit_sap_range, axis=-1
-    ).repeat(16, axis=1) * 0.125
+        env_params.unit_sap_range - 2, axis=-1
+    ).repeat(16, axis=1) / 4
     unit_sensor_range = jnp.expand_dims(
         env_params.unit_sensor_range, axis=-1
-    ).repeat(16, axis=1) * 0.125
+    ).repeat(16, axis=1) / 4
 
     env_info = jnp.concatenate([
         unit_move_cost[..., None],
@@ -365,11 +365,11 @@ def create_representations(
 
     maps = [
         combined_asteroid_nebula,
-        team_energy_maps * 0.0025,
-        opponent_energy_maps * 0.0025,
-        team_unit_maps * 0.25,
-        opponent_unit_maps * 0.25,
-        energy_map * 0.05,
+        energy_map / 20,
+        team_energy_maps / 300,
+        opponent_energy_maps / 300,
+        team_unit_maps / 2,
+        opponent_unit_maps / 2,
         sensor_maps,
         relic_node_maps,
         updated_points_map,
@@ -410,8 +410,8 @@ def create_representations(
     )
 
     updated_temporal_states = jnp.concatenate([
-        temporal_states[:, 3:, ...],
-        state_representation[:, :3, ...],
+        temporal_states[:, 4:, ...],
+        state_representation[:, :4, ...],
     ], axis=1)
     
     energy_gained = unit_energies_team - jnp.maximum(jnp.squeeze(prev_agent_energies, axis=-1), 0)
