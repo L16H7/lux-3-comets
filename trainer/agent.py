@@ -207,14 +207,10 @@ def get_actions(
     adjacent_offsets = jnp.array(
         [
             [0, 0],
-            [-1, -1],
             [-1, 0],
-            [-1, 1],
             [0, -1],
             [0, 1],
-            [1, -1],
             [1, 0],
-            [1, 1],
         ], dtype=jnp.int16
     )
 
