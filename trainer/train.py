@@ -31,8 +31,6 @@ from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
 from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info, reconcile_positions
 from teacher.model import make_teacher_state
-from teacher.representation import create_agent_representations as create_teacher_agent_representations
-from teacher.representation import get_env_info as get_teacher_env_info
 
 
 class RunnerState(NamedTuple):
@@ -56,8 +54,8 @@ def make_train(config: Config):
         n_envs = observations['player_0'].relic_nodes.shape[0]
         p0_representations, p1_representations = create_agent_representations(
             observations=observations,
-            p0_temporal_states=jnp.zeros((n_envs, 8, 24, 24)),
-            p1_temporal_states=jnp.zeros((n_envs, 8, 24, 24)),
+            p0_temporal_states=jnp.zeros((n_envs, 14, 24, 24)),
+            p1_temporal_states=jnp.zeros((n_envs, 14, 24, 24)),
             p0_discovered_relic_nodes=observations['player_0'].relic_nodes,
             p1_discovered_relic_nodes=observations['player_1'].relic_nodes,
             p0_points_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.float32),
@@ -79,30 +77,7 @@ def make_train(config: Config):
             p1_sapped_units_mask=jnp.zeros((n_envs, 16)),
         )
 
-        teacher_p0_representations, teacher_p1_representations = create_teacher_agent_representations(
-            observations=observations,
-            p0_temporal_states=jnp.zeros((n_envs, 8, 24, 24)),
-            p1_temporal_states=jnp.zeros((n_envs, 8, 24, 24)),
-            p0_discovered_relic_nodes=observations['player_0'].relic_nodes,
-            p1_discovered_relic_nodes=observations['player_1'].relic_nodes,
-            p0_points_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.float32),
-            p1_points_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.float32),
-            p0_search_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.int32),
-            p1_search_map=jnp.zeros((n_envs, config.map_width, config.map_height), dtype=jnp.int32),
-            p0_points_gained=jnp.zeros((n_envs)),
-            p1_points_gained=jnp.zeros((n_envs)),
-            p0_prev_agent_energies=states.units.energy[:, 0, ...],
-            p1_prev_agent_energies=states.units.energy[:, 1, ...],
-            p0_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
-            p1_points_history_positions=(jnp.ones((101, n_envs, 16, 2), dtype=jnp.int32) * -1),
-            p0_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
-            p1_points_history=jnp.zeros((101, n_envs), dtype=jnp.int32),
-            unit_move_cost=meta_env_params.unit_move_cost,
-            sensor_range=meta_env_params.unit_sensor_range,
-            nebula_info=jnp.zeros((n_envs, 2)), # [nebula_energy_deduction, is_updated]
-        )
-
-        return p0_representations, p1_representations, observations, states, teacher_p0_representations, teacher_p1_representations
+        return p0_representations, p1_representations, observations, states
 
     def step_fn(state, action, key, params):
         return env.step(key, state, action, params)
@@ -262,30 +237,7 @@ def make_train(config: Config):
             p1_sapped_units_mask=p1_sapped_units_mask,
         )
 
-        teacher_p0_next_representations, teacher_p1_next_representations = create_teacher_agent_representations(
-            observations=next_observations,
-            p0_temporal_states=p0_temporal_states,
-            p1_temporal_states=p1_temporal_states,
-            p0_discovered_relic_nodes=p0_new_discovered_relic_nodes,
-            p1_discovered_relic_nodes=p1_new_discovered_relic_nodes,
-            p0_points_map=p0_points_map,
-            p1_points_map=p1_points_map,
-            p0_search_map=p0_search_map,
-            p1_search_map=p1_search_map,
-            p0_points_gained=envinfo["points_gained"][..., 0],
-            p1_points_gained=envinfo["points_gained"][..., 1],
-            p0_prev_agent_energies=states.units.energy[:, 0, ...],
-            p1_prev_agent_energies=states.units.energy[:, 1, ...],
-            p0_points_history_positions=p0_points_history_positions,
-            p1_points_history_positions=p1_points_history_positions,
-            p0_points_history=p0_points_history,
-            p1_points_history=p1_points_history,
-            unit_move_cost=meta_env_params.unit_move_cost,
-            sensor_range=meta_env_params.unit_sensor_range,
-            nebula_info=updated_nebula_info,
-        )
-
-        return p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, info, teacher_p0_next_representations, teacher_p1_next_representations
+        return p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, info
         
 
     @partial(jax.pmap, axis_name="devices")
@@ -335,6 +287,7 @@ def make_train(config: Config):
                         p0_states,
                         p0_temporal_states,
                         p0_agent_observations,
+                        teacher_p0_agent_observations,
                         p0_episode_info,
                         p0_points_map,
                         p0_search_map,
@@ -351,6 +304,7 @@ def make_train(config: Config):
                         p1_states,
                         p1_temporal_states,
                         p1_agent_observations,
+                        teacher_p1_agent_observations,
                         p1_episode_info,
                         p1_points_map,
                         p1_search_map,
@@ -488,7 +442,7 @@ def make_train(config: Config):
 
                     p0_sapped_units_mask = p0_actions[..., 0] == 5
                     p1_sapped_units_mask = p1_actions[..., 0] == 5
-                    p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, _, _, _ = v_step(
+                    p0_next_representations, p1_next_representations, next_observations, next_states, rewards, terminated, truncated, _ = v_step(
                         states,
                         OrderedDict({
                             "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
@@ -525,6 +479,7 @@ def make_train(config: Config):
                     transition = Transition(
                         agent_states=jnp.concat([p0_agent_states, p1_agent_states], axis=0),
                         observations=jnp.concat([p0_agent_observations, p1_agent_observations], axis=0),
+                        teacher_observations=jnp.concat([teacher_p0_agent_observations, teacher_p1_agent_observations], axis=0),
                         states=jnp.concat([p0_combined_states, p1_combined_states], axis=0),
                         episode_info=jnp.concat([p0_episode_info, p1_episode_info], axis=0),
                         agent_episode_info=jnp.concat([p0_agent_episode_info, p1_agent_episode_info], axis=0),
@@ -575,7 +530,7 @@ def make_train(config: Config):
                 (
                     p0_states,
                     p0_temporal_states,
-                    _,
+                    _, _,
                     p0_episode_info,
                     _, _, _, _, _, _, _, _, _, _
                 ) = p0_representations
@@ -583,7 +538,7 @@ def make_train(config: Config):
                 (
                     p1_states,
                     p1_temporal_states,
-                    _,
+                    _, _,
                     p1_episode_info,
                     _, _, _, _, _, _, _, _, _, _
                 ) = p1_representations
@@ -744,7 +699,7 @@ def make_train(config: Config):
                 )
                 return updated_runner_state, update_step_info
 
-            p0_representations, p1_representations, observations, states, _, _ = v_reset(meta_keys, meta_env_params)
+            p0_representations, p1_representations, observations, states = v_reset(meta_keys, meta_env_params)
 
             runner_state = RunnerState(
                 rng=rng,
@@ -812,8 +767,8 @@ def train(config: Config):
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
 
-    # teacher_state = make_teacher_state()
-    # teacher_state = replicate(teacher_state, jax.local_devices())
+    teacher_state = make_teacher_state()
+    teacher_state = replicate(teacher_state, jax.local_devices())
 
     print("Compiling...")
     t = time()
@@ -824,7 +779,7 @@ def train(config: Config):
         train_device_rngs,
         actor_train_state,
         critic_train_state,
-        actor_train_state,
+        teacher_state,
     ).compile()
 
     elapsed_time = time() - t
@@ -846,7 +801,7 @@ def train(config: Config):
                 train_device_rngs,
                 actor_train_state,
                 critic_train_state,
-                actor_train_state,
+                teacher_state,
             )
         )
         elapsed_time = time() - t

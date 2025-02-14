@@ -152,6 +152,28 @@ def get_env_info(env_params):
     return env_info.reshape(-1, 4)
 
 
+def teacher_get_env_info(env_params):
+    unit_move_cost = jnp.expand_dims(
+        env_params.unit_move_cost, axis=-1
+    ).repeat(16, axis=1) * 0.125
+    unit_sap_cost = jnp.expand_dims(
+        env_params.unit_sap_cost, axis=-1
+    ).repeat(16, axis=1) * 0.05
+    unit_sap_range = jnp.expand_dims(
+        env_params.unit_sap_range, axis=-1
+    ).repeat(16, axis=1) * 0.125
+    unit_sensor_range = jnp.expand_dims(
+        env_params.unit_sensor_range, axis=-1
+    ).repeat(16, axis=1) * 0.125
+
+    env_info = jnp.concatenate([
+        unit_move_cost[..., None],
+        unit_sap_cost[..., None],
+        unit_sap_range[..., None],
+        unit_sensor_range[..., None]
+    ], axis=-1)
+    return env_info.reshape(-1, 4)
+
 def create_representations(
     obs,
     temporal_states,
@@ -385,6 +407,21 @@ def create_representations(
     state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
 
 
+    teacher_maps = [
+        combined_asteroid_nebula,
+        team_energy_maps * 0.0025,
+        opponent_energy_maps * 0.0025,
+        team_unit_maps * 0.25,
+        opponent_unit_maps * 0.25,
+        energy_map * 0.05,
+        sensor_maps,
+        relic_node_maps,
+        updated_points_map,
+        updated_search_map,
+    ]
+    teacher_state_representation = jnp.stack(teacher_maps, axis=1)
+    teacher_state_representation = teacher_state_representation if team_idx == 0 else transform_observation(teacher_state_representation)
+
     match_steps = obs.match_steps[:, None] / 100.0
     matches = obs.steps[:, None] / 400.0
     team_points = obs.team_points if team_idx == 0 else jnp.flip(obs.team_points, axis=1)
@@ -394,10 +431,10 @@ def create_representations(
         match_steps,
         matches,
         team_points,
-        points_history[obs.match_steps[0] - 1][:, None] / 10.0,
-        opponent_points_history[obs.match_steps[0] - 1][:, None] / 10.0,
-        points_gained[:, None] / 10.0,
-        opponent_points_gained[:, None] / 10.0,
+        points_history[obs.match_steps[0] - 1][:, None] / 16.0,
+        opponent_points_history[obs.match_steps[0] - 1][:, None] / 16.0,
+        points_gained[:, None] / 16.0,
+        opponent_points_gained[:, None] / 16.0,
     ], axis=-1)
 
     transformed_unit_positions = transform_coordinates(unit_positions_team)
@@ -411,13 +448,28 @@ def create_representations(
     agent_positions = unit_positions_team
 
     agent_observations = create_agent_patches(
-        state_representation=jnp.concatenate([temporal_states, state_representation], axis=1),
+        state_representation=jnp.concatenate(
+            [temporal_states[:, :8, ...], state_representation],
+            axis=1
+        ),
+        unit_positions_team=unit_positions_team,
+    )
+    
+    teacher_agent_observations = create_agent_patches(
+        state_representation=jnp.concatenate(
+            [temporal_states[:, 8:, ...], teacher_state_representation],
+            axis=1
+        ),
         unit_positions_team=unit_positions_team,
     )
 
+
     updated_temporal_states = jnp.concatenate([
-        temporal_states[:, 4:, ...],
+        temporal_states[:, 4: 8, ...],
         state_representation[:, :4, ...],
+        # for teacher
+        temporal_states[:, 11:, ...],
+        teacher_state_representation[:, :3, ...],
     ], axis=1)
     
     energy_gained = unit_energies_team - jnp.maximum(jnp.squeeze(prev_agent_energies, axis=-1), 0)
@@ -426,12 +478,13 @@ def create_representations(
         state_representation,
         updated_temporal_states,
         agent_observations,
+        teacher_agent_observations,
         episode_info,
         updated_points_map,
         updated_search_map,
         agent_positions,
         unit_energies_team / 300,
-        jnp.clip(energy_gained, -100, 100) / 40,
+        jnp.clip(energy_gained, -100, 100) * 0.02,
         unit_energies_team > 0, # mask energy depleted agents in ppo update
         relic_nodes,
         points_history_positions,

@@ -38,6 +38,7 @@ def evaluate(
             p0_states,
             p0_temporal_states,
             p0_agent_observations,
+            teacher_p0_agent_observations,
             p0_episode_info,
             p0_points_map,
             p0_search_map,
@@ -93,6 +94,7 @@ def evaluate(
             p1_states,
             p1_temporal_states,
             p1_agent_observations,
+            teacher_p1_agent_observations,
             p1_episode_info,
             p1_points_map,
             p1_search_map,
@@ -167,7 +169,7 @@ def evaluate(
         p0_sapped_units_mask = p0_actions[..., 0] == 5
         p1_sapped_units_mask = p1_actions[..., 0] == 5
 
-        p0_next_representations, p1_next_representations, next_observations, next_states, rewards, _, _, info, _, _ = v_step(
+        p0_next_representations, p1_next_representations, next_observations, next_states, rewards, _, _, info = v_step(
             states,
             OrderedDict({
                 "player_0": p0_actions.at[:, :, 1:].set(p0_actions[:, :, 1:] - Constants.MAX_SAP_RANGE),
@@ -206,7 +208,7 @@ def evaluate(
         max_relic_nodes = runner_state[4].relic_nodes_mask.sum(axis=-1) // 2
         ground_truth = (ground_truth > 0) & (ground_truth <= max_relic_nodes[:, None, None])
 
-        prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
+        prediction = runner_state[2][0][5]  # shape: (n_envs, 24, 24)
 
 
         # Calculate true positives
@@ -238,7 +240,7 @@ def evaluate(
         }
         return runner_state, info
 
-    p0_representations, p1_representations, observations, states, _, _ = v_reset(meta_keys, meta_env_params)
+    p0_representations, p1_representations, observations, states = v_reset(meta_keys, meta_env_params)
 
     runner_state = (
         rng,

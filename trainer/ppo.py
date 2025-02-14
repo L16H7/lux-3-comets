@@ -24,6 +24,7 @@ class Transition(NamedTuple):
     logits2_mask: jnp.ndarray
     logits3_mask: jnp.ndarray
     env_information: jnp.ndarray
+    teacher_observations: jnp.ndarray
 
 
 def calculate_gae(
@@ -96,7 +97,6 @@ def ppo_update(
         logits = actor_train_state.apply_fn(
             actor_params,
             {
-                "states": transitions.agent_states,
                 "observations": transitions.observations,
                 "positions": transitions.agent_positions,
                 "match_steps": transitions.agent_episode_info[:, 0],
@@ -118,8 +118,7 @@ def ppo_update(
         teacher_logits = teacher_train_state.apply_fn(
             teacher_train_state.params,
             {
-                "states": transitions.agent_states,
-                "observations": transitions.observations,
+                "observations": transitions.teacher_observations,
                 "positions": transitions.agent_positions,
                 "match_steps": transitions.agent_episode_info[:, 0],
                 "matches": transitions.agent_episode_info[:, 1],
