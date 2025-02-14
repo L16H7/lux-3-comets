@@ -504,7 +504,6 @@ def combined_states_info(
 ):
     opponent_temporal_states = transform_observation(opponent_temporal_states.copy())
     opponent_states = transform_observation(opponent_states.copy())
-    import pdb; pdb.set_trace()
     combined_states = jnp.stack([
         team_temporal_states[:, 2, ...], # team energy
         opponent_temporal_states[:, 2, ...], # opponent energy
@@ -513,7 +512,7 @@ def combined_states_info(
         team_states[:, 4, ...], # team units
         opponent_states[:, 4, ...], # opponent units
         # energy
-        jnp.where(team_states[:, 1, ...] != 0, team_states[:, 1, ...], opponent_states[:, 5, ...]),
+        jnp.where(team_states[:, 1, ...] != 0, team_states[:, 1, ...], opponent_states[:, 1, ...]),
         # asteroid & nebula
         jnp.where(team_states[:, 0, ...] != 0, team_states[:, 0, ...], opponent_states[:, 0, ...]),
         team_states[:, 7, ...], # relic
@@ -522,6 +521,6 @@ def combined_states_info(
         opponent_states[:, 8, ...], # point map
         team_states[:, 9, ...], # search map
         opponent_states[:, 9, ...], # search map
-    ], axis=1)
+    ], axis=-1)
 
     return combined_states

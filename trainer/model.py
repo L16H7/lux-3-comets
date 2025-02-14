@@ -362,7 +362,7 @@ class Critic(nn.Module):
         ])
 
         state_embeddings = state_encoder(
-            critic_input['states'].transpose((0, 2, 3, 1))
+            critic_input['states']
         )
 
         info_input = jnp.concatenate([
