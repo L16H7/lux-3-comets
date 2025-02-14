@@ -15,6 +15,7 @@ def evaluate(
     meta_env_params,
     actor_train_state,
     opponent_state,
+    label,
     n_envs,
     n_agents,
     v_reset,
@@ -254,32 +255,35 @@ def evaluate(
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 502]), axis=0), info)
 
     info_ = {
-        "p0_energy_depletions": last_match_steps["p0_energy_depletions"],
-        "p1_energy_depletions": last_match_steps["p1_energy_depletions"],
-        "p0_points_mean": last_match_steps["p0_points_mean"],
-        "p1_points_mean": last_match_steps["p1_points_mean"],
-        "p0_points_std": last_match_steps["p0_points_std"],
-        "p1_points_std": last_match_steps["p1_points_std"],
-        "points_map_coverage_mean": last_match_steps["points_map_coverage_mean"],
-        "points_map_coverage_std": last_match_steps["points_map_coverage_std"],
-        "points_map_false_flags_mean": last_match_steps["points_map_false_flags_mean"],
-        "points_map_false_flags_std": last_match_steps["points_map_false_flags_std"],
-        "points_map_false_negative_mean": last_match_steps["points_map_false_negative_mean"],
-        "points_map_false_negative_std": last_match_steps["points_map_false_negative_std"],
+        f"eval_{label}_stats/p0_energy_depletions": last_match_steps["p0_energy_depletions"],
+        f"eval_{label}_stats/p1_energy_depletions": last_match_steps["p1_energy_depletions"],
+        f"eval_{label}/p0_points_mean": last_match_steps["p0_points_mean"],
+        f"eval_{label}/p1_points_mean": last_match_steps["p1_points_mean"],
+        f"eval_{label}/p0_points_std": last_match_steps["p0_points_std"],
+        f"eval_{label}/p1_points_std": last_match_steps["p1_points_std"],
+        f"eval_{label}_debug/points_map_coverage_mean": last_match_steps["points_map_coverage_mean"],
+        f"eval_{label}_debug/points_map_coverage_std": last_match_steps["points_map_coverage_std"],
+        f"eval_{label}_debug/points_map_false_flags_mean": last_match_steps["points_map_false_flags_mean"],
+        f"eval_{label}_debug/points_map_false_flags_std": last_match_steps["points_map_false_flags_std"],
+        f"eval_{label}_debug/points_map_false_negative_mean": last_match_steps["points_map_false_negative_mean"],
+        f"eval_{label}_debug/points_map_false_negative_std": last_match_steps["points_map_false_negative_std"],
     }
     info2_ = {
-        "eval/p0_wins": info["p0_wins"][-1],
-        "eval/p1_wins": info["p1_wins"][-1],
-        "eval/p0_sap_destroyed_units": info["p0_sap_units_destroyed"].sum(),
-        "eval/p1_sap_destroyed_units": info["p1_sap_units_destroyed"].sum(),
-        "eval/p0_collision_destroyed_units": info["p0_collision_units_destroyed"].sum(),
-        "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
-        "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
-        "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
-        "eval/nebula_energy_reduction_calculation_success_rate": nebula_energy_reduction_calculation_success_rate,
+        f"eval_{label}/p0_match_wins": info["p0_match_wins"][-1],
+        f"eval_{label}/p1_match_wins": info["p1_match_wins"][-1],
+        f"eval_{label}/p0_episode_wins": info["p0_episode_wins"][-1],
+        f"eval_{label}/p1_episode_wins": info["p1_episode_wins"][-1],
+        f"eval_{label}_stats/p0_sap_destroyed_units": info["p0_sap_units_destroyed"].sum(),
+        f"eval_{label}_stats/p1_sap_destroyed_units": info["p1_sap_units_destroyed"].sum(),
+        f"eval_{label}_stats/p0_collision_destroyed_units": info["p0_collision_units_destroyed"].sum(),
+        f"eval_{label}_stats/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
+        f"eval_{label}_stats/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
+        f"eval_{label}_stats/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
+        f"eval_{label}_debug/nebula_energy_reduction_calculation_success_rate": nebula_energy_reduction_calculation_success_rate,
     }
+    jax.debug.breakpoint()
 
-    info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
+    info_dict = {f"{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 
     return {
         **info_dict,
