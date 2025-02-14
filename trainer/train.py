@@ -735,9 +735,26 @@ def make_train(config: Config):
             )
             eval_info = jax.lax.pmean(eval_info, axis_name="devices")
 
+            teacher_eval_info = evaluate(
+                eval_rng,
+                eval_meta_keys,
+                eval_meta_env_params,
+                updated_runner_state.actor_train_state,
+                teacher_train_state,
+                Constants.TEACHER_LABEL,
+                config.n_eval_envs,
+                config.n_agents,
+                v_reset,
+                v_step
+            )
+            teacher_eval_info = jax.lax.pmean(teacher_eval_info, axis_name="devices")
+
             meta_step_info = {
                 "update_step_info": update_step_info,
-                "eval_info": eval_info,
+                "eval_info": {
+                    **eval_info,
+                    **teacher_eval_info
+                },
             }
 
             meta_state = (rng, updated_runner_state.actor_train_state, updated_runner_state.critic_train_state)

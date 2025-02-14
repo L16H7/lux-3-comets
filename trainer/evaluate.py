@@ -6,7 +6,7 @@ from collections import OrderedDict
 from agent import get_actions, vectorized_transform_actions, transform_coordinates
 from constants import Constants
 from opponent import get_actions as get_opponent_actions
-from representation import get_env_info
+from representation import get_env_info, teacher_get_env_info
 
 
 def evaluate(
@@ -23,7 +23,7 @@ def evaluate(
 ):
     N_TOTAL_AGENTS = n_envs * n_agents
 
-    env_info = get_env_info(meta_env_params)
+    env_info = get_env_info(meta_env_params) if label != Constants.TEACHER_LABEL else teacher_get_env_info(meta_env_params)
 
     def _env_step(runner_state, _):
         (
@@ -38,7 +38,7 @@ def evaluate(
             p0_states,
             p0_temporal_states,
             p0_agent_observations,
-            teacher_p0_agent_observations,
+            _,
             p0_episode_info,
             p0_points_map,
             p0_search_map,
@@ -116,8 +116,7 @@ def evaluate(
         p1_logits = opponent_state.apply_fn(
             opponent_state.params,
             {
-                "states": p1_agent_states,
-                "observations": p1_agent_observations,
+                "observations": p1_agent_observations if label != Constants.TEACHER_LABEL else teacher_p1_agent_observations,
                 "positions": p1_agent_positions,
                 "match_steps": p1_agent_episode_info[:, 0],
                 "matches": p1_agent_episode_info[:, 1],
@@ -127,7 +126,7 @@ def evaluate(
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
-                "energies": p1_energies_gained,
+                "energies": p1_energies if label != Constants.TEACHER_LABEL else p1_energies_gained,
                 "energies_gained": p1_energies_gained,
                 "points_gained_history": p1_agent_episode_info[:, 4:],
             },
@@ -283,7 +282,6 @@ def evaluate(
         f"eval_{label}_stats/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
         f"eval_{label}_debug/nebula_energy_reduction_calculation_success_rate": nebula_energy_reduction_calculation_success_rate,
     }
-    jax.debug.breakpoint()
 
     info_dict = {f"{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 
