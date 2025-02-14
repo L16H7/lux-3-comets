@@ -25,6 +25,7 @@ class Transition(NamedTuple):
     logits3_mask: jnp.ndarray
     env_information: jnp.ndarray
     teacher_observations: jnp.ndarray
+    teacher_env_information: jnp.ndarray
 
 
 def calculate_gae(
@@ -124,12 +125,11 @@ def ppo_update(
                 "matches": transitions.agent_episode_info[:, 1],
                 "team_points": transitions.agent_episode_info[:, 2],
                 "opponent_points": transitions.agent_episode_info[:, 3],
-                "unit_move_cost": transitions.env_information[:, 0],
-                "unit_sap_cost": transitions.env_information[:, 1],
-                "unit_sap_range": transitions.env_information[:, 2],
-                "unit_sensor_range": transitions.env_information[:, 3],
+                "unit_move_cost": transitions.teacher_env_information[:, 0],
+                "unit_sap_cost": transitions.teacher_env_information[:, 1],
+                "unit_sap_range": transitions.teacher_env_information[:, 2],
+                "unit_sensor_range": transitions.teacher_env_information[:, 3],
                 "energies": transitions.energies_gained,
-                "energies_gained": transitions.energies_gained,
                 "points_gained_history": transitions.agent_episode_info[:, 4:],
             },
             rngs={ "dropout": rng }

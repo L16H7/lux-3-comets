@@ -29,7 +29,7 @@ from luxai_s3.params import EnvParams, env_params_ranges
 from make_states import make_states
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
-from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info, reconcile_positions
+from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info, reconcile_positions, teacher_get_env_info
 from teacher.model import make_teacher_state
 
 
@@ -270,6 +270,7 @@ def make_train(config: Config):
             )
 
             env_info = get_env_info(meta_env_params)
+            teacher_env_info = teacher_get_env_info(meta_env_params)
 
             def _update_step(runner_state: RunnerState, _):
                 def _env_step(runner_state: RunnerState, _):
@@ -496,6 +497,7 @@ def make_train(config: Config):
                         logits2_mask=jnp.concat([p0_logits_mask[1], p1_logits_mask[1]], axis=0),
                         logits3_mask=jnp.concat([p0_logits_mask[2], p1_logits_mask[2]], axis=0),
                         env_information=env_info.repeat(2, axis=0),
+                        teacher_env_information=teacher_env_info.repeat(2, axis=0),
                     )
 
                     runner_state = RunnerState(
