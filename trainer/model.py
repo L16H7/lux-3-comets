@@ -116,32 +116,38 @@ class ActorInput(TypedDict):
  
 class Actor(nn.Module):
     n_actions: int = 6
-    info_emb_dim: int = 386
-    hidden_dim: int = 768
+    hidden_dim: int = 512
     position_emb_dim: int = 64
-    patch_emb_dim: int = 512
+    patch_emb_dim: int = 768
     n_heads: int = 8
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
+        info_input = jnp.concatenate([
+            actor_input['team_points'][:, None],
+            actor_input['opponent_points'][:, None],
+            actor_input['match_steps'][:, None],
+            actor_input['energies'].reshape(-1)[:, None],
+            actor_input['energies_gained'].reshape(-1)[:, None],
+            actor_input['unit_sap_cost'][:, None],
+            actor_input['unit_sap_range'][:, None],
+            actor_input['points_gained_history']
+        ], axis=-1)
+
+        info_embeddings = nn.Sequential([
+            nn.Dense(self.patch_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
+            nn.Dropout(rate=0.15, deterministic=False),
+        ])(info_input)
+
         observation_encoder = nn.Sequential([
             nn.Conv(
-                features=self.patch_emb_dim // 2,
+                features=self.patch_emb_dim,
                 kernel_size=(4, 4),
-                strides=(3, 3),
+                strides=(4, 4),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False,
             ),
-            nn.relu,
-            nn.Conv(
-                features=self.patch_emb_dim,
-                kernel_size=(3, 3),
-                strides=(2, 2),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=False,
-            )
         ])
 
         BATCH = actor_input['observations'].shape[0]
@@ -154,9 +160,14 @@ class Actor(nn.Module):
         cls = self.param("cls_token", nn.initializers.zeros, (1, 1, self.patch_emb_dim))
         cls = jnp.tile(cls, (BATCH, 1, 1))
 
-        x = jnp.concatenate([cls, patch_embeddings], axis=1)
+        x = jnp.concatenate([
+            cls,
+            info_embeddings[:, None, :],
+            patch_embeddings
+        ], axis=1)
+
         # Add position embedding
-        pos_embed = sinusoidal_positional_encoding(SEQ + 1, self.patch_emb_dim)
+        pos_embed = sinusoidal_positional_encoding(SEQ + 2, self.patch_emb_dim)
         x = x + pos_embed[None, ...]
 
         transformer_block = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
@@ -170,55 +181,6 @@ class Actor(nn.Module):
         x = transformer_block4(x)
 
         cls_x = x[:, 0]
-
-        position_embeddings = get_2d_positional_embeddings(
-            actor_input['positions'],
-            embedding_dim=self.position_emb_dim,
-            max_size=24
-        )
-
-        info_input = jnp.concatenate([
-            actor_input['team_points'][:, None],
-            actor_input['opponent_points'][:, None],
-            actor_input['match_steps'][:, None],
-            actor_input['energies'].reshape(-1)[:, None],
-            actor_input['energies_gained'].reshape(-1)[:, None],
-            actor_input['unit_sap_cost'][:, None],
-            actor_input['unit_sap_range'][:, None],
-            actor_input['points_gained_history']
-        ], axis=-1)
-
-        info_embeddings = nn.Sequential([
-            nn.Dense(
-                self.hidden_dim, kernel_init=orthogonal(2),
-            ),
-            nn.relu,
-            nn.Dropout(rate=0.15, deterministic=False),
-            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.relu,
-        ])(info_input)
-
-        embeddings = jnp.concat([
-            info_embeddings,
-            position_embeddings,
-            cls_x,
-        ], axis=-1)
-
-        actor = nn.Sequential(
-            [
-                nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
-                ),
-                nn.relu,
-                nn.Dropout(rate=0.15, deterministic=False),
-                nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
-                ),
-                nn.relu,
-            ]
-        )
-
-        x = actor(embeddings)
 
         action_head = nn.Sequential(
             [
@@ -259,9 +221,9 @@ class Actor(nn.Module):
             ]
         )
 
-        logits1 = action_head(x)
-        logits2 = x_coordinate_head(x)
-        logits3 = y_coordinate_head(x)
+        logits1 = action_head(cls_x)
+        logits2 = x_coordinate_head(cls_x)
+        logits3 = y_coordinate_head(cls_x)
 
         return logits1, logits2, logits3
 
