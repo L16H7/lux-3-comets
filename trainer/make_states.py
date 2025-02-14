@@ -36,21 +36,19 @@ def make_states(config: Config):
         "dropout": dropout_rng,
     }, actor_input)
 
-    num_params = sum(x.size for x in jax.tree_util.tree_leaves(actor_network_params))
-    print(f"Number of actor parameters: {num_params:,}")
     print(actor.tabulate(rng, actor_input))
 
     critic = Critic()
-    critic_network_params = critic.init(rng, {
+    critic_input = {
         "states": jnp.zeros((BATCH, 24, 24, 16)),
         "match_steps": jnp.zeros((BATCH,)),
         "matches": jnp.zeros((BATCH,)),
         "team_points": jnp.zeros((BATCH,)),
         "opponent_points": jnp.zeros((BATCH,)),
         "points_gained_history": jnp.zeros((BATCH, 4)),
-    })
-    num_params = sum(x.size for x in jax.tree_util.tree_leaves(critic_network_params))
-    print(f"Number of critic parameters: {num_params:,}")
+    }
+    critic_network_params = critic.init(rng, critic_input)
+    print(critic.tabulate(rng, critic_input))
 
     actor_tx = optax.chain(
         optax.clip_by_global_norm(config.max_grad_norm),

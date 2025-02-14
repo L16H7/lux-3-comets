@@ -170,15 +170,13 @@ class Actor(nn.Module):
         pos_embed = sinusoidal_positional_encoding(SEQ + 2, self.patch_emb_dim)
         x = x + pos_embed[None, ...]
 
-        transformer_block = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
+        transformer_block1 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
         transformer_block2 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
         transformer_block3 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
-        transformer_block4 = Transformer(hidden_dim=self.patch_emb_dim, n_heads=self.n_heads, drop_p=0.2)
 
-        x = transformer_block(x)
+        x = transformer_block1(x)
         x = transformer_block2(x)
         x = transformer_block3(x)
-        x = transformer_block4(x)
 
         cls_x = x[:, 0]
 
@@ -277,50 +275,45 @@ class Critic(nn.Module):
  
     @nn.compact
     def __call__(self, critic_input):
-        seq_len, batch_size = critic_input['states'].shape[:2]
-
         state_encoder = nn.Sequential([
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(4, 4),
                 strides=(2, 2),
-                padding='SAME',
+                padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False,
             ),
             nn.relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(2, 2),
-                padding='SAME',
+                padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
             nn.relu,
+            ResidualBlock(128),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(1, 1),
-                padding='SAME',
+                padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
             nn.Conv(
-                features=64,
+                features=512,
                 kernel_size=(3, 3),
                 strides=(1, 1),
-                padding='SAME',
+                padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
-            nn.relu,
-            ResidualBlock(64),
-            lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(512),
         ])
 
         state_embeddings = state_encoder(
@@ -345,7 +338,7 @@ class Critic(nn.Module):
         ])(info_input)
 
         embeddings = jnp.concat([
-            state_embeddings,
+            jnp.squeeze(state_embeddings, axis=[1, 2]),
             info_embeddings,
         ], axis=-1)
 
