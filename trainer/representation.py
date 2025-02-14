@@ -394,10 +394,10 @@ def create_representations(
         match_steps,
         matches,
         team_points,
-        points_history[obs.match_steps[0] - 1][:, None] / 16.0,
-        opponent_points_history[obs.match_steps[0] - 1][:, None] / 16.0,
-        points_gained[:, None] / 16.0,
-        opponent_points_gained[:, None] / 16.0,
+        points_history[obs.match_steps[0] - 1][:, None] / 10.0,
+        opponent_points_history[obs.match_steps[0] - 1][:, None] / 10.0,
+        points_gained[:, None] / 10.0,
+        opponent_points_gained[:, None] / 10.0,
     ], axis=-1)
 
     transformed_unit_positions = transform_coordinates(unit_positions_team)
