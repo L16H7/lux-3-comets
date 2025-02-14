@@ -424,8 +424,8 @@ def create_representations(
         updated_points_map,
         updated_search_map,
         agent_positions,
-        unit_energies_team,
-        energy_gained * 0.02,
+        unit_energies_team / 300,
+        jnp.clip(energy_gained, -100, 100) / 40,
         unit_energies_team > 0, # mask energy depleted agents in ppo update
         relic_nodes,
         points_history_positions,
@@ -496,23 +496,32 @@ def create_agent_representations(
     )
     return p0_representations, p1_representations
 
-def combined_states_info(team_states, opponent_states):
+def combined_states_info(
+    team_states,
+    opponent_states,
+    team_temporal_states,
+    opponent_temporal_states,
+):
+    opponent_temporal_states = transform_observation(opponent_temporal_states.copy())
     opponent_states = transform_observation(opponent_states.copy())
+    import pdb; pdb.set_trace()
     combined_states = jnp.stack([
-        # add temporal states
-        team_states[:, 1, ...], # team energy
-        opponent_states[:, 1, ...], # opponent energy
-        team_states[:, 3, ...], # team units
-        opponent_states[:, 3, ...], # opponent units
+        team_temporal_states[:, 2, ...], # team energy
+        opponent_temporal_states[:, 2, ...], # opponent energy
+        team_states[:, 2, ...], # team energy
+        opponent_states[:, 2, ...], # opponent energy
+        team_states[:, 4, ...], # team units
+        opponent_states[:, 4, ...], # opponent units
         # energy
-        jnp.where(team_states[:, 5, ...] != 0, team_states[:, 5, ...], opponent_states[:, 5, ...]),
+        jnp.where(team_states[:, 1, ...] != 0, team_states[:, 1, ...], opponent_states[:, 5, ...]),
         # asteroid & nebula
         jnp.where(team_states[:, 0, ...] != 0, team_states[:, 0, ...], opponent_states[:, 0, ...]),
         team_states[:, 7, ...], # relic
         opponent_states[:, 7, ...], # relic
         team_states[:, 8, ...], # point map
         opponent_states[:, 8, ...], # point map
-        # add search map
+        team_states[:, 9, ...], # search map
+        opponent_states[:, 9, ...], # search map
     ], axis=1)
 
     return combined_states

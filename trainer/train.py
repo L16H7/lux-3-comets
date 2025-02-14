@@ -346,7 +346,9 @@ def make_train(config: Config):
 
                     p0_combined_states = combined_states_info(
                         p0_states,
-                        p1_states
+                        p1_states,
+                        p0_temporal_states,
+                        p1_temporal_states,
                     )
 
                     p0_values = critic_train_state.apply_fn(
@@ -402,7 +404,9 @@ def make_train(config: Config):
 
                     p1_combined_states = combined_states_info(
                         p1_states,
-                        p0_states
+                        p0_states,
+                        p1_temporal_states,
+                        p0_temporal_states,
                     )
                     p1_values = critic_train_state.apply_fn(
                         critic_train_state.params,
@@ -508,7 +512,7 @@ def make_train(config: Config):
 
                 (
                     p0_states,
-                    _,
+                    p0_temporal_states,
                     _,
                     p0_episode_info,
                     _, _, _, _, _, _, _, _, _, _
@@ -516,7 +520,7 @@ def make_train(config: Config):
 
                 (
                     p1_states,
-                    _,
+                    p1_temporal_states,
                     _,
                     p1_episode_info,
                     _, _, _, _, _, _, _, _, _, _
@@ -525,6 +529,8 @@ def make_train(config: Config):
                 p0_combined_states = combined_states_info(
                     p0_states,
                     p1_states,
+                    p0_temporal_states,
+                    p1_temporal_states,
                 )
 
                 p0_last_values = critic_train_state.apply_fn(
@@ -543,6 +549,8 @@ def make_train(config: Config):
                 p1_combined_states = combined_states_info(
                     p1_states,
                     p0_states,
+                    p1_temporal_states,
+                    p0_temporal_states,
                 )
 
                 p1_last_values = critic_train_state.apply_fn(

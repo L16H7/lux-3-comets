@@ -42,7 +42,7 @@ def make_states(config: Config):
 
     critic = Critic()
     critic_network_params = critic.init(rng, {
-        "states": jnp.zeros((BATCH, 10, 24, 24)),
+        "states": jnp.zeros((BATCH, 14, 24, 24)),
         "match_steps": jnp.zeros((BATCH,)),
         "matches": jnp.zeros((BATCH,)),
         "team_points": jnp.zeros((BATCH,)),
