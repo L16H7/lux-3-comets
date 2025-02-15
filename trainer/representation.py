@@ -373,7 +373,7 @@ def create_representations(
     updated_nebula_info, scaled_nebula_map = calculate_nebula_map(
         sensor_maps,
         sensor_range,
-        (temporal_states[:, 3, ...] < 0),
+        (temporal_states[:, 4, ...] < 0),
         nebula_maps,
         nebula_info,
         points_history_positions[obs.match_steps[0] - 1],
