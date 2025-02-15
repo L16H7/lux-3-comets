@@ -59,10 +59,10 @@ class Agent():
         self.opponent_team_id = 1 if self.team_id == 0 else 0
         self.env_cfg = env_cfg
 
-        self.unit_move_cost = jnp.array(env_cfg["unit_move_cost"]).repeat(16) * 0.125
-        self.unit_sap_cost = jnp.array(env_cfg["unit_sap_cost"]).repeat(16) * 0.05
-        self.unit_sap_range = jnp.array(env_cfg["unit_sap_range"]).repeat(16) * 0.125
-        self.unit_sensor_range = jnp.array(env_cfg["unit_sensor_range"]).repeat(16) * 0.125
+        self.unit_move_cost = jnp.array(env_cfg["unit_move_cost"]).repeat(16) / 4
+        self.unit_sap_cost = jnp.array(env_cfg["unit_sap_cost"]).repeat(16) / 40
+        self.unit_sap_range = jnp.array(env_cfg["unit_sap_range"] - 2).repeat(16) / 4
+        self.unit_sensor_range = jnp.array(env_cfg["unit_sensor_range"]).repeat(16) / 4
 
         checkpoint_path = os.path.join(script_dir, 'checkpoint')
         orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
@@ -77,7 +77,7 @@ class Agent():
         self.prev_team_points = 0
         self.points_map = jnp.zeros((1, 24, 24), dtype=jnp.float32)
         self.search_map = jnp.zeros((1, 24, 24), dtype=jnp.float32)
-        self.temporal_states = jnp.zeros((1, 6, 24, 24), dtype=jnp.float32)
+        self.temporal_states = jnp.zeros((1, 8, 24, 24), dtype=jnp.float32)
         self.points_gained = 0
 
         self.points_history_positions = (jnp.ones((101, 1, 16, 2), dtype=jnp.int32) * -1)
@@ -88,6 +88,7 @@ class Agent():
         self.prev_opponent_points = 0
         self.opponent_points_gained = 0
         self.prev_opponent_points_gained = 0
+        self.sapped_units_mask = jnp.zeros((1, 16))
  
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
@@ -138,6 +139,7 @@ class Agent():
             unit_move_cost=jnp.array([self.env_cfg["unit_move_cost"]]),
             sensor_range=jnp.array([self.env_cfg["unit_sensor_range"]]),
             nebula_info=self.nebula_info,
+            sapped_units_mask=self.sapped_units_mask,
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
         )
@@ -151,6 +153,7 @@ class Agent():
             search_map,
             agent_positions,
             agent_energies,
+            agent_energies_gained,
             _,
             discovered_relic_nodes,
             points_history_positions,
@@ -168,7 +171,6 @@ class Agent():
 
         self.prev_agent_energies = observation.units.energy[:, self.team_id, :, None]
 
-
         agent_observations = jnp.squeeze(agent_observations, axis=0)
         agent_episode_info = episode_info.repeat(16, axis=0)
         agent_positions = agent_positions.reshape(-1, 2)
@@ -178,10 +180,10 @@ class Agent():
         #     jnp.save('team_0_points_map2', self.points_map)
         #     a = True
 
-        if step > 70 and self.team_id == 1:
+        # if step > 70 and self.team_id == 1:
         #     jnp.save('agent_1_team_1', agent_observations[0])
         #     jnp.save('team_1_points_map2', self.points_map)
-            a = True
+        #     a = True
 
         logits = self.inference_fn(
             { "params": self.params },
@@ -197,6 +199,7 @@ class Agent():
                 "unit_sap_range": self.unit_sap_range,
                 "unit_sensor_range": self.unit_sensor_range,
                 "energies": agent_energies,
+                "energies_gained": agent_energies_gained,
                 "points_gained_history": agent_episode_info[:, 4:],
             },
         )
@@ -223,5 +226,6 @@ class Agent():
         actions = actions if self.team_id == 0 else transformed_p1_actions
 
         actions = actions.at[..., 1:].set(actions[..., 1:] - 8)
+        self.sapped_units_mask = actions[..., 0] == 5
 
         return jnp.squeeze(actions, axis=0)

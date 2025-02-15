@@ -84,7 +84,7 @@ def filter_targets_with_boolean_map(targets, boolean_map):
 @jax.jit
 def compute_collision_avoidance(ally_pos, ally_energy, enemy_pos, enemy_energy, directions):
     """
-    Computes an action mask for allied agents given positions and energies.
+    Computes an action mask for allied agents considering enemies' adjacent positions.
     
     Parameters:
       ally_pos:    jnp.array with shape (n_envs, 16, 2)
@@ -105,10 +105,18 @@ def compute_collision_avoidance(ally_pos, ally_energy, enemy_pos, enemy_energy, 
     #    First, create offset matrix for adjacent positions (including original position)
     adjacent_offsets = jnp.array([
         [0, 0],   # center
-        [0, 1],   # up
+        [0, 1],   # down
         [1, 0],   # right
-        [0, -1],  # down
+        [0, -1],  # up
         [-1, 0],  # left
+        [1, 1],
+        [1, -1],
+        [-1, 1],
+        [-1, -1],
+        [0, 2],
+        [2, 0],
+        [0, -2],
+        [-2, 0]
     ])
     
     # Create extended enemy positions: (n_envs, 16, 5, 2)
