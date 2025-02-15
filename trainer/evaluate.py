@@ -21,7 +21,9 @@ def evaluate(
     v_reset,
     v_step,
 ):
-    env_info = get_env_info(meta_env_params) if label != Constants.TEACHER_LABEL else teacher_get_env_info(meta_env_params)
+    env_info = get_env_info(meta_env_params)
+    teacher_env_info = teacher_get_env_info(meta_env_params)
+    p1_env_info = env_info if label != Constants.TEACHER_LABEL else teacher_env_info
 
     def _env_step(runner_state, _):
         (
@@ -120,10 +122,10 @@ def evaluate(
                 "matches": p1_agent_episode_info[:, 1],
                 "team_points": p1_agent_episode_info[:, 2],
                 "opponent_points": p1_agent_episode_info[:, 3],
-                "unit_move_cost": env_info[:, 0],
-                "unit_sap_cost": env_info[:, 1],
-                "unit_sap_range": env_info[:, 2],
-                "unit_sensor_range": env_info[:, 3],
+                "unit_move_cost": p1_env_info[:, 0],
+                "unit_sap_cost": p1_env_info[:, 1],
+                "unit_sap_range": p1_env_info[:, 2],
+                "unit_sensor_range": p1_env_info[:, 3],
                 "energies": p1_energies if label != Constants.TEACHER_LABEL else p1_energies_gained,
                 "energies_gained": p1_energies_gained,
                 "points_gained_history": p1_agent_episode_info[:, 4:],
