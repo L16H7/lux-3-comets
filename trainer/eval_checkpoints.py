@@ -303,10 +303,10 @@ def make_eval_checkpoints(config: Config):
     return eval_checkpoints
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     rng = jax.random.key(config.train_seed)
 
@@ -316,7 +316,7 @@ def train(config: Config):
         optax.adamw(config.actor_learning_rate),
     )
 
-    actor_checkpoint_path = '/Users/light/research/neurips/lux-3-comets/submission/checkpoint'
+    actor_checkpoint_path = '/root/lux-3-comets/checkpoints/80_actor'
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     actor_network_params = orbax_checkpointer.restore(actor_checkpoint_path)
 
@@ -329,6 +329,19 @@ def train(config: Config):
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
     player_0_train_state = replicate(player_0_train_state, jax.local_devices())
 
+    p1_actor_checkpoint_path = '/root/lux-3-comets/checkpoints/600_actor'
+    orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+    p1_actor_network_params = orbax_checkpointer.restore(p1_actor_checkpoint_path)
+
+    player_1_train_state = TrainState.create(
+        apply_fn=actor.apply,
+        params=p1_actor_network_params,
+        tx=actor_tx,
+        key=rng,
+    )
+    player_1_train_state = replicate(player_1_train_state, jax.local_devices())
+
+
     print("Compiling...")
     t = time()
     train_fn = make_eval_checkpoints(
@@ -337,7 +350,7 @@ def train(config: Config):
     train_fn = train_fn.lower(
         train_device_rngs,
         player_0_train_state,
-        player_0_train_state,
+        player_1_train_state,
     ).compile()
 
     elapsed_time = time() - t
@@ -375,7 +388,6 @@ def train(config: Config):
                 update_step += config.n_minibatches * config.n_epochs * jax.local_device_count()
                 total_transitions += config.n_envs_per_device * jax.local_device_count() * config.n_actor_steps
                 info = jtu.tree_map(lambda x: x[i, j], eval_checkpoints_info)
-                jax.debug.breakpoint()
                 wandb.log(info)
 
 
@@ -391,7 +403,7 @@ if __name__ == "__main__":
         n_epochs=1,
         actor_learning_rate=8e-5,
         critic_learning_rate=1e-4,
-        wandb_project="Optimus",
+        wandb_project="Bench",
         train_seed=42,
         entropy_coeff=0.01,
         gae_lambda=0.98,
