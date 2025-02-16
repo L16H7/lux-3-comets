@@ -11,6 +11,7 @@ NEBULA_TILE = 1
 ASTEROID_TILE = 2
 
 
+@jax.jit
 def transform_observation(obs):
     # Horizontal flip across the last dimension (24, 24 grids)
     flipped = jnp.flip(obs, axis=3)
@@ -20,6 +21,7 @@ def transform_observation(obs):
     
     return rotated
 
+@jax.jit
 def reconcile_positions(positions):
     first_half = positions[:, :3]
     last_half = positions[:, 3:]
@@ -43,6 +45,7 @@ def reconcile_positions(positions):
     
     return reconciled_positions
 
+@jax.jit
 def create_relic_nodes_maps(relic_nodes, relic_nodes_mask):
     n_envs, n_relic_nodes, _ = relic_nodes.shape
     relic_nodes_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.int32)
@@ -59,6 +62,7 @@ def create_relic_nodes_maps(relic_nodes, relic_nodes_mask):
 
     return relic_nodes_maps
 
+@jax.jit
 def create_unit_maps(
     unit_positions,
     unit_masks,
@@ -83,7 +87,8 @@ def create_unit_maps(
 
     return unit_maps, unit_energy_maps, sapped_unit_maps
 
-# @profile
+
+@jax.jit
 def create_agent_patches(state_representation, unit_positions_team):
     side = 23
     full = (side * 2) + 1
