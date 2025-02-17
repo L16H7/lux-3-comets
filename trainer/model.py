@@ -147,7 +147,7 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             info_embeddings,
             position_embeddings,
-            jnp.squeeze(observation_embeddings, axis=[1, 2]),
+            observation_embeddings,
         ], axis=-1)
 
         actor = nn.Sequential(
