@@ -8,7 +8,7 @@ from config import Config
 from model import Actor, Critic
 
 class TrainState(train_state.TrainState):
-        key: jax.Array
+    key: jax.Array
 
 def make_states(config: Config):
     rng = jax.random.PRNGKey(config.train_seed)
