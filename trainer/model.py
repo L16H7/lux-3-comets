@@ -73,22 +73,6 @@ class Actor(nn.Module):
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
-        info_input = jnp.concatenate([
-            actor_input['team_points'][:, None],
-            actor_input['opponent_points'][:, None],
-            actor_input['match_steps'][:, None],
-            actor_input['energies'].reshape(-1)[:, None],
-            actor_input['energies_gained'].reshape(-1)[:, None],
-            actor_input['unit_sap_cost'][:, None],
-            actor_input['unit_sap_range'][:, None],
-            actor_input['points_gained_history']
-        ], axis=-1)
-
-        info_embeddings = nn.Sequential([
-            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
-            nn.Dropout(rate=0.15, deterministic=False),
-        ])(info_input)
-
         observation_encoder = nn.Sequential([
             nn.Conv(
                 features=64,
@@ -109,7 +93,6 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(64),
             nn.Conv(
                 features=64,
                 kernel_size=(3, 3),
@@ -132,7 +115,9 @@ class Actor(nn.Module):
             ResidualBlock(64),
             lambda x: x.reshape((x.shape[0], -1)),
             nn.Dense(512),
+            nn.relu,
         ])
+
 
         observation_embeddings = observation_encoder(
             actor_input['observations'].transpose((0, 2, 3, 1))
@@ -140,8 +125,42 @@ class Actor(nn.Module):
 
         position_embeddings = get_2d_positional_embeddings(
             actor_input['positions'],
-            embedding_dim=32,
+            embedding_dim=self.position_emb_dim,
             max_size=24
+        )
+
+        info_input = jnp.concatenate([
+            actor_input['team_points'][:, None],
+            actor_input['opponent_points'][:, None],
+            actor_input['match_steps'][:, None],
+            actor_input['energies'].reshape(-1)[:, None],
+            actor_input['energies_gained'].reshape(-1)[:, None],
+            actor_input['unit_sap_cost'][:, None],
+            actor_input['unit_sap_range'][:, None],
+            actor_input['points_gained_history']
+        ], axis=-1)
+
+        info_embeddings = nn.Sequential([
+            nn.Dense(
+                self.hidden_dim, kernel_init=orthogonal(2),
+            ),
+            nn.relu,
+            nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
+            nn.relu,
+        ])(info_input)
+
+        actor = nn.Sequential(
+            [
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.relu,
+                nn.Dropout(rate=0.2, deterministic=True),
+                nn.Dense(
+                    self.hidden_dim, kernel_init=orthogonal(2),
+                ),
+                nn.relu,
+            ]
         )
 
         embeddings = jnp.concat([
@@ -150,19 +169,6 @@ class Actor(nn.Module):
             observation_embeddings,
         ], axis=-1)
 
-        actor = nn.Sequential(
-            [
-                nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
-                ),
-                nn.relu,
-                nn.Dropout(rate=0.2, deterministic=False),
-                nn.Dense(
-                    self.hidden_dim, kernel_init=orthogonal(2),
-                ),
-                nn.relu,
-            ]
-        )
         x = actor(embeddings)
 
         action_head = nn.Sequential(
@@ -171,7 +177,7 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
-                nn.Dropout(rate=0.2, deterministic=False),
+                nn.Dropout(rate=0.2, deterministic=True),
                 nn.Dense(
                     self.n_actions, kernel_init=orthogonal(0.01),
                 ),
@@ -184,7 +190,7 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
-                nn.Dropout(rate=0.2, deterministic=False),
+                nn.Dropout(rate=0.2, deterministic=True),
                 nn.Dense(
                     17, kernel_init=orthogonal(0.01),
                 ),
@@ -197,7 +203,7 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
-                nn.Dropout(rate=0.2, deterministic=False),
+                nn.Dropout(rate=0.2, deterministic=True),
                 nn.Dense(
                     17, kernel_init=orthogonal(0.01),
                 ),
