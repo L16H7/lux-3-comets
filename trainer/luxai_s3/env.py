@@ -771,7 +771,7 @@ class LuxAIS3Env(environment.Environment):
         sap_destroyed_units = (jnp.logical_and(units_mask_before_sap, ~units_mask_after_sap)).sum(axis=-1)
 
         # p1_sap_destroyed_counts = sap_destroyed_units[1] - sap_destroyed_units[0]
-        p0_sap_destroyed_rewards = sap_destroyed_rewards[1] * SAP_DESTROYED_REWARDS
+        p0_sap_destroyed_rewards = sap_destroyed_units[1] * SAP_DESTROYED_REWARDS
         p0_sap_destroyed_rewards = jnp.expand_dims(p0_sap_destroyed_rewards.repeat(16), axis=0)
         p1_sap_destroyed_rewards = sap_destroyed_units[0] * SAP_DESTROYED_REWARDS
         p1_sap_destroyed_rewards = jnp.expand_dims(p1_sap_destroyed_rewards.repeat(16), axis=0)
