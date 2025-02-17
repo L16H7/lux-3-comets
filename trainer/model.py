@@ -129,32 +129,8 @@ class Actor(nn.Module):
                 use_bias=True,
             ),
             nn.relu,
-            nn.Conv(
-                features=256,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True,
-            ),
-            nn.relu,
-            nn.Conv(
-                features=512,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True,
-            ),
-            nn.relu,
-            nn.Conv(
-                features=512,
-                kernel_size=(2, 2),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True,
-            ),
+            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Dense(512),
         ])
 
         observation_embeddings = observation_encoder(
@@ -170,7 +146,7 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             info_embeddings,
             position_embeddings,
-            jnp.squeeze(observation_embeddings, axis=[1, 2]),
+            observation_embeddings,
         ], axis=-1)
 
         actor = nn.Sequential(
