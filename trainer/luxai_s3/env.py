@@ -806,9 +806,9 @@ class LuxAIS3Env(environment.Environment):
         terminated = self.is_terminal(state, params)
 
         win_rewards = jnp.zeros((2, 16))
-        win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 1.0, 0.0))
+        win_rewards = win_rewards.at[winner, :].set(jnp.where(match_ended, 3.0, 0.0))
         lose_rewards = jnp.zeros((2, 16))
-        lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -1.0, 0.0))
+        lose_rewards = lose_rewards.at[1 - winner, :].set(jnp.where(match_ended, -3.0, 0.0))
         rewards = win_rewards + lose_rewards
 
         return (
