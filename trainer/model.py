@@ -101,7 +101,7 @@ class Actor(nn.Module):
             nn.relu,
             ResidualBlock(64),
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(2, 2),
                 padding=0,
@@ -109,9 +109,9 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(128),
+            ResidualBlock(64),
             nn.Conv(
-                features=256,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding=0,
@@ -119,42 +119,19 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(256),
+            ResidualBlock(64),
             nn.Conv(
-                features=256,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True,
+                use_bias=False
             ),
             nn.relu,
-            nn.Conv(
-                features=256,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True,
-            ),
-            nn.relu,
-            nn.Conv(
-                features=512,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True,
-            ),
-            nn.relu,
-            nn.Conv(
-                features=512,
-                kernel_size=(2, 2),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True,
-            ),
+            ResidualBlock(64),
+            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Dense(512),
         ])
 
         observation_embeddings = observation_encoder(
