@@ -316,7 +316,7 @@ def train(config: Config):
         optax.adamw(config.actor_learning_rate),
     )
 
-    actor_checkpoint_path = '/root/lux-3-comets/checkpoints/80_actor'
+    actor_checkpoint_path = '/root/lux-3-comets/checkpoints_train/630_actor'
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     actor_network_params = orbax_checkpointer.restore(actor_checkpoint_path)
 
@@ -329,7 +329,7 @@ def train(config: Config):
     train_device_rngs = jax.random.split(rng, num=jax.local_device_count())
     player_0_train_state = replicate(player_0_train_state, jax.local_devices())
 
-    p1_actor_checkpoint_path = '/root/lux-3-comets/checkpoints/600_actor'
+    p1_actor_checkpoint_path = '/root/lux-3-comets/checkpoints/845_actor'
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     p1_actor_network_params = orbax_checkpointer.restore(p1_actor_checkpoint_path)
 
@@ -384,29 +384,14 @@ def train(config: Config):
             meta_step += 1
             meta_info = jtu.tree_map(lambda x: x[i], eval_info)
             meta_info["meta_steps"] = meta_step
-            for j in range(config.n_update_steps):
-                update_step += config.n_minibatches * config.n_epochs * jax.local_device_count()
-                total_transitions += config.n_envs_per_device * jax.local_device_count() * config.n_actor_steps
-                info = jtu.tree_map(lambda x: x[i, j], eval_checkpoints_info)
-                wandb.log(info)
+            wandb.log(meta_info)
 
 
 if __name__ == "__main__":
     config = Config(
         n_meta_steps=1,
-        n_actor_steps=14,
-        n_update_steps=36,
-        n_envs=32,
-        n_envs_per_device=32,
         n_eval_envs=32,
-        n_minibatches=16,
-        n_epochs=1,
-        actor_learning_rate=8e-5,
-        critic_learning_rate=1e-4,
         wandb_project="Bench",
         train_seed=42,
-        entropy_coeff=0.01,
-        gae_lambda=0.98,
-        gamma=0.995,
     )
     train(config=config)
