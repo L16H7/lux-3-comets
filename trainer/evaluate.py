@@ -6,7 +6,7 @@ from collections import OrderedDict
 from agent import get_actions, vectorized_transform_actions, transform_coordinates
 from constants import Constants
 from opponent import get_actions as get_opponent_actions
-from representation import get_env_info
+from representation import get_env_info, teacher_get_env_info
 
 
 def evaluate(
@@ -15,14 +15,15 @@ def evaluate(
     meta_env_params,
     actor_train_state,
     opponent_state,
+    label,
     n_envs,
     n_agents,
     v_reset,
     v_step,
 ):
-    N_TOTAL_AGENTS = n_envs * n_agents
-
     env_info = get_env_info(meta_env_params)
+    teacher_env_info = teacher_get_env_info(meta_env_params)
+    p1_env_info = env_info if label != Constants.TEACHER_LABEL else teacher_env_info
 
     def _env_step(runner_state, _):
         (
@@ -37,11 +38,13 @@ def evaluate(
             p0_states,
             p0_temporal_states,
             p0_agent_observations,
+            _,
             p0_episode_info,
             p0_points_map,
             p0_search_map,
             p0_agent_positions,
-            p0_agent_energies,
+            p0_energies,
+            p0_energies_gained,
             p0_units_mask,
             p0_discovered_relic_nodes,
             p0_points_history_positions,
@@ -51,7 +54,7 @@ def evaluate(
 
         p0_agent_episode_info = p0_episode_info.repeat(n_agents, axis=0)
         p0_agent_states = p0_states.repeat(16, axis=0)
-        p0_agent_observations = p0_agent_observations.reshape(-1, 16, 47, 47)
+        p0_agent_observations = p0_agent_observations.reshape(-1, 19, 47, 47)
         p0_agent_positions = p0_agent_positions.reshape(-1, 2)
 
         p0_logits = actor_train_state.apply_fn(
@@ -68,9 +71,11 @@ def evaluate(
                 "unit_sap_cost": env_info[:, 1],
                 "unit_sap_range": env_info[:, 2],
                 "unit_sensor_range": env_info[:, 3],
-                "energies": p0_agent_energies,
+                "energies": p0_energies,
+                "energies_gained": p0_energies_gained,
                 "points_gained_history": p0_agent_episode_info[:, 4:],
-            }
+            },
+            rngs={ "dropout": rng }
         )
 
         rng, p0_action_rng, p1_action_rng = jax.random.split(rng, num=3)
@@ -89,11 +94,13 @@ def evaluate(
             p1_states,
             p1_temporal_states,
             p1_agent_observations,
+            teacher_p1_agent_observations,
             p1_episode_info,
             p1_points_map,
             p1_search_map,
             p1_agent_positions,
-            p1_agent_energies,
+            p1_energies,
+            p1_energies_gained,
             p1_units_mask,
             p1_discovered_relic_nodes,
             p1_points_history_positions,
@@ -103,26 +110,27 @@ def evaluate(
 
         p1_agent_episode_info = p1_episode_info.repeat(n_agents, axis=0)
         p1_agent_states = p1_states.repeat(16, axis=0)
-        p1_agent_observations = p1_agent_observations.reshape(-1, 16, 47, 47)
+        p1_agent_observations = p1_agent_observations.reshape(-1, 19, 47, 47)
         p1_agent_positions = p1_agent_positions.reshape(-1, 2)
 
-        p1_logits = actor_train_state.apply_fn(
-            actor_train_state.params,
+        p1_logits = opponent_state.apply_fn(
+            opponent_state.params,
             {
-                "states": p1_agent_states,
-                "observations": p1_agent_observations,
+                "observations": p1_agent_observations if label != Constants.TEACHER_LABEL else teacher_p1_agent_observations,
                 "positions": p1_agent_positions,
                 "match_steps": p1_agent_episode_info[:, 0],
                 "matches": p1_agent_episode_info[:, 1],
                 "team_points": p1_agent_episode_info[:, 2],
                 "opponent_points": p1_agent_episode_info[:, 3],
-                "unit_move_cost": env_info[:, 0],
-                "unit_sap_cost": env_info[:, 1],
-                "unit_sap_range": env_info[:, 2],
-                "unit_sensor_range": env_info[:, 3],
-                "energies": p1_agent_energies,
+                "unit_move_cost": p1_env_info[:, 0],
+                "unit_sap_cost": p1_env_info[:, 1],
+                "unit_sap_range": p1_env_info[:, 2],
+                "unit_sensor_range": p1_env_info[:, 3],
+                "energies": p1_energies if label != Constants.TEACHER_LABEL else p1_energies_gained,
+                "energies_gained": p1_energies_gained,
                 "points_gained_history": p1_agent_episode_info[:, 4:],
-            }
+            },
+            rngs={ "dropout": rng }
         )
 
         p1_actions, _, _ = get_actions(
@@ -157,6 +165,9 @@ def evaluate(
             p1_discovered_relic_nodes
         )
 
+        p0_sapped_units_mask = p0_actions[..., 0] == 5
+        p1_sapped_units_mask = p1_actions[..., 0] == 5
+
         p0_next_representations, p1_next_representations, next_observations, next_states, rewards, _, _, info = v_step(
             states,
             OrderedDict({
@@ -178,6 +189,8 @@ def evaluate(
             p0_points_history,
             p1_points_history,
             updated_nebula_info,
+            p0_sapped_units_mask,
+            p1_sapped_units_mask,
             meta_keys,
             meta_env_params,
         )
@@ -194,7 +207,7 @@ def evaluate(
         max_relic_nodes = runner_state[4].relic_nodes_mask.sum(axis=-1) // 2
         ground_truth = (ground_truth > 0) & (ground_truth <= max_relic_nodes[:, None, None])
 
-        prediction = runner_state[2][0][4]  # shape: (n_envs, 24, 24)
+        prediction = runner_state[2][0][5]  # shape: (n_envs, 24, 24)
 
 
         # Calculate true positives
@@ -243,32 +256,34 @@ def evaluate(
     last_match_steps = jtu.tree_map(lambda x: jnp.take(x, jnp.array([99, 200, 301, 402, 502]), axis=0), info)
 
     info_ = {
-        "p0_energy_depletions": last_match_steps["p0_energy_depletions"],
-        "p1_energy_depletions": last_match_steps["p1_energy_depletions"],
-        "p0_points_mean": last_match_steps["p0_points_mean"],
-        "p1_points_mean": last_match_steps["p1_points_mean"],
-        "p0_points_std": last_match_steps["p0_points_std"],
-        "p1_points_std": last_match_steps["p1_points_std"],
-        "points_map_coverage_mean": last_match_steps["points_map_coverage_mean"],
-        "points_map_coverage_std": last_match_steps["points_map_coverage_std"],
-        "points_map_false_flags_mean": last_match_steps["points_map_false_flags_mean"],
-        "points_map_false_flags_std": last_match_steps["points_map_false_flags_std"],
-        "points_map_false_negative_mean": last_match_steps["points_map_false_negative_mean"],
-        "points_map_false_negative_std": last_match_steps["points_map_false_negative_std"],
+        f"eval_{label}_stats/p0_energy_depletions": last_match_steps["p0_energy_depletions"],
+        f"eval_{label}_stats/p1_energy_depletions": last_match_steps["p1_energy_depletions"],
+        f"eval_{label}/p0_points_mean": last_match_steps["p0_points_mean"],
+        f"eval_{label}/p1_points_mean": last_match_steps["p1_points_mean"],
+        f"eval_{label}/p0_points_std": last_match_steps["p0_points_std"],
+        f"eval_{label}/p1_points_std": last_match_steps["p1_points_std"],
+        f"eval_{label}_debug/points_map_coverage_mean": last_match_steps["points_map_coverage_mean"],
+        f"eval_{label}_debug/points_map_coverage_std": last_match_steps["points_map_coverage_std"],
+        f"eval_{label}_debug/points_map_false_flags_mean": last_match_steps["points_map_false_flags_mean"],
+        f"eval_{label}_debug/points_map_false_flags_std": last_match_steps["points_map_false_flags_std"],
+        f"eval_{label}_debug/points_map_false_negative_mean": last_match_steps["points_map_false_negative_mean"],
+        f"eval_{label}_debug/points_map_false_negative_std": last_match_steps["points_map_false_negative_std"],
     }
     info2_ = {
-        "eval/p0_wins": info["p0_wins"][-1],
-        "eval/p1_wins": info["p1_wins"][-1],
-        "eval/p0_sap_destroyed_units": info["p0_sap_units_destroyed"].sum(),
-        "eval/p1_sap_destroyed_units": info["p1_sap_units_destroyed"].sum(),
-        "eval/p0_collision_destroyed_units": info["p0_collision_units_destroyed"].sum(),
-        "eval/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
-        "eval/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
-        "eval/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
-        "eval/nebula_energy_reduction_calculation_success_rate": nebula_energy_reduction_calculation_success_rate,
+        f"eval_{label}/p0_match_wins": info["p0_match_wins"][-1],
+        f"eval_{label}/p1_match_wins": info["p1_match_wins"][-1],
+        f"eval_{label}/p0_episode_wins": info["p0_episode_wins"][-1],
+        f"eval_{label}/p1_episode_wins": info["p1_episode_wins"][-1],
+        f"eval_{label}_stats/p0_sap_destroyed_units": info["p0_sap_units_destroyed"].sum(),
+        f"eval_{label}_stats/p1_sap_destroyed_units": info["p1_sap_units_destroyed"].sum(),
+        f"eval_{label}_stats/p0_collision_destroyed_units": info["p0_collision_units_destroyed"].sum(),
+        f"eval_{label}_stats/p1_collision_destroyed_units": info["p1_collision_units_destroyed"].sum(),
+        f"eval_{label}_stats/p0_net_energy_of_sap_loss": info["p0_net_energy_of_sap_loss"].sum(),
+        f"eval_{label}_stats/p1_net_energy_of_sap_loss": info["p1_net_energy_of_sap_loss"].sum(),
+        f"eval_{label}_debug/nebula_energy_reduction_calculation_success_rate": nebula_energy_reduction_calculation_success_rate,
     }
 
-    info_dict = {f"eval/{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
+    info_dict = {f"{key}_ep{i+1}": value for key, array in info_.items() for i, value in enumerate(array)}
 
     return {
         **info_dict,

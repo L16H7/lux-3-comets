@@ -63,6 +63,7 @@ def create_unit_maps(
     unit_positions,
     unit_masks,
     unit_energy,
+    sapped_unit_masks,
 ):
     n_envs, n_units, _ = unit_positions.shape
     unit_maps = jnp.zeros((n_envs, Constants.MAP_HEIGHT, Constants.MAP_WIDTH), dtype=jnp.int32)
@@ -77,9 +78,10 @@ def create_unit_maps(
     unit_y_positions = unit_positions_flat[:, 1].astype(jnp.int32)
     
     unit_maps = unit_maps.at[env_indices, unit_y_positions, unit_x_positions].add(unit_masks_flat.astype(jnp.int32))
+    sapped_unit_maps = unit_maps.at[env_indices, unit_y_positions, unit_x_positions].add(sapped_unit_masks.reshape(-1).astype(jnp.int32))
     unit_energy_maps = unit_energy_maps.at[env_indices, unit_y_positions, unit_x_positions].add(unit_energy_flat * unit_masks_flat.astype(jnp.int32))
 
-    return unit_maps, unit_energy_maps
+    return unit_maps, unit_energy_maps, sapped_unit_maps
 
 # @profile
 def create_agent_patches(state_representation, unit_positions_team):
@@ -130,6 +132,29 @@ def create_agent_patches(state_representation, unit_positions_team):
 def get_env_info(env_params):
     unit_move_cost = jnp.expand_dims(
         env_params.unit_move_cost, axis=-1
+    ).repeat(16, axis=1) / 4
+    unit_sap_cost = jnp.expand_dims(
+        env_params.unit_sap_cost, axis=-1
+    ).repeat(16, axis=1) / 40
+    unit_sap_range = jnp.expand_dims(
+        env_params.unit_sap_range - 2, axis=-1
+    ).repeat(16, axis=1) / 4
+    unit_sensor_range = jnp.expand_dims(
+        env_params.unit_sensor_range, axis=-1
+    ).repeat(16, axis=1) / 4
+
+    env_info = jnp.concatenate([
+        unit_move_cost[..., None],
+        unit_sap_cost[..., None],
+        unit_sap_range[..., None],
+        unit_sensor_range[..., None]
+    ], axis=-1)
+    return env_info.reshape(-1, 4)
+
+
+def teacher_get_env_info(env_params):
+    unit_move_cost = jnp.expand_dims(
+        env_params.unit_move_cost, axis=-1
     ).repeat(16, axis=1) * 0.125
     unit_sap_cost = jnp.expand_dims(
         env_params.unit_sap_cost, axis=-1
@@ -149,7 +174,6 @@ def get_env_info(env_params):
     ], axis=-1)
     return env_info.reshape(-1, 4)
 
-
 def create_representations(
     obs,
     temporal_states,
@@ -165,6 +189,7 @@ def create_representations(
     unit_move_cost,
     sensor_range,
     nebula_info,
+    sapped_units_mask,
     team_idx=0,
     opponent_idx=1,
 ):
@@ -176,16 +201,18 @@ def create_representations(
     unit_positions_opponent = obs.units.position[:, opponent_idx, :, :] # Shape: [batch_size, num_opponent_units, 2]
     unit_energies_opponent = obs.units.energy[:, opponent_idx, :]       # Shape: [batch_size, num_opponent_units]
 
-    team_unit_maps, team_energy_maps = create_unit_maps(
+    team_unit_maps, team_energy_maps, team_sapped_unit_maps = create_unit_maps(
         unit_positions=unit_positions_team,
         unit_energy=unit_energies_team,
         unit_masks=unit_masks_team,
+        sapped_unit_masks=sapped_units_mask,
     )
 
-    opponent_unit_maps, opponent_energy_maps = create_unit_maps(
+    opponent_unit_maps, opponent_energy_maps, _ = create_unit_maps(
         unit_positions=unit_positions_opponent,
         unit_energy=unit_energies_opponent,
         unit_masks=unit_masks_opponent,
+        sapped_unit_masks=jnp.zeros_like(unit_masks_opponent), # we don't know if they sapped
     )
 
     relic_node_maps = create_relic_nodes_maps(
@@ -346,6 +373,7 @@ def create_representations(
     updated_nebula_info, scaled_nebula_map = calculate_nebula_map(
         sensor_maps,
         sensor_range,
+        (temporal_states[:, 4, ...] < 0),
         nebula_maps,
         nebula_info,
         points_history_positions[obs.match_steps[0] - 1],
@@ -364,6 +392,23 @@ def create_representations(
 
     maps = [
         combined_asteroid_nebula,
+        energy_map / 20,
+        team_energy_maps / 300,
+        opponent_energy_maps / 300,
+        team_unit_maps / 2,
+        opponent_unit_maps / 2,
+        sensor_maps,
+        relic_node_maps,
+        updated_points_map,
+        updated_search_map,
+        team_sapped_unit_maps,
+    ]
+    state_representation = jnp.stack(maps, axis=1)
+    state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
+
+
+    teacher_maps = [
+        combined_asteroid_nebula,
         team_energy_maps * 0.0025,
         opponent_energy_maps * 0.0025,
         team_unit_maps * 0.25,
@@ -374,9 +419,8 @@ def create_representations(
         updated_points_map,
         updated_search_map,
     ]
-    state_representation = jnp.stack(maps, axis=1)
-    state_representation = state_representation if team_idx == 0 else transform_observation(state_representation)
-
+    teacher_state_representation = jnp.stack(teacher_maps, axis=1)
+    teacher_state_representation = teacher_state_representation if team_idx == 0 else transform_observation(teacher_state_representation)
 
     match_steps = obs.match_steps[:, None] / 100.0
     matches = obs.steps[:, None] / 400.0
@@ -404,13 +448,28 @@ def create_representations(
     agent_positions = unit_positions_team
 
     agent_observations = create_agent_patches(
-        state_representation=jnp.concatenate([temporal_states, state_representation], axis=1),
+        state_representation=jnp.concatenate(
+            [temporal_states[:, :8, ...], state_representation],
+            axis=1
+        ),
+        unit_positions_team=unit_positions_team,
+    )
+    
+    teacher_agent_observations = create_agent_patches(
+        state_representation=jnp.concatenate(
+            [temporal_states[:, 8:, ...], teacher_state_representation],
+            axis=1
+        ),
         unit_positions_team=unit_positions_team,
     )
 
+
     updated_temporal_states = jnp.concatenate([
-        temporal_states[:, 3:, ...],
-        state_representation[:, :3, ...],
+        temporal_states[:, 4: 8, ...],
+        state_representation[:, :4, ...],
+        # for teacher
+        temporal_states[:, 11:, ...],
+        teacher_state_representation[:, :3, ...],
     ], axis=1)
     
     energy_gained = unit_energies_team - jnp.maximum(jnp.squeeze(prev_agent_energies, axis=-1), 0)
@@ -419,11 +478,13 @@ def create_representations(
         state_representation,
         updated_temporal_states,
         agent_observations,
+        teacher_agent_observations,
         episode_info,
         updated_points_map,
         updated_search_map,
         agent_positions,
-        energy_gained * 0.02,
+        unit_energies_team / 300,
+        jnp.clip(energy_gained, -100, 100) * 0.02,
         unit_energies_team > 0, # mask energy depleted agents in ppo update
         relic_nodes,
         points_history_positions,
@@ -452,6 +513,8 @@ def create_agent_representations(
     unit_move_cost,
     sensor_range,
     nebula_info,
+    p0_sapped_units_mask,
+    p1_sapped_units_mask,
 ):
     p0_observations = observations["player_0"]
     p0_representations = create_representations(
@@ -469,6 +532,7 @@ def create_agent_representations(
         unit_move_cost=unit_move_cost,
         sensor_range=sensor_range,
         nebula_info=nebula_info,
+        sapped_units_mask=p0_sapped_units_mask,
         team_idx=0,
         opponent_idx=1,
     )
@@ -489,26 +553,39 @@ def create_agent_representations(
         unit_move_cost=unit_move_cost,
         sensor_range=sensor_range,
         nebula_info=nebula_info,
+        sapped_units_mask=p1_sapped_units_mask,
         team_idx=1,
         opponent_idx=0,
     )
     return p0_representations, p1_representations
 
-def combined_states_info(team_states, opponent_states):
+def combined_states_info(
+    team_states,
+    opponent_states,
+    team_temporal_states,
+    opponent_temporal_states,
+):
+    opponent_temporal_states = transform_observation(opponent_temporal_states.copy())
     opponent_states = transform_observation(opponent_states.copy())
     combined_states = jnp.stack([
-        team_states[:, 1, ...], # team energy
-        opponent_states[:, 1, ...], # opponent energy
-        team_states[:, 3, ...], # team units
-        opponent_states[:, 3, ...], # opponent units
+        team_temporal_states[:, 2, ...], # team energy
+        opponent_temporal_states[:, 2, ...], # opponent energy
+        team_states[:, 2, ...], # team energy
+        opponent_states[:, 2, ...], # opponent energy
+        team_states[:, 4, ...], # team units
+        opponent_states[:, 4, ...], # opponent units
         # energy
-        jnp.where(team_states[:, 5, ...] != 0, team_states[:, 5, ...], opponent_states[:, 5, ...]),
+        jnp.where(team_states[:, 1, ...] != 0, team_states[:, 1, ...], opponent_states[:, 1, ...]),
         # asteroid & nebula
         jnp.where(team_states[:, 0, ...] != 0, team_states[:, 0, ...], opponent_states[:, 0, ...]),
         team_states[:, 7, ...], # relic
         opponent_states[:, 7, ...], # relic
         team_states[:, 8, ...], # point map
         opponent_states[:, 8, ...], # point map
-    ], axis=1)
+        team_states[:, 9, ...], # search map
+        opponent_states[:, 9, ...], # search map
+        team_states[:, 10, ...], # sapped unit map
+        opponent_states[:, 10, ...], # sapped unit map
+    ], axis=-1)
 
     return combined_states

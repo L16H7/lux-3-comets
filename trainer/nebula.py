@@ -7,6 +7,7 @@ from utils import transform_observation_3dim
 def calculate_nebula_map(
     sensor_map,
     sensor_range,
+    prev_nebula_map,
     nebula_map,
     nebula_info,
     prev_agent_positions,
@@ -26,12 +27,13 @@ def calculate_nebula_map(
 
     non_base_agents_x = (agent_x > 0) & (agent_x < 23)
     non_base_agents_y = (agent_y > 0) & (agent_y < 23)
-    non_base_agents = non_base_agents_x & non_base_agents_y
+    non_base_agents = non_base_agents_x | non_base_agents_y
     sufficient_energy_agents = (prev_agent_energies > 25) & (agent_energies > 0)
     moving_agents = (prev_agent_positions != agent_positions).sum(axis=-1) == 1
     
     # Create the mask by indexing nebula_map with agent positions
-    nebula_agent_mask = nebula_map[jnp.arange(nebula_map.shape[0])[:, None], agent_y, agent_x]
+    non_moving_nebula_map = prev_nebula_map & nebula_map
+    nebula_agent_mask = non_moving_nebula_map[jnp.arange(nebula_map.shape[0])[:, None], agent_y, agent_x]
     nebula_agent_mask = nebula_agent_mask & non_base_agents & sufficient_energy_agents & agent_mask & moving_agents
 
     energy_for_agents = energy_map[jnp.arange(energy_map.shape[0])[:, None], agent_y, agent_x]

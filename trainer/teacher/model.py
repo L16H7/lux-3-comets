@@ -1,6 +1,9 @@
 import jax
 import math
+import orbax.checkpoint
+import optax
 import flax.linen as nn
+from flax.training.train_state import TrainState
 import jax.numpy as jnp
 from flax.linen.initializers import orthogonal
 from typing import Tuple, TypedDict
@@ -48,6 +51,41 @@ def get_2d_positional_embeddings(positions, embedding_dim=32, max_size=24):
     return embeddings
 
 
+class ResidualBlock(nn.Module):
+    features: int
+    kernel_size: Tuple[int, int] = (3, 3)
+    strides: Tuple[int, int] = (1, 1)
+    reduction_ratio: int = 16  # Reduction ratio for SE block
+    
+    @nn.compact
+    def __call__(self, x):
+        residual = x
+        
+        # Main convolution path
+        y = nn.Conv(self.features, self.kernel_size, self.strides, 
+                   padding="SAME", use_bias=False)(x)
+        y = nn.relu(y)
+        y = nn.Conv(self.features, self.kernel_size, self.strides, 
+                   padding="SAME", use_bias=False)(y)
+        
+        # Squeeze and Excitation block
+        # Squeeze: Global average pooling
+        se = jnp.mean(y, axis=(1, 2), keepdims=True)  # Shape: (B, 1, 1, C)
+        
+        # Excitation: Two FC layers with reduction
+        se_features = max(self.features // self.reduction_ratio, 1)
+        se = nn.Conv(se_features, (1, 1), use_bias=True)(se)  # First FC
+        se = nn.relu(se)
+        se = nn.Conv(self.features, (1, 1), use_bias=True)(se)  # Second FC
+        se = nn.sigmoid(se)
+        
+        # Scale the original features
+        y = y * se
+        
+        # Add residual connection
+        y += residual
+        return nn.relu(y)
+
 class ActorInput(TypedDict):
     positions: jax.Array
     states: jax.Array
@@ -61,15 +99,13 @@ class ActorInput(TypedDict):
     unit_sap_range: jax.Array
     unit_sensor_range: jax.Array
     energies: jax.Array
-    energies_gained: jax.Array
     point_gained_history: jax.Array
  
 class Actor(nn.Module):
     n_actions: int = 6
-    hidden_dim: int = 786
-    position_emb_dim: int = 64
-    info_emb_dim = 386
-    n_heads: int = 8
+    info_emb_dim: int = 256
+    hidden_dim: int = 512
+    position_emb_dim: int = 32
  
     @nn.compact
     def __call__(self, actor_input: ActorInput):
@@ -120,12 +156,12 @@ class Actor(nn.Module):
 
 
         observation_embeddings = observation_encoder(
-            actor_input['observations'].transpose((0, 2, 3, 1))
+            actor_input['observations'].reshape(-1, 16, 47, 47).transpose((0, 2, 3, 1))
         )
 
         position_embeddings = get_2d_positional_embeddings(
             actor_input['positions'],
-            embedding_dim=self.position_emb_dim,
+            embedding_dim=32,
             max_size=24
         )
 
@@ -134,7 +170,6 @@ class Actor(nn.Module):
             actor_input['opponent_points'][:, None],
             actor_input['match_steps'][:, None],
             actor_input['energies'].reshape(-1)[:, None],
-            actor_input['energies_gained'].reshape(-1)[:, None],
             actor_input['unit_sap_cost'][:, None],
             actor_input['unit_sap_range'][:, None],
             actor_input['points_gained_history']
@@ -155,7 +190,6 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
-                nn.Dropout(rate=0.2, deterministic=True),
                 nn.Dense(
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
@@ -177,7 +211,6 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
-                nn.Dropout(rate=0.2, deterministic=True),
                 nn.Dense(
                     self.n_actions, kernel_init=orthogonal(0.01),
                 ),
@@ -190,7 +223,6 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
-                nn.Dropout(rate=0.2, deterministic=True),
                 nn.Dense(
                     17, kernel_init=orthogonal(0.01),
                 ),
@@ -203,7 +235,6 @@ class Actor(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
-                nn.Dropout(rate=0.2, deterministic=True),
                 nn.Dense(
                     17, kernel_init=orthogonal(0.01),
                 ),
@@ -216,42 +247,6 @@ class Actor(nn.Module):
 
         return logits1, logits2, logits3
 
-
-class ResidualBlock(nn.Module):
-    features: int
-    kernel_size: Tuple[int, int] = (3, 3)
-    strides: Tuple[int, int] = (1, 1)
-    reduction_ratio: int = 16  # Reduction ratio for SE block
-    
-    @nn.compact
-    def __call__(self, x):
-        residual = x
-        
-        # Main convolution path
-        y = nn.Conv(self.features, self.kernel_size, self.strides, 
-                   padding="SAME", use_bias=False)(x)
-        y = nn.relu(y)
-        y = nn.Conv(self.features, self.kernel_size, self.strides, 
-                   padding="SAME", use_bias=False)(y)
-        
-        # Squeeze and Excitation block
-        # Squeeze: Global average pooling
-        se = jnp.mean(y, axis=(1, 2), keepdims=True)  # Shape: (B, 1, 1, C)
-        
-        # Excitation: Two FC layers with reduction
-        se_features = max(self.features // self.reduction_ratio, 1)
-        se = nn.Conv(se_features, (1, 1), use_bias=True)(se)  # First FC
-        se = nn.relu(se)
-        se = nn.Conv(self.features, (1, 1), use_bias=True)(se)  # Second FC
-        se = nn.sigmoid(se)
-        
-        # Scale the original features
-        y = y * se
-        
-        # Add residual connection
-        y += residual
-        return nn.relu(y)
-    
 
 class CriticInput(TypedDict):
     states: jax.Array
@@ -266,49 +261,54 @@ class Critic(nn.Module):
  
     @nn.compact
     def __call__(self, critic_input):
+        seq_len, batch_size = critic_input['states'].shape[:2]
+
         state_encoder = nn.Sequential([
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(4, 4),
                 strides=(2, 2),
-                padding=0,
+                padding='SAME',
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False,
             ),
             nn.relu,
-            ResidualBlock(128),
+            ResidualBlock(64),
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(2, 2),
-                padding=0,
+                padding='SAME',
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(128),
             nn.Conv(
-                features=128,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(1, 1),
-                padding=0,
+                padding='SAME',
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(128),
+            ResidualBlock(64),
             nn.Conv(
-                features=512,
+                features=64,
                 kernel_size=(3, 3),
                 strides=(1, 1),
-                padding=0,
+                padding='SAME',
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
+            nn.relu,
+            ResidualBlock(64),
+            lambda x: x.reshape((x.shape[0], -1)),
+            nn.Dense(512),
         ])
 
         state_embeddings = state_encoder(
-            critic_input['states']
+            critic_input['states'].transpose((0, 2, 3, 1))
         )
 
         info_input = jnp.concatenate([
@@ -323,13 +323,12 @@ class Critic(nn.Module):
         info_embeddings = nn.Sequential([
             nn.Dense(self.hidden_dim, kernel_init=orthogonal(math.sqrt(2))),
             nn.relu,
-            nn.Dropout(rate=0.2, deterministic=False),
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
             nn.relu,
         ])(info_input)
 
         embeddings = jnp.concat([
-            jnp.squeeze(state_embeddings, axis=[1, 2]),
+            state_embeddings,
             info_embeddings,
         ], axis=-1)
 
@@ -339,10 +338,47 @@ class Critic(nn.Module):
                     self.hidden_dim, kernel_init=orthogonal(2),
                 ),
                 nn.relu,
-                nn.Dropout(rate=0.2, deterministic=False),
                 nn.Dense(1, kernel_init=orthogonal(1.0)),
             ]
         )
 
         values = critic(embeddings)
         return values
+
+def make_teacher_state():
+    checkpoint_path = '/root/19000_actor'
+    orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+    teacher_params = orbax_checkpointer.restore(checkpoint_path)
+
+    actor = Actor()
+
+    # DEVELOPMENT #
+    # BATCH = 1
+    # rng = jax.random.PRNGKey(42)
+    # teacher_params = actor.init(rng, {
+    #     "states": jnp.zeros((BATCH, 11, 24, 24)),
+    #     "observations": jnp.zeros((BATCH, 16, 47, 47)),
+    #     "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
+    #     "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
+    #     "positions": jnp.zeros((BATCH, 2), dtype=jnp.int32),
+    #     "team_points": jnp.zeros((BATCH,)),
+    #     "opponent_points": jnp.zeros((BATCH,)),
+    #     "unit_move_cost": jnp.zeros((BATCH,)),
+    #     "unit_sap_cost": jnp.zeros((BATCH,)),
+    #     "unit_sap_range": jnp.zeros((BATCH,)),
+    #     "unit_sensor_range": jnp.zeros((BATCH,)),
+    #     "energies": jnp.zeros((BATCH,)),
+    #     "points_gained_history": jnp.zeros((BATCH, 4)),
+    # })
+    # DEVELOPMENT #
+
+    actor_tx = optax.chain(
+        optax.clip_by_global_norm(0.5),
+        optax.adamw(3e-5),
+    ) 
+    teacher_state = TrainState.create(
+        apply_fn=actor.apply,
+        params=teacher_params,
+        tx=actor_tx,
+    )
+    return teacher_state
