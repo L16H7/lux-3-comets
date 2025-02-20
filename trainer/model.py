@@ -86,7 +86,7 @@ class Actor(nn.Module):
             ResidualBlock(64),
             nn.Conv(
                 features=128,
-                kernel_size=(5, 5),
+                kernel_size=(4, 4),
                 strides=(2, 2),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
@@ -95,7 +95,7 @@ class Actor(nn.Module):
             nn.relu,
             ResidualBlock(128),
             nn.Conv(
-                features=128,
+                features=256,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding=0,
@@ -103,37 +103,15 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(128),
+            ResidualBlock(256),
             nn.Conv(
-                features=128,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=False
-            ),
-            nn.relu,
-            ResidualBlock(128),
-            nn.Conv(
-                features=128,
-                kernel_size=(3, 3),
+                features=64,
+                kernel_size=(1, 1),
                 strides=(1, 1),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=True
             ),
-            nn.relu,
-            ResidualBlock(128),
-            nn.Conv(
-                features=128,
-                kernel_size=(3, 3),
-                strides=(1, 1),
-                padding=0,
-                kernel_init=orthogonal(math.sqrt(2)),
-                use_bias=True
-            ),
-            nn.relu,
-            nn.Dense(1024),
             nn.relu,
         ])
 
@@ -185,7 +163,7 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             info_embeddings,
             position_embeddings,
-            jnp.squeeze(observation_embeddings, axis=[1, 2]),
+            observation_embeddings.reshape(observation_embeddings.shape[0], -1),
         ], axis=-1)
 
         x = actor(embeddings)
