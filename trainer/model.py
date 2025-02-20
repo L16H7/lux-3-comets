@@ -113,6 +113,9 @@ class Actor(nn.Module):
                 use_bias=True
             ),
             nn.relu,
+            lambda x: x.reshape(x.shape[0], -1),
+            nn.Dense(1024),
+            nn.relu,
         ])
 
         observation_embeddings = observation_encoder(
@@ -163,7 +166,7 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             info_embeddings,
             position_embeddings,
-            observation_embeddings.reshape(observation_embeddings.shape[0], -1),
+            observation_embeddings,
         ], axis=-1)
 
         x = actor(embeddings)
