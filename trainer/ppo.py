@@ -202,17 +202,30 @@ def ppo_update(
             },
             rngs={ "dropout": rng },
         )
-        values = jnp.squeeze(values.repeat(16, axis=0), axis=-1)
+        values = jnp.squeeze(values, axis=-1)
+        old_values = jax.lax.stop_gradient(transitions.values.reshape(-1, 16).mean(axis=1))
+        target_values = jax.lax.stop_gradient(targets.reshape(-1, 16).mean(axis=1))
 
-        value_pred_clipped = transitions.values + (values - transitions.values).clip(-clip_eps, clip_eps)
+        value_pred_clipped = old_values + (values - old_values).clip(-clip_eps, clip_eps)
 
-        value_loss = jnp.square(values - targets)
-        value_loss_clipped = jnp.square(value_pred_clipped - targets)
-        value_loss = 0.5 * jnp.maximum(value_loss, value_loss_clipped).mean()
+        value_loss_unclipped = jnp.square(values - target_values)
+        value_loss_unclipped = jnp.where(
+            transitions.episode_info[:, 0] == 0,
+            0,
+            value_loss_unclipped
+        )
+ 
+        value_loss_clipped = jnp.square(value_pred_clipped - target_values)
+        value_loss_clipped = jnp.where(
+            transitions.episode_info[:, 0] == 0,
+            0,
+            value_loss_clipped
+        )
+        value_loss = 0.5 * (jnp.maximum(value_loss_unclipped, value_loss_clipped).sum() / (transitions.episode_info[:, 0] > 0).sum())
 
         loss = actor_loss + vf_coef * value_loss - ent_coef * entropy_loss + kl_loss
 
-        explained_var = 1 - jnp.var(values - targets) / (jnp.var(targets) + 1e-8)
+        explained_var = 1 - jnp.var(values - target_values) / (jnp.var(target_values) + 1e-8)
         approx_kl = ((ratio - 1.0) - log_ratio).sum() / active_units # http://joschu.net/blog/kl-approx.html
         clip_frac = (abs((ratio - 1.0)) > clip_eps).sum() / active_units
 
