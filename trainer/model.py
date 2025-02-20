@@ -66,9 +66,9 @@ class ActorInput(TypedDict):
  
 class Actor(nn.Module):
     n_actions: int = 6
-    hidden_dim: int = 786
+    hidden_dim: int = 768
     position_emb_dim: int = 64
-    info_emb_dim = 386
+    info_emb_dim = 512
     n_heads: int = 8
  
     @nn.compact
@@ -76,7 +76,7 @@ class Actor(nn.Module):
         observation_encoder = nn.Sequential([
             nn.Conv(
                 features=64,
-                kernel_size=(4, 4),
+                kernel_size=(7, 7),
                 strides=(2, 2),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
@@ -85,16 +85,17 @@ class Actor(nn.Module):
             nn.relu,
             ResidualBlock(64),
             nn.Conv(
-                features=64,
-                kernel_size=(3, 3),
+                features=128,
+                kernel_size=(5, 5),
                 strides=(2, 2),
                 padding=0,
                 kernel_init=orthogonal(math.sqrt(2)),
                 use_bias=False
             ),
             nn.relu,
+            ResidualBlock(128),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding=0,
@@ -102,9 +103,9 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(64),
+            ResidualBlock(128),
             nn.Conv(
-                features=64,
+                features=128,
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 padding=0,
@@ -112,12 +113,29 @@ class Actor(nn.Module):
                 use_bias=False
             ),
             nn.relu,
-            ResidualBlock(64),
-            lambda x: x.reshape((x.shape[0], -1)),
-            nn.Dense(512),
+            ResidualBlock(128),
+            nn.Conv(
+                features=128,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding=0,
+                kernel_init=orthogonal(math.sqrt(2)),
+                use_bias=True
+            ),
+            nn.relu,
+            ResidualBlock(128),
+            nn.Conv(
+                features=128,
+                kernel_size=(3, 3),
+                strides=(1, 1),
+                padding=0,
+                kernel_init=orthogonal(math.sqrt(2)),
+                use_bias=True
+            ),
+            nn.relu,
+            nn.Dense(1024),
             nn.relu,
         ])
-
 
         observation_embeddings = observation_encoder(
             actor_input['observations'].transpose((0, 2, 3, 1))
@@ -145,6 +163,7 @@ class Actor(nn.Module):
                 self.hidden_dim, kernel_init=orthogonal(2),
             ),
             nn.relu,
+            nn.Dropout(rate=0.2, deterministic=True),
             nn.Dense(self.info_emb_dim, kernel_init=orthogonal(math.sqrt(2))),
             nn.relu,
         ])(info_input)
@@ -166,7 +185,7 @@ class Actor(nn.Module):
         embeddings = jnp.concat([
             info_embeddings,
             position_embeddings,
-            observation_embeddings,
+            jnp.squeeze(observation_embeddings, axis=[1, 2]),
         ], axis=-1)
 
         x = actor(embeddings)
