@@ -208,14 +208,14 @@ def ppo_update(
 
         value_pred_clipped = old_values + (values - old_values).clip(-clip_eps, clip_eps)
 
-        value_loss_unclipped = jnp.abs(values - target_values)
+        value_loss_unclipped = jnp.square(values - target_values)
         value_loss_unclipped = jnp.where(
             transitions.episode_info[:, 0] == 0,
             0,
             value_loss_unclipped
         )
  
-        value_loss_clipped = jnp.abs(value_pred_clipped - target_values)
+        value_loss_clipped = jnp.square(value_pred_clipped - target_values)
         value_loss_clipped = jnp.where(
             transitions.episode_info[:, 0] == 0,
             0,
