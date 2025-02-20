@@ -489,7 +489,7 @@ def make_train(config: Config):
                         energies=jnp.concat([p0_energies, p1_energies], axis=0),
                         energies_gained=jnp.concat([p0_energies_gained, p1_energies_gained], axis=0),
                         rewards=jnp.concat([p0_rewards, p1_rewards], axis=0),
-                        dones=jnp.logical_or(terminated["player_0"], truncated["player_0"]).repeat(2 * config.n_agents),
+                        dones=(states.match_steps == 100).repeat(2 * config.n_agents),
                         units_mask=jnp.concat([p0_units_mask.reshape(-1), p1_units_mask.reshape(-1)], axis=0),
                         logits1_mask=jnp.concat([p0_logits_mask[0], p1_logits_mask[0]], axis=0),
                         logits2_mask=jnp.concat([p0_logits_mask[1], p1_logits_mask[1]], axis=0),
