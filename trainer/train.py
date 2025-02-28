@@ -804,9 +804,9 @@ def train(config: Config):
     print("Training...")
 
     loop = 0
-    total_transitions = 0
-    meta_step = 0
-    update_step = 0
+    total_transitions = 16128000
+    meta_step = 500
+    update_step = 576000
     while True:
         rng, train_rng, _, _ = jax.random.split(rng, num=4)
         train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
@@ -867,7 +867,7 @@ if __name__ == "__main__":
         actor_learning_rate=8e-5,
         critic_learning_rate=1e-4,
         wandb_project="Optimus",
-        train_seed=42,
+        train_seed=2077,
         entropy_coeff=0.01,
         gae_lambda=0.95,
         gamma=0.99,
