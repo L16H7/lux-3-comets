@@ -84,7 +84,7 @@ def filter_targets_with_boolean_map(targets, boolean_map):
 @jax.jit
 def compute_collision_avoidance(ally_pos, ally_energy, enemy_pos, enemy_energy, directions):
     """
-    Computes an action mask for allied agents considering enemies' adjacent positions.
+    Computes an action mask for allied agents given positions and energies.
     
     Parameters:
       ally_pos:    jnp.array with shape (n_envs, 16, 2)
@@ -97,69 +97,60 @@ def compute_collision_avoidance(ally_pos, ally_energy, enemy_pos, enemy_energy, 
       final_mask:  jnp.array with shape (n_envs, 16, 5)
                    A boolean mask where True indicates an allowed action.
     """
-    # 1. Compute candidate positions for each allied agent and each action
+    # 1. Compute candidate positions for each allied agent and each action.
     #    Shape: (n_envs, 16, 5, 2)
     candidate_positions = ally_pos[:, :, None, :] + directions[None, None, :, :]
+
+    # 2. Compare candidate positions with enemy positions.
+    #    We want to know for each candidate position (for each ally and action) whether
+    #    an enemy is exactly at that location.
+    #    Expand enemy positions to shape: (n_envs, 1, 1, 16, 2)
+    enemy_pos_exp = enemy_pos[:, None, None, :, :]
     
-    # 2. Compute all adjacent positions for each enemy
-    #    First, create offset matrix for adjacent positions (including original position)
-    adjacent_offsets = jnp.array([
-        [0, 0],   # center
-        [0, 1],   # down
-        [1, 0],   # right
-        [0, -1],  # up
-        [-1, 0],  # left
-        [1, 1],
-        [1, -1],
-        [-1, 1],
-        [-1, -1],
-        [0, 2],
-        [2, 0],
-        [0, -2],
-        [-2, 0]
-    ])
-    
-    # Create extended enemy positions: (n_envs, 16, 5, 2)
-    extended_enemy_pos = enemy_pos[:, :, None, :] + adjacent_offsets[None, None, :, :]
-    
-    # 3. Compare candidate positions with extended enemy positions
-    #    Reshape for broadcasting:
-    #    candidate_positions: (n_envs, 16, 5, 1, 2)  [ally, action, enemy_adj]
-    #    extended_enemy_pos: (n_envs, 1, 1, 16, 5, 2)  [ally, action, enemy, enemy_adj]
-    candidate_positions_exp = candidate_positions[:, :, :, None, None, :]
-    extended_enemy_pos_exp = extended_enemy_pos[:, None, None, :, :, :]
-    
-    # Check equality along the last dimension (both coordinates must match)
-    # Result shape: (n_envs, 16, 5, 16, 5)
-    is_same = jnp.all(candidate_positions_exp == extended_enemy_pos_exp, axis=-1)
-    
-    # 4. Check the energy condition
+    #    Check equality along the last dimension (both coordinates must match).
+    #    The result 'is_same' has shape: (n_envs, 16, 5, 16)
+    is_same = jnp.all(candidate_positions[:, :, :, None, :] == enemy_pos_exp, axis=-1)
+
+    # 3. Check the energy condition.
     #    Expand energies for proper broadcasting:
-    ally_energy_exp = ally_energy[:, :, None, None, None]  # (n_envs, 16, 1, 1, 1)
-    enemy_energy_exp = enemy_energy[:, None, None, :, None]  # (n_envs, 1, 1, 16, 1)
-    
-    # Determine where an enemy has higher energy than the ally
-    # Shape: (n_envs, 16, 1, 16, 1)
+    #      - ally_energy: (n_envs, 16) -> (n_envs, 16, 1, 1)
+    #      - enemy_energy: (n_envs, 16) -> (n_envs, 1, 1, 16)
+    ally_energy_exp = ally_energy[:, :, None, None]
+    enemy_energy_exp = enemy_energy[:, None, None, :]
+
+    #    Determine where an enemy has higher energy than the ally.
+    #    Shape: (n_envs, 16, 1, 16)
     enemy_stronger = enemy_energy_exp > ally_energy_exp
+
+    #    Combine spatial match and energy condition.
+    #    For each candidate move and enemy, threat_per_enemy is True if:
+    #      - The enemy is at that candidate cell, and
+    #      - Its energy is higher than the allied agent's.
+    #    Shape: (n_envs, 16, 5, 16)
+    threat_per_enemy = is_same & enemy_stronger
+
+    #    For each candidate move (over all enemy agents), reduce with OR.
+    #    Shape: (n_envs, 16, 5)
+    threat = jnp.any(threat_per_enemy, axis=-1)
+
+    # 4. Create the final mask.
+    #    The rule is: if any adjacent cell (actions 1-4) is threatened, then both that move 
+    #    and the center (stay) action should be masked.
     
-    # 5. Combine spatial match and energy condition
-    # For each candidate move, adjacent position, and enemy, threat is True if:
-    #   - The enemy (or its adjacent position) is at that candidate cell, and
-    #   - Its energy is higher than the allied agent's
-    # Shape: (n_envs, 16, 5, 16, 5)
-    threat_per_enemy_adj = is_same & enemy_stronger
-    
-    # Reduce over enemy adjacent positions and enemies
-    # Shape: (n_envs, 16, 5)
-    threat = jnp.any(jnp.any(threat_per_enemy_adj, axis=-1), axis=-1)
-    
-    # 6. Create the final mask
-    # If any adjacent cell is threatened, both that move and center should be masked
+    #    First, aggregate threats for the four movement actions (ignoring center at index 0).
+    #    Shape: (n_envs, 16)
     adjacent_threat = jnp.any(threat[:, :, 1:], axis=-1)
+
+    #    For the center action: allowed only if no adjacent threat exists.
+    #    Shape: (n_envs, 16)
     allowed_center = ~adjacent_threat
+
+    #    For the movement actions (indices 1-4): allowed if that candidate cell is not threatened.
+    #    Shape: (n_envs, 16, 4)
     allowed_adjacent = ~threat[:, :, 1:]
-    
-    # Concatenate to form final mask
+
+    #    Concatenate to form the final mask.
+    #    The final_mask shape is (n_envs, 16, 5) corresponding to [center, up, right, down, left]
     final_mask = jnp.concatenate([allowed_center[:, :, None], allowed_adjacent], axis=-1)
     
     return final_mask
