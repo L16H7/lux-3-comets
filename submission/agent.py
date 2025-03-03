@@ -251,7 +251,7 @@ def get_actions(
         -100,
     )
 
-    opponent_adjacent_targets = opponent_positions + adjacent_offsets
+    opponent_adjacent_targets = opponent_not_on_fragment + adjacent_offsets
     # filter adjacent_offsets on asteroids
     opponent_adjacent_targets_mask = filter_targets_with_boolean_map(
         opponent_adjacent_targets,
