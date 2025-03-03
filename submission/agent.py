@@ -292,6 +292,21 @@ def get_actions(
     )
  
     relic_targets = relic_nodes_positions[:, :, None, :] + adjacent_offsets_5x5
+
+    def is_in_allied_side(point):
+        x, y = point
+        return y > 23 - x
+    
+    is_allied_vmap = jax.vmap(jax.vmap(jax.vmap(is_in_allied_side)))
+    
+    is_allied = is_allied_vmap(relic_targets)
+    mask = jnp.expand_dims(is_allied, axis=-1)
+    relic_targets = jnp.where(
+        mask,
+        relic_targets,
+        -100
+    )
+
     relic_targets = jnp.where(
         relic_targets > 0,
         relic_targets,
@@ -314,10 +329,7 @@ def get_actions(
         relic_targets,
         points_map == 1,
     )
-    # asteroid_targets_mask = filter_targets_with_boolean_map(
-    #     relic_targets,
-    #     asteroid_tiles == 1,
-    # )
+
     relic_targets_mask = relic_targets_mask & points_targets_mask
 
     relic_targets = jnp.where(
