@@ -239,11 +239,23 @@ def get_actions(
             [1, 0],
         ], dtype=jnp.int16
     )
+
+    # if a unit is on a fragment, do not target adjacent positions
+    opponent_not_on_fragment_mask = filter_targets_with_boolean_map(
+        opponent_positions,
+        points_map != 1,
+    )
+    opponent_not_on_fragment = jnp.where(
+        opponent_not_on_fragment_mask[..., None].repeat(2, axis=-1),
+        opponent_positions,
+        -100,
+    )
+
     opponent_adjacent_targets = opponent_positions + adjacent_offsets
-    # filter asteroids without unit
+    # filter adjacent_offsets on asteroids
     opponent_adjacent_targets_mask = filter_targets_with_boolean_map(
         opponent_adjacent_targets,
-        asteroid_tiles == 1,
+        ~asteroid_tiles.transpose(0, 2, 1),
     )
     opponent_adjacent_targets = jnp.where(
         opponent_adjacent_targets_mask[..., None].repeat(2, axis=-1),
@@ -302,11 +314,11 @@ def get_actions(
         relic_targets,
         points_map == 1,
     )
-    asteroid_targets_mask = filter_targets_with_boolean_map(
-        relic_targets,
-        asteroid_tiles == 1,
-    )
-    relic_targets_mask = relic_targets_mask & points_targets_mask & asteroid_targets_mask
+    # asteroid_targets_mask = filter_targets_with_boolean_map(
+    #     relic_targets,
+    #     asteroid_tiles == 1,
+    # )
+    relic_targets_mask = relic_targets_mask & points_targets_mask
 
     relic_targets = jnp.where(
         relic_targets_mask[..., None].repeat(2, axis=-1),
