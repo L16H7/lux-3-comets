@@ -209,16 +209,6 @@ def get_actions(
         all_directions,
     )
 
-    adjacent_offsets = jnp.array(
-        [
-            [0, 0],
-            [-1, 0],
-            [0, -1],
-            [0, 1],
-            [1, 0],
-        ], dtype=jnp.int16
-    )
-
     # TARGET NON-ZERO ENERGY OPPONENTS
     opponent_positions = observations.units.position[:, opponent_idx, ..., None, :] 
     opponent_energy = observations.units.energy[:, opponent_idx, :, None, None].repeat(2, axis=-1)
@@ -240,7 +230,31 @@ def get_actions(
         -100,
         opponent_positions,
     )
-    opponent_targets = opponent_positions + adjacent_offsets
+
+    adjacent_offsets = jnp.array(
+        [
+            [-1, 0],
+            [0, -1],
+            [0, 1],
+            [1, 0],
+        ], dtype=jnp.int16
+    )
+    opponent_adjacent_targets = opponent_positions + adjacent_offsets
+    # filter asteroids without unit
+    opponent_adjacent_targets_mask = filter_targets_with_boolean_map(
+        opponent_adjacent_targets,
+        asteroid_tiles == 1,
+    )
+    opponent_adjacent_targets = jnp.where(
+        opponent_adjacent_targets_mask[..., None].repeat(2, axis=-1),
+        opponent_adjacent_targets,
+        -100,
+    )
+
+    opponent_targets = jnp.concatenate([
+        opponent_positions.reshape(n_envs, -1, 2),
+        opponent_adjacent_targets.reshape(n_envs, -1, 2), 
+    ], axis=1)
 
     # TARGET 5X5 RELIC NODES IN THE DARK
     adjacent_offsets_5x5 = jnp.array(
@@ -288,7 +302,11 @@ def get_actions(
         relic_targets,
         points_map == 1,
     )
-    relic_targets_mask = relic_targets_mask & points_targets_mask
+    asteroid_targets_mask = filter_targets_with_boolean_map(
+        relic_targets,
+        asteroid_tiles == 1,
+    )
+    relic_targets_mask = relic_targets_mask & points_targets_mask & asteroid_targets_mask
 
     relic_targets = jnp.where(
         relic_targets_mask[..., None].repeat(2, axis=-1),
