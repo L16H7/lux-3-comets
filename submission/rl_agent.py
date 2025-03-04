@@ -213,6 +213,7 @@ class Agent():
             logits=logits,
             observations=observation,
             sap_ranges=jnp.array([self.env_cfg["unit_sap_range"]]),
+            sap_costs=jnp.array([self.env_cfg["unit_sap_cost"]]),
             relic_nodes=self.discovered_relic_nodes,
             points_map=self.points_map,
         )
