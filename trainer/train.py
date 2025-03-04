@@ -26,11 +26,11 @@ from constants import Constants
 from evaluate import evaluate
 from luxai_s3.env import LuxAIS3Env
 from luxai_s3.params import EnvParams, env_params_ranges
-from make_states import make_states
+from make_states import make_states, make_actor_state
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
 from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info, reconcile_positions, teacher_get_env_info
-from teacher.model import make_teacher_state
+from teacher.model import make_actor_state as make_teacher_actor_state
 
 
 class RunnerState(NamedTuple):
@@ -245,6 +245,7 @@ def make_train(config: Config):
         rng: jax.Array,
         actor_train_state: TrainState,
         critic_train_state: TrainState,
+        eval_opponent_state: TrainState,
         teacher_train_state: TrainState,
     ):
         def _meta_step(meta_state, _):
@@ -725,7 +726,7 @@ def make_train(config: Config):
                 eval_meta_keys,
                 eval_meta_env_params,
                 updated_runner_state.actor_train_state,
-                updated_runner_state.actor_train_state,
+                eval_opponent_state,
                 'self',
                 config.n_eval_envs,
                 config.n_agents,
@@ -785,7 +786,10 @@ def train(config: Config):
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
 
-    teacher_state = make_teacher_state()
+    eval_opponent_state = make_actor_state()
+    eval_opponent_state = replicate(eval_opponent_state, jax.local_devices())
+
+    teacher_state = make_teacher_actor_state()
     teacher_state = replicate(teacher_state, jax.local_devices())
 
     print("Compiling...")
@@ -797,6 +801,7 @@ def train(config: Config):
         train_device_rngs,
         actor_train_state,
         critic_train_state,
+        eval_opponent_state,
         teacher_state,
     ).compile()
 
@@ -819,6 +824,7 @@ def train(config: Config):
                 train_device_rngs,
                 actor_train_state,
                 critic_train_state,
+                eval_opponent_state,
                 teacher_state,
             )
         )
