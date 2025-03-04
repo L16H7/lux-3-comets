@@ -86,6 +86,7 @@ def evaluate(
             logits=p0_logits,
             observations=observations['player_0'],
             sap_ranges=meta_env_params.unit_sap_range,
+            sap_costs=meta_env_params.unit_sap_cost,
             relic_nodes=p0_discovered_relic_nodes,
             points_map=p0_points_map,
         )
@@ -140,6 +141,7 @@ def evaluate(
             logits=p1_logits,
             observations=observations['player_1'],
             sap_ranges=meta_env_params.unit_sap_range,
+            sap_costs=meta_env_params.unit_sap_cost,
             relic_nodes=p1_discovered_relic_nodes,
             points_map=p1_points_map,
         )

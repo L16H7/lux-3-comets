@@ -167,6 +167,7 @@ def get_actions(
     logits,
     observations,
     sap_ranges,
+    sap_costs,
     relic_nodes,
     points_map,
 ):
@@ -204,16 +205,6 @@ def get_actions(
         all_directions,
     )
 
-    adjacent_offsets = jnp.array(
-        [
-            [0, 0],
-            [-1, 0],
-            [0, -1],
-            [0, 1],
-            [1, 0],
-        ], dtype=jnp.int16
-    )
-
     # TARGET NON-ZERO ENERGY OPPONENTS
     opponent_positions = observations.units.position[:, opponent_idx, ..., None, :] 
     opponent_energy = observations.units.energy[:, opponent_idx, :, None, None].repeat(2, axis=-1)
@@ -235,7 +226,43 @@ def get_actions(
         -100,
         opponent_positions,
     )
-    opponent_targets = opponent_positions + adjacent_offsets
+
+    adjacent_offsets = jnp.array(
+        [
+            [-1, 0],
+            [0, -1],
+            [0, 1],
+            [1, 0],
+        ], dtype=jnp.int16
+    )
+
+    # if a unit is on a fragment, do not target adjacent positions
+    opponent_not_on_fragment_mask = filter_targets_with_boolean_map(
+        opponent_positions,
+        points_map != 1,
+    )
+    opponent_not_on_fragment = jnp.where(
+        opponent_not_on_fragment_mask[..., None].repeat(2, axis=-1),
+        opponent_positions,
+        -100,
+    )
+
+    opponent_adjacent_targets = opponent_not_on_fragment + adjacent_offsets
+    # filter adjacent_offsets on asteroids
+    opponent_adjacent_targets_mask = filter_targets_with_boolean_map(
+        opponent_adjacent_targets,
+        ~asteroid_tiles.transpose(0, 2, 1),
+    )
+    opponent_adjacent_targets = jnp.where(
+        opponent_adjacent_targets_mask[..., None].repeat(2, axis=-1),
+        opponent_adjacent_targets,
+        -100,
+    )
+
+    opponent_targets = jnp.concatenate([
+        opponent_positions.reshape(n_envs, -1, 2),
+        opponent_adjacent_targets.reshape(n_envs, -1, 2), 
+    ], axis=1)
 
     # TARGET 5X5 RELIC NODES IN THE DARK
     adjacent_offsets_5x5 = jnp.array(
@@ -261,6 +288,21 @@ def get_actions(
     )
  
     relic_targets = relic_nodes_positions[:, :, None, :] + adjacent_offsets_5x5
+
+    def is_in_allied_side(point):
+        x, y = point
+        return y > 23 - x
+    
+    is_allied_vmap = jax.vmap(jax.vmap(jax.vmap(is_in_allied_side)))
+    
+    is_allied = is_allied_vmap(relic_targets)
+    mask = jnp.expand_dims(is_allied, axis=-1)
+    relic_targets = jnp.where(
+        mask,
+        relic_targets,
+        -100
+    )
+
     relic_targets = jnp.where(
         relic_targets > 0,
         relic_targets,
@@ -283,6 +325,7 @@ def get_actions(
         relic_targets,
         points_map == 1,
     )
+
     relic_targets_mask = relic_targets_mask & points_targets_mask
 
     relic_targets = jnp.where(
@@ -328,7 +371,7 @@ def get_actions(
 
     non_negative_energy_mask = jnp.concatenate([
         jnp.ones((1, n_envs * 16, 1), dtype=jnp.bool), # allow only NO-OP
-        (observations.units.energy[:, team_idx, :].reshape(-1) > 0)[None, :, None].repeat(5, axis=-1),
+        ((observations.units.energy[:, team_idx, :] - sap_costs[:, None].repeat(16, axis=1)).reshape(-1) > 0)[None, :, None].repeat(5, axis=-1),
     ], axis=-1)
     
     logits1_mask = valid_movements & (sap_mask > 0) & non_negative_energy_mask
