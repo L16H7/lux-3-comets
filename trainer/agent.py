@@ -366,7 +366,7 @@ def get_actions(
 
     sap_mask = jnp.concatenate([
         jnp.ones((1, n_envs * 16, 5)), # allow all movements
-        target_x.sum(axis=-1).reshape(1, n_envs * 16, 1) & (observations.units.energy[:, team_idx, :, None] - sap_costs[:, None, None]) > 0
+        target_x.sum(axis=-1).reshape(1, n_envs * 16, 1) & ((observations.units.energy[:, team_idx, :, None] - sap_costs[:, None, None]) > 0).reshape(1, n_envs * 16, 1)
     ], axis=-1)
 
     non_negative_energy_mask = jnp.concatenate([
