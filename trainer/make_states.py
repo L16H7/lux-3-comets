@@ -61,13 +61,13 @@ def make_states(config: Config):
     )
 
     ### --------- RESUME HERE --------- ###
-    # actor_checkpoint_path = '/root/lux-3-comets/checkpoints/500_actor'
-    # orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
-    # actor_network_params = orbax_checkpointer.restore(actor_checkpoint_path)
+    actor_checkpoint_path = '/root/26100_actor'
+    orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+    actor_network_params = orbax_checkpointer.restore(actor_checkpoint_path)
 
-    # critic_checkpoint_path = '/root/lux-3-comets/checkpoints/500_critic'
-    # critic_network_params = orbax_checkpointer.restore(critic_checkpoint_path)
-    # print('resumed from', actor_checkpoint_path, critic_checkpoint_path)
+    critic_checkpoint_path = '/root/26100_critic'
+    critic_network_params = orbax_checkpointer.restore(critic_checkpoint_path)
+    print('resumed from', actor_checkpoint_path, critic_checkpoint_path)
     ### ------------------------------- ###
 
     actor_train_state = TrainState.create(
@@ -89,13 +89,13 @@ def make_states(config: Config):
 def make_actor_state(checkpoint_path: str = None) -> TrainState:
     actor = Actor()
     actor_params = None
+    rng = jax.random.PRNGKey(42)
 
     if checkpoint_path is not None:
         orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
         actor_params = orbax_checkpointer.restore(checkpoint_path)
     else:
         BATCH = 1
-        rng = jax.random.PRNGKey(42)
         rng, dropout_rng = jax.random.split(rng)
         actor_params = actor.init({
             "params": rng,

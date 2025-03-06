@@ -775,10 +775,10 @@ def make_train(config: Config):
     return train
 
 def train(config: Config):
-    # run = wandb.init(
-    #     project=config.wandb_project,
-    #     config={**asdict(config)}
-    # )
+    run = wandb.init(
+        project=config.wandb_project,
+        config={**asdict(config)}
+    )
 
     rng = jax.random.key(config.train_seed)
     actor_train_state, critic_train_state = make_states(config=config)
@@ -786,10 +786,10 @@ def train(config: Config):
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
 
-    eval_opponent_state = make_actor_state()
+    eval_opponent_state = make_actor_state('/root/26100_actor')
     eval_opponent_state = replicate(eval_opponent_state, jax.local_devices())
 
-    teacher_state = make_teacher_actor_state()
+    teacher_state = make_teacher_actor_state('/root/19000_actor')
     teacher_state = replicate(teacher_state, jax.local_devices())
 
     print("Compiling...")
@@ -811,9 +811,9 @@ def train(config: Config):
     print("Training...")
 
     loop = 0
-    total_transitions = 16128000
-    meta_step = 500
-    update_step = 576000
+    total_transitions = 0
+    meta_step = 0
+    update_step = 0
     while True:
         rng, train_rng, _, _ = jax.random.split(rng, num=4)
         train_device_rngs = jax.random.split(train_rng, num=jax.local_device_count())
@@ -875,7 +875,7 @@ if __name__ == "__main__":
         actor_learning_rate=8e-5,
         critic_learning_rate=1e-4,
         wandb_project="Optimus",
-        train_seed=2077,
+        train_seed=20250401,
         entropy_coeff=0.01,
         gae_lambda=0.95,
         gamma=0.99,
