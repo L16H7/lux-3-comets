@@ -308,12 +308,6 @@ def create_representations(
         0,
         updated_search_map
     )
-    updated_search_map = jnp.where(
-        obs.steps[0] == 506,
-        0,
-        updated_search_map
-    )
-
     # if relic_nodes are found for match 1
     updated_search_map = jnp.where(
         jnp.logical_and(
@@ -455,21 +449,21 @@ def create_representations(
         unit_positions_team=unit_positions_team,
     )
     
-    teacher_agent_observations = create_agent_patches(
-        state_representation=jnp.concatenate(
-            [temporal_states[:, 8:, ...], teacher_state_representation],
-            axis=1
-        ),
-        unit_positions_team=unit_positions_team,
-    )
+    # teacher_agent_observations = create_agent_patches(
+    #     state_representation=jnp.concatenate(
+    #         [temporal_states[:, 8:, ...], teacher_state_representation],
+    #         axis=1
+    #     ),
+    #     unit_positions_team=unit_positions_team,
+    # )
 
 
     updated_temporal_states = jnp.concatenate([
         temporal_states[:, 4: 8, ...],
         state_representation[:, :4, ...],
         # for teacher
-        temporal_states[:, 11:, ...],
-        teacher_state_representation[:, :3, ...],
+        # temporal_states[:, 11:, ...],
+        # teacher_state_representation[:, :3, ...],
     ], axis=1)
     
     energy_gained = unit_energies_team - jnp.maximum(jnp.squeeze(prev_agent_energies, axis=-1), 0)
@@ -478,7 +472,7 @@ def create_representations(
         state_representation,
         updated_temporal_states,
         agent_observations,
-        teacher_agent_observations,
+        _,
         episode_info,
         updated_points_map,
         updated_search_map,

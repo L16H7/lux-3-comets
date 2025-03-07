@@ -741,7 +741,7 @@ def make_train(config: Config):
                 eval_meta_env_params,
                 updated_runner_state.actor_train_state,
                 teacher_train_state,
-                Constants.TEACHER_LABEL,
+                'self2',
                 config.n_eval_envs,
                 config.n_agents,
                 v_reset,
