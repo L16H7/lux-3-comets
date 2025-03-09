@@ -174,6 +174,7 @@ def get_actions(
     sap_ranges,
     relic_nodes,
     points_map,
+    attack_matrix,
 ):
     n_envs = observations.units.position.shape[0]
     
@@ -348,9 +349,16 @@ def get_actions(
         relic_targets.reshape(n_envs, -1, 2),
     ], axis=1)
 
+    attack_matrix = jnp.array(attack_matrix)[None, :]
+    attack_matrix = attack_matrix if team_idx == 0 else transform_observation(attack_matrix)
+    ATTACK_THERSHOLD = 0.5
+
+    targets_from_attack_matrix = jnp.argwhere(attack_matrix[0] > ATTACK_THERSHOLD)
+
     target_x, _ = generate_attack_masks_batch(
         agent_positions.reshape(n_envs, -1, 2),
-        target_positions,
+        # target_positions, # from RL code
+        targets_from_attack_matrix[None, :],
         sap_ranges,
         sap_ranges
     )

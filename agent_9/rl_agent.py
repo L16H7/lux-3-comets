@@ -131,7 +131,7 @@ class Agent:
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         # TODO: how to do this better?
         # Do all analysis and estimation in every step. It is usually very cheap so does not matter
-        units_my, units_enemy, game_state, logger = self.salvador_collect_info(step, obs, remainingOverageTime)
+        units_my, units_enemy, game_state, logger, attack_matrix = self.salvador_collect_info(step, obs, remainingOverageTime)
 
         observation = DotDict(reshape_observation(obs))
 
@@ -249,6 +249,7 @@ class Agent:
             sap_ranges=jnp.array([self.env_cfg["unit_sap_range"]]),
             relic_nodes=self.discovered_relic_nodes,
             points_map=self.points_map,
+            attack_matrix=attack_matrix,
         )
 
         transformed_targets = transform_coordinates(actions[..., 1:], 17, 17)
@@ -395,7 +396,7 @@ class Agent:
         logger.info(f'Attack utility:\n{A}')
         logger.info(f'=============UNIT PROBABILITY==================')
 
-        return units_my, units_enemy, game_state, logger
+        return units_my, units_enemy, game_state, logger, A
 
     def salvador_act(self, step: int, units_my, units_enemy, game_state, logger):
         attacker = Attacker(
