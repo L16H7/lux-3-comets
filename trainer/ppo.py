@@ -24,8 +24,6 @@ class Transition(NamedTuple):
     logits2_mask: jnp.ndarray
     logits3_mask: jnp.ndarray
     env_information: jnp.ndarray
-    teacher_observations: jnp.ndarray
-    teacher_env_information: jnp.ndarray
 
 
 def calculate_gae(
