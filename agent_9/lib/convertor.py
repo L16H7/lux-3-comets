@@ -1,9 +1,9 @@
 # Set of functions to convert Rule Base info to RL representation
 import numpy as np
 import jax.numpy as jnp
-from lib.data_classes import TerrainTile, Fragment, Relic
+from lib.data_classes import TerrainTile, Fragment, Relic, Unit, Position
 from lib.helper import mark_nxn
-from typing import Set
+from typing import Set, List
 
 
 def convert_terrain(terrain: np.ndarray, nebula_energy_reduction: int) -> jnp.ndarray:
@@ -79,3 +79,15 @@ def convert_points_map_original(relics_possible: np.ndarray, fragments: Set[Frag
     # RL uses 3 dims
     res = np.expand_dims(res, axis=0)  # Shape becomes (1, H, W)
     return jnp.asarray(res)
+
+def rl_shots_to_positions(actions: np.ndarray[int], units: Set[Unit]) -> List[Position]:
+    pos = []
+    data = np.squeeze(actions).tolist()
+    uid_to_units = {u.id: u for u in units}
+    for i in range(len(data)):
+        v1, dx, dy = data[i]
+        if v1 == 5:
+            p = uid_to_units[i].pos()
+            pos.append(Position(y=p.y + dy, x=p.x + dx))
+
+    return pos

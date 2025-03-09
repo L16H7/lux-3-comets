@@ -132,6 +132,10 @@ class GameConfig:
             shot_curr = np.zeros((24, 24), int)
             mark_nxn(shot_curr, p, 3)
             map_non_direct_shots += shot_curr.astype(int)
+            
+            if p.y >= 24 or p.x >= 24:
+                continue
+
             map_direct_shots[p.y, p.x] = True
 
         for u in units_enemy:

@@ -35,6 +35,7 @@ from lib.task_assigner import TaskAssigner
 from lib.enemy_tracker import EnemyTracker
 from lib.unit_estimator import AllEstimator
 from lib.helper import energy_map_total
+from lib.convertor import rl_shots_to_positions
 
 
 __DEBUG_PATH__ = '_DATA'
@@ -270,6 +271,12 @@ class Agent:
         #     return actions_salvador
         #
         # logger.info(f'USE RL AGENT')
+        shots = rl_shots_to_positions(np.array(actions), units_my)
+        logger.info('------------------------------')
+        logger.info(shots)
+        logger.info('------------------------------')
+
+        self.cfg.add_shots(shots)
         return jnp.squeeze(actions, axis=0)
 
     # ===========================
@@ -389,7 +396,7 @@ class Agent:
 
         self.unit_estimator.step_update(self.map_maker.map_info, units_enemy)
         P = self.unit_estimator.probability_sum()
-        A = self.unit_estimator.get_attack_utility(P, sap_dropoff_factor=0.5)
+        A = self.unit_estimator.get_attack_utility(P, sap_dropoff_factor=self.cfg.cfg.unit_sap_dropoff_factor)
         logger.info(f'=============UNIT PROBABILITY==================')
         logger.info(f'Number of units: {P.sum()}')
         logger.info(f'Total estimated probability:\n{P}')
