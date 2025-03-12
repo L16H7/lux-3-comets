@@ -7,3 +7,5 @@ submission/lux
 submission/checkpoint
 **/*tar.gz
 **/*json
+agent_9/_DATA
+agent_9/checkpoint
