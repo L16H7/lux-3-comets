@@ -61,15 +61,13 @@ def make_states(config: Config):
     )
 
     ### --------- RESUME HERE --------- ###
-    '''
-    actor_checkpoint_path = '/root/lux-3-comets/checkpoints_old/35_actor'
+    actor_checkpoint_path = '/root/26100_actor'
     orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
     actor_network_params = orbax_checkpointer.restore(actor_checkpoint_path)
 
-    critic_checkpoint_path = '/root/lux-3-comets/checkpoints_old/35_critic'
+    critic_checkpoint_path = '/root/26100_critic'
     critic_network_params = orbax_checkpointer.restore(critic_checkpoint_path)
     print('resumed from', actor_checkpoint_path, critic_checkpoint_path)
-    '''
     ### ------------------------------- ###
 
     actor_train_state = TrainState.create(
@@ -86,3 +84,48 @@ def make_states(config: Config):
     )
 
     return actor_train_state, critic_train_state
+
+
+def make_actor_state(checkpoint_path: str = None) -> TrainState:
+    actor = Actor()
+    actor_params = None
+    rng = jax.random.PRNGKey(42)
+
+    if checkpoint_path is not None:
+        orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+        actor_params = orbax_checkpointer.restore(checkpoint_path)
+    else:
+        BATCH = 1
+        rng, dropout_rng = jax.random.split(rng)
+        actor_params = actor.init({
+            "params": rng,
+            "dropout": dropout_rng,
+        }, {
+            "states": jnp.zeros((BATCH, 11, 24, 24)),
+            "observations": jnp.zeros((BATCH, 19, 47, 47)),
+            "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
+            "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
+            "positions": jnp.zeros((BATCH, 2), dtype=jnp.int32),
+            "team_points": jnp.zeros((BATCH,)),
+            "opponent_points": jnp.zeros((BATCH,)),
+            "unit_move_cost": jnp.zeros((BATCH,)),
+            "unit_sap_cost": jnp.zeros((BATCH,)),
+            "unit_sap_range": jnp.zeros((BATCH,)),
+            "unit_sensor_range": jnp.zeros((BATCH,)),
+            "energies": jnp.zeros((BATCH,)),
+            "energies_gained": jnp.zeros((BATCH,)),
+            "points_gained_history": jnp.zeros((BATCH, 4)),
+        })
+
+    actor_tx = optax.chain(
+        optax.clip_by_global_norm(0.5),
+        optax.adamw(3e-5),
+    ) 
+    actor_state = TrainState.create(
+        apply_fn=actor.apply,
+        params=actor_params,
+        tx=actor_tx,
+        key=rng,
+    )
+
+    return actor_state

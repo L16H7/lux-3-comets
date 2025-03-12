@@ -26,11 +26,11 @@ from constants import Constants
 from evaluate import evaluate
 from luxai_s3.env import LuxAIS3Env
 from luxai_s3.params import EnvParams, env_params_ranges
-from make_states import make_states
+from make_states import make_states, make_actor_state
 from opponent import get_actions as get_opponent_actions
 from ppo import Transition, calculate_gae, ppo_update
 from representation import create_agent_representations, transform_coordinates, get_env_info, combined_states_info, reconcile_positions, teacher_get_env_info
-from teacher.model import make_teacher_state
+from teacher.model import make_actor_state as make_teacher_actor_state
 
 
 class RunnerState(NamedTuple):
@@ -245,6 +245,7 @@ def make_train(config: Config):
         rng: jax.Array,
         actor_train_state: TrainState,
         critic_train_state: TrainState,
+        eval_opponent_state: TrainState,
         teacher_train_state: TrainState,
     ):
         def _meta_step(meta_state, _):
@@ -351,6 +352,7 @@ def make_train(config: Config):
                         logits=p0_logits,
                         observations=observations['player_0'],
                         sap_ranges=meta_env_params.unit_sap_range,
+                        sap_costs=meta_env_params.unit_sap_cost,
                         relic_nodes=p0_discovered_relic_nodes,
                         points_map=p0_points_map,
                     )
@@ -409,6 +411,7 @@ def make_train(config: Config):
                         logits=p1_logits,
                         observations=observations['player_1'],
                         sap_ranges=meta_env_params.unit_sap_range,
+                        sap_costs=meta_env_params.unit_sap_cost,
                         relic_nodes=p1_discovered_relic_nodes,
                         points_map=p1_points_map,
                     )
@@ -675,7 +678,6 @@ def make_train(config: Config):
                     "approx_kl": loss_info["approx_kl"],
                     "clip_frac": loss_info["clip_frac"],
                     "explained_var": loss_info["explained_var"],
-                    "kl_loss": loss_info["kl_loss"],
                     "adv_mean": loss_info["adv_mean"],
                     "adv_std": loss_info["adv_std"],
                     "value_mean": loss_info["value_mean"],
@@ -724,7 +726,7 @@ def make_train(config: Config):
                 eval_meta_keys,
                 eval_meta_env_params,
                 updated_runner_state.actor_train_state,
-                updated_runner_state.actor_train_state,
+                eval_opponent_state,
                 'self',
                 config.n_eval_envs,
                 config.n_agents,
@@ -739,7 +741,7 @@ def make_train(config: Config):
                 eval_meta_env_params,
                 updated_runner_state.actor_train_state,
                 teacher_train_state,
-                Constants.TEACHER_LABEL,
+                'self2',
                 config.n_eval_envs,
                 config.n_agents,
                 v_reset,
@@ -784,7 +786,10 @@ def train(config: Config):
     actor_train_state = replicate(actor_train_state, jax.local_devices())
     critic_train_state = replicate(critic_train_state, jax.local_devices())
 
-    teacher_state = make_teacher_state()
+    eval_opponent_state = make_actor_state('/root/26100_actor')
+    eval_opponent_state = replicate(eval_opponent_state, jax.local_devices())
+
+    teacher_state = make_teacher_actor_state('/root/19000_actor')
     teacher_state = replicate(teacher_state, jax.local_devices())
 
     print("Compiling...")
@@ -796,6 +801,7 @@ def train(config: Config):
         train_device_rngs,
         actor_train_state,
         critic_train_state,
+        eval_opponent_state,
         teacher_state,
     ).compile()
 
@@ -818,6 +824,7 @@ def train(config: Config):
                 train_device_rngs,
                 actor_train_state,
                 critic_train_state,
+                eval_opponent_state,
                 teacher_state,
             )
         )
@@ -857,20 +864,20 @@ def train(config: Config):
 
 if __name__ == "__main__":
     config = Config(
-        n_meta_steps=1,
+        n_meta_steps=20,
         n_actor_steps=14,
         n_update_steps=36,
-        n_envs=32,
-        n_envs_per_device=32,
-        n_eval_envs=32,
-        n_minibatches=16,
+        n_envs=64,
+        n_envs_per_device=64,
+        n_eval_envs=64,
+        n_minibatches=32,
         n_epochs=1,
         actor_learning_rate=8e-5,
         critic_learning_rate=1e-4,
         wandb_project="Optimus",
-        train_seed=42,
+        train_seed=20250401,
         entropy_coeff=0.01,
-        gae_lambda=0.98,
-        gamma=0.995,
+        gae_lambda=0.95,
+        gamma=0.99,
     )
     train(config=config)

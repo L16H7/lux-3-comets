@@ -9,12 +9,39 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 import jax
 import jax.numpy as jnp
 import orbax.checkpoint
-import numpy as np
 
 from agent import get_actions, vectorized_transform_actions
 from representation import create_representations, transform_coordinates, reconcile_positions, transform_observation_3dim
 from model import Actor
-from points import update_points_map, filter_by_proximity, mark_duplicates_single
+
+
+#  From Salvador agent
+import os
+import pickle
+import time
+from pathlib import Path
+from typing import Dict, Any
+
+import numpy as np
+
+from lib.attacker import Attacker
+from lib.data_classes import GameState
+from lib.game_config import GameConfig
+from lib.game_state import Observations
+from lib.logs import logging_init
+from lib.mapmaker import MapMaker
+from lib.path_finder import PathFinder
+from lib.task_assigner import TaskAssigner
+from lib.enemy_tracker import EnemyTracker
+from lib.unit_estimator import AllEstimator
+from lib.helper import energy_map_total
+from lib.convertor import rl_shots_to_positions
+
+
+__DEBUG_PATH__ = '_DATA'
+__IS_LOGGING__ = True
+__IS_STORE_PARAM__ = False
+__IS_STORE_MAP__ = False
 
 
 class DotDict:
@@ -51,7 +78,7 @@ def reshape_observation(obs):
 
     return new_obs
 
-class Agent():
+class Agent:
     def __init__(self, player: str, env_cfg) -> None:
         self.player = player
 
@@ -89,9 +116,24 @@ class Agent():
         self.opponent_points_gained = 0
         self.prev_opponent_points_gained = 0
         self.sapped_units_mask = jnp.zeros((1, 16))
+
+        # From Salvador
+        self.debug_data = {}
+
+        self.cfg = GameConfig(env_cfg)
+        self.map_maker = MapMaker(self.team_id)
+        self.pathfinder = PathFinder(self.cfg.cfg)
+        self.enemy_tracker = EnemyTracker()
+        self.unit_estimator = AllEstimator(self.team_id)
+
+        self.logging_dir = self._first_dir(f"{__DEBUG_PATH__}/game")
  
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
+        # TODO: how to do this better?
+        # Do all analysis and estimation in every step. It is usually very cheap so does not matter
+        units_my, units_enemy, game_state, logger, attack_matrix = self.salvador_collect_info(step, obs, remainingOverageTime)
+
         observation = DotDict(reshape_observation(obs))
 
         relic_mask = observation.relic_nodes != -1
@@ -142,6 +184,9 @@ class Agent():
             sapped_units_mask=self.sapped_units_mask,
             team_idx=self.team_id,
             opponent_idx=self.opponent_team_id,
+            map_maker=self.map_maker,
+            cfg=self.cfg,
+            logger=logger,
         )
         
         (
@@ -175,16 +220,6 @@ class Agent():
         agent_episode_info = episode_info.repeat(16, axis=0)
         agent_positions = agent_positions.reshape(-1, 2)
 
-        # if step == 42 and self.team_id == 0:
-        #     jnp.save('agent_1_team_0', agent_observations[0])
-        #     jnp.save('team_0_points_map2', self.points_map)
-        #     a = True
-
-        # if step > 70 and self.team_id == 1:
-        #     jnp.save('agent_1_team_1', agent_observations[0])
-        #     jnp.save('team_1_points_map2', self.points_map)
-        #     a = True
-
         logits = self.inference_fn(
             { "params": self.params },
             {
@@ -213,9 +248,9 @@ class Agent():
             logits=logits,
             observations=observation,
             sap_ranges=jnp.array([self.env_cfg["unit_sap_range"]]),
-            sap_costs=jnp.array([self.env_cfg["unit_sap_cost"]]),
             relic_nodes=self.discovered_relic_nodes,
             points_map=self.points_map,
+            attack_matrix=attack_matrix,
         )
 
         transformed_targets = transform_coordinates(actions[..., 1:], 17, 17)
@@ -229,4 +264,178 @@ class Agent():
         actions = actions.at[..., 1:].set(actions[..., 1:] - 8)
         self.sapped_units_mask = actions[..., 0] == 5
 
+        # TODO: how to do this better? This is to highjack some units with my actions
+        # actions_salvador = self.salvador_act(step, units_my, units_enemy, game_state, logger)
+        # if actions_salvador is not None:  # You get none only when you do not have any SEARCH_FRAGMENT
+        #     logger.info(f'USE RULE-BASED AGENT')
+        #     return actions_salvador
+        #
+        # logger.info(f'USE RL AGENT')
+        shots = rl_shots_to_positions(np.array(actions), units_my)
+        logger.info('------------------------------')
+        logger.info(shots)
+        logger.info('------------------------------')
+
+        self.cfg.add_shots(shots)
         return jnp.squeeze(actions, axis=0)
+
+    # ===========================
+    # Starting from here is rule-based agent
+    def _first_dir(self, path: str) -> str:
+        if not __IS_LOGGING__:
+            return
+
+        for i in range(1000):
+            dir_name = f"{path}_{i:03d}"
+            if not os.path.exists(dir_name):
+                Path(dir_name).mkdir(parents=True, exist_ok=True)
+                return dir_name
+
+    def _debug_map(self, step: int, my_units):
+        if not __IS_STORE_MAP__:
+            return
+
+        directory = Path(f"{self.logging_dir}/map_info/step_{step:03d}")
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        np.save(directory / "vision_single.npy", self.map_maker.map_info.vision_single)
+        np.save(directory / "terrain.npy", self.map_maker.map_info.terrain)
+        np.save(directory / "energy.npy", self.map_maker.map_info.energy)
+        np.save(directory / "vision.npy", self.map_maker.map_info.vision)
+        np.save(directory / "visited.npy", self.map_maker.map_info.visited)
+        np.save(directory / "explored.npy", self.map_maker.map_info.explored)
+        np.save(directory / "fragments_possible_my.npy", self.map_maker.map_info.fragments_possible_my)
+
+        with open(directory / "equations.pkl", "wb") as f:
+            pickle.dump(self.map_maker.FragmentFinder.equations, f)
+
+        with open(directory / "my_units.pkl", "wb") as f:
+            pickle.dump(my_units, f)
+
+        with open(directory / "relics.pkl", "wb") as f:
+            pickle.dump(self.map_maker.map_info.relics, f)
+
+    def _save_game_params(self, step: int, player: int):
+        if not __IS_STORE_PARAM__:
+            return
+
+        if step != 499:
+            return
+
+        data = {
+            'nebula_vision_reduction': self.cfg.cfg.nebula_vision_reduction,
+            'nebula_energy_reduction': self.cfg.cfg.nebula_energy_reduction,
+            'terrain_speed': self.cfg.cfg.terrain_speed,
+            'terrain_dir': self.cfg.cfg.terrain_dir,
+            'unit_sap_dropoff_factor': self.cfg.cfg.unit_sap_dropoff_factor,
+        }
+        os.makedirs(__DEBUG_PATH__, exist_ok=True)
+        with open(f"{__DEBUG_PATH__}/game_params_{player}.txt", 'a') as file:
+            file.write(f"{data}\n".replace("'", '"'))
+
+    def salvador_collect_info(self, step: int, obs: Dict[str, Any], remainingOverageTime: int = 60):
+        start_time = time.perf_counter()
+        logger = logging_init(team_id=self.team_id, step=step, logs_dir=f"{self.logging_dir}/logs/",
+                              is_logging=__IS_LOGGING__)
+        game_state: GameState = Observations(obs, self.team_id).read_state()
+        units_enemy, units_my = game_state.units_enemy(), game_state.units_my()
+
+        if game_state.stats.match_steps == 0:
+            logger.info("New match starts")
+            if step >= 400:
+                self.map_maker.map_info.is_relic_search_this_match = False
+                self.map_maker.map_info.is_relic_search_next_match = False
+                self.map_maker.map_info.is_relic_new_found = True
+            else:
+                self.map_maker.map_info.is_relic_search_this_match = True
+                self.map_maker.map_info.is_relic_search_next_match = True
+                self.map_maker.map_info.is_relic_new_found = False
+
+        if game_state.stats.match_steps < 3:
+            # There is a bug in Lux AI on MatchStep = 0 you are given info from the last step of previous match
+            self.enemy_tracker = EnemyTracker()  # Reload the enemy tracker
+
+        if game_state.stats.match_steps <= 1:
+            # Units start to appear on T1
+            self.unit_estimator = AllEstimator(self.team_id)
+
+        logger.info(f'Enemy units {units_enemy}')
+
+        logger.info(f'--------- MATCH STEP--- {game_state.stats.match_steps}')
+        logger.info(f'is_relic_search_this_match: {self.map_maker.map_info.is_relic_search_this_match}')
+        logger.info(f'is_relic_search_next_match: {self.map_maker.map_info.is_relic_search_next_match}')
+        logger.info(f'is_relic_new_found        : {self.map_maker.map_info.is_relic_new_found}')
+
+        self.map_maker.update(
+            gs=game_state,
+            my_points=game_state.stats.points[self.team_id],
+            cfg=self.cfg.cfg,
+            logger=logger,
+        )
+
+        self.cfg.update(
+            units_my=units_my,
+            units_enemy=units_enemy,
+            map_info=self.map_maker.map_info,
+            step=step,
+            logger=logger
+        )
+        self.map_maker.update_terrain(game_state, self.cfg.cfg, step)
+
+        self.pathfinder.update_map(
+            m=self.map_maker.map_info,
+            units_enemy=units_enemy,
+            units_my=units_my,
+            logger=logger
+        )
+
+        self.enemy_tracker.update(
+            mapinfo_fragments=self.map_maker.map_info.fragments,
+            mapinfo_vision_single=self.map_maker.map_info.vision_single,
+            enemy_units=units_enemy
+        )
+
+        self.unit_estimator.step_update(self.map_maker.map_info, units_enemy)
+        P = self.unit_estimator.probability_sum()
+        A = self.unit_estimator.get_attack_utility(P, sap_dropoff_factor=self.cfg.cfg.unit_sap_dropoff_factor)
+        logger.info(f'=============UNIT PROBABILITY==================')
+        logger.info(f'Number of units: {P.sum()}')
+        logger.info(f'Total estimated probability:\n{P}')
+        logger.info(f'Attack utility:\n{A}')
+        logger.info(f'=============UNIT PROBABILITY==================')
+
+        return units_my, units_enemy, game_state, logger, A
+
+    def salvador_act(self, step: int, units_my, units_enemy, game_state, logger):
+        attacker = Attacker(
+            units_my=units_my,
+            units_enemy=units_enemy,
+            terrain=self.map_maker.map_info.terrain,
+            energy=energy_map_total(self.map_maker.map_info.energy, self.map_maker.map_info.terrain,
+                                    self.cfg.cfg.nebula_energy_reduction),
+            fragments=self.map_maker.map_info.fragments,
+            cfg=self.cfg,
+            team_id=self.team_id,
+            logger=logger,
+        )
+        TA = TaskAssigner(
+            map_maker=self.map_maker,
+            path_finder=self.pathfinder,
+            cfg=self.cfg.cfg,
+            team_id=self.team_id,
+            step=step,
+            step_in_match=game_state.stats.match_steps,
+            logger=logger,
+        )
+        res = TA.assign(units_my, units_enemy, attacker)
+        if not np.any(res):
+            logger.info(f'No tasks so I will go for RL agent')
+            return None
+
+        self.cfg.add_shots(TA.shots)
+        logger.info(f'Shooting at positions: {TA.shots}')
+
+        # All debugging
+        self._save_game_params(step, self.team_id)
+        self._debug_map(step, units_my)
+
+        return res

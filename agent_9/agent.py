@@ -172,9 +172,9 @@ def get_actions(
     logits,
     observations,
     sap_ranges,
-    sap_costs,
     relic_nodes,
     points_map,
+    attack_matrix,
 ):
     n_envs = observations.units.position.shape[0]
     
@@ -349,9 +349,16 @@ def get_actions(
         relic_targets.reshape(n_envs, -1, 2),
     ], axis=1)
 
+    attack_matrix = jnp.array(attack_matrix)[None, :]
+    attack_matrix = attack_matrix if team_idx == 0 else transform_observation(attack_matrix)
+    ATTACK_THERSHOLD = 0.5
+
+    targets_from_attack_matrix = jnp.argwhere(attack_matrix[0] > ATTACK_THERSHOLD)
+
     target_x, _ = generate_attack_masks_batch(
         agent_positions.reshape(n_envs, -1, 2),
-        target_positions,
+        # target_positions, # from RL code
+        targets_from_attack_matrix[None, :],
         sap_ranges,
         sap_ranges
     )
@@ -371,7 +378,7 @@ def get_actions(
 
     sap_mask = jnp.concatenate([
         jnp.ones((1, n_envs * 16, 5)), # allow all movements
-        target_x.sum(axis=-1).reshape(1, n_envs * 16, 1) & ((observations.units.energy[:, team_idx, :, None] - sap_costs[:, None, None]) > 0).reshape(1, n_envs * 16, 1)
+        target_x.sum(axis=-1).reshape(1, n_envs * 16, 1),
     ], axis=-1)
 
     non_negative_energy_mask = jnp.concatenate([

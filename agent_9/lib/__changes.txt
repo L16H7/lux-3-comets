@@ -1,0 +1,30 @@
+
+
+
+# TODO:
+
+Scores
+- think why sometimes I leave the fragment. Usually I lose 1 point from this
+- does not look like I occupy enemy fragments
+- do not handle a situation when unit retook my fragment
+
+Enemy interaction
+- when you shoot in the dark estimate how much energy a unit there should have
+- moving from one position to another when next to enemy occurs because I am afraid to collide with him
+- losing units because people walk into me when I am WAITING or COLLECTING FRAGMENTS (move from it)
+- think about remembering where all units were before and have some TTL. Which is depends on the energy, fragmeg
+- be more aggressive when coming to fragments
+- Maybe do not attack if energy gained is < than I lose
+
+Other
+- do not assume enemy at fragment will move. for path-finder
+- in hungarian solver, should I add units from the future
+- think to boost position of good nebula tiles next to enemy
+- if I have more points and delta increasing is the same, then just defend
+
+
+
+
+
+
+

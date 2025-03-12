@@ -345,40 +345,40 @@ class Critic(nn.Module):
         values = critic(embeddings)
         return values
 
-def make_teacher_state():
-    checkpoint_path = '/root/19000_actor'
-    orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
-    teacher_params = orbax_checkpointer.restore(checkpoint_path)
-
+def make_actor_state(checkpoint_path: str = None) -> TrainState:
     actor = Actor()
+    actor_params = None
 
-    # DEVELOPMENT #
-    # BATCH = 1
-    # rng = jax.random.PRNGKey(42)
-    # teacher_params = actor.init(rng, {
-    #     "states": jnp.zeros((BATCH, 11, 24, 24)),
-    #     "observations": jnp.zeros((BATCH, 16, 47, 47)),
-    #     "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
-    #     "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
-    #     "positions": jnp.zeros((BATCH, 2), dtype=jnp.int32),
-    #     "team_points": jnp.zeros((BATCH,)),
-    #     "opponent_points": jnp.zeros((BATCH,)),
-    #     "unit_move_cost": jnp.zeros((BATCH,)),
-    #     "unit_sap_cost": jnp.zeros((BATCH,)),
-    #     "unit_sap_range": jnp.zeros((BATCH,)),
-    #     "unit_sensor_range": jnp.zeros((BATCH,)),
-    #     "energies": jnp.zeros((BATCH,)),
-    #     "points_gained_history": jnp.zeros((BATCH, 4)),
-    # })
-    # DEVELOPMENT #
+    if checkpoint_path is not None:
+        orbax_checkpointer = orbax.checkpoint.StandardCheckpointer()
+        actor_params = orbax_checkpointer.restore(checkpoint_path)
+    else:
+        BATCH = 1
+        rng = jax.random.PRNGKey(42)
+        actor_params = actor.init(rng, {
+            "states": jnp.zeros((BATCH, 11, 24, 24)),
+            "observations": jnp.zeros((BATCH, 16, 47, 47)),
+            "match_steps": jnp.zeros((BATCH,), dtype=jnp.float32),
+            "matches": jnp.zeros((BATCH,), dtype=jnp.float32),
+            "positions": jnp.zeros((BATCH, 2), dtype=jnp.int32),
+            "team_points": jnp.zeros((BATCH,)),
+            "opponent_points": jnp.zeros((BATCH,)),
+            "unit_move_cost": jnp.zeros((BATCH,)),
+            "unit_sap_cost": jnp.zeros((BATCH,)),
+            "unit_sap_range": jnp.zeros((BATCH,)),
+            "unit_sensor_range": jnp.zeros((BATCH,)),
+            "energies": jnp.zeros((BATCH,)),
+            "points_gained_history": jnp.zeros((BATCH, 4)),
+        })
 
     actor_tx = optax.chain(
         optax.clip_by_global_norm(0.5),
         optax.adamw(3e-5),
     ) 
-    teacher_state = TrainState.create(
+    actor_state = TrainState.create(
         apply_fn=actor.apply,
-        params=teacher_params,
+        params=actor_params,
         tx=actor_tx,
     )
-    return teacher_state
+
+    return actor_state
